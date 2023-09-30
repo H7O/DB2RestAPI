@@ -1,0 +1,35 @@
+﻿<settings>
+
+  <ConnectionStrings>
+    <default><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
+  </ConnectionStrings>
+
+  <!-- 
+  if 'true', the system will look for HTTP header 'x-api-key' for the key and try to find if it's available in config/api_keys.xml 
+  alternatively, you can skip this process if you don't need to use API keys, or you'd prefer to pass the API key to your query in sql.xml 
+  and implement your own check in SQL instead
+  -->
+  <skip_checking_api_keys>false</skip_checking_api_keys>
+  
+  <!-- the default regex that detects variable delimiters in sql queries
+  is `(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})` 
+  even if you delete the `default_variables_regex` node, 
+  the system will use the default regex above.
+  You can also change it to something else if you want to, 
+  for example, if you want to have the variable delimiters to be
+  double pipes `||`, you can use the following regex
+  `(?<open_marker>\|\|)(?<param>.*?)?(?<close_marker>\|\|)`.
+  Also, you can override the default regex for each query in sql.xml
+  by just simply adding the `variables_regex` attribute to the `query` node
+  -->
+  <default_variables_regex><![CDATA[(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})]]></default_variables_regex>
+
+  <!-- passing the value in the below `debug_mode_header_value` 
+  as a value to header `debug-mode` in your HTTP request will enable debug mode
+  allowing you to see the SQL query errors returned by the database server
+  in your HTTP response.
+  -->
+  <debug_mode_header_value>54321</debug_mode_header_value>
+
+
+</settings>

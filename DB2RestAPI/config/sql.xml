@@ -1,0 +1,162 @@
+﻿<settings>
+  <queries>
+
+    <hello_world>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </hello_world>
+
+
+    <add_contact>
+      <!-- connection_string tag is optional, 
+      the system will pickup the connection string you defined in /config/settings.xml 
+      if you haven't set one here. 
+      Also, if you're only accessing one database server, 
+      it's encouraged to set a default one in /config/settings.xml instead  
+      of defining it in each query in sql.xml
+      -->
+      <connection_string><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True]]></connection_string>
+      <mandatory_parameters>name,phone</mandatory_parameters>
+      <query>
+      <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+      
+        -- check if the contact already exists
+      
+        declare @existing_contact table 
+        (
+            id UNIQUEIDENTIFIER,
+            name nvarchar(500),
+            phone nvarchar(100)
+        );
+        insert into @existing_contact select top 1 id, name, phone from [phone_book] where name = @name and phone = @phone;
+      
+        declare @error_msg nvarchar(500);
+      
+        -- return an http 409 error (conflict error) if the contact already exists
+      
+        if ((select count(*) from [phone_book] where name = @name and phone = @phone) > 0)
+        begin 
+            set @error_msg = 'Contact with name ' + @name + ' and phone ' + @phone + ' already exists';
+            -- to return http error code `409 Conflict` throw 50409 and the app will return 409.
+            -- same for other http error codes, e.g. 404, 500, etc. Just throw 50404, 50500, etc.
+            throw 50409, @error_msg, 1;
+            return;
+        end
+      
+      -- insert new contact, and return it back to the http client
+      insert into [phone_book] (id, name, phone) 
+      output inserted.id, inserted.name, inserted.phone
+      values (newid(), @name, @phone)
+      
+
+    ]]>
+      </query>
+      
+    </add_contact>
+
+    
+
+    <update_contact>
+      <!-- connection_string tag is optional, 
+      the app will pickup the connection string you defined in 
+      /config/settings.xml if you haven't set one here. 
+      Also, if you're only accessing one database server, 
+      it's encouraged to set a default one in /config/settings.xml instead  
+      of defining it in each query in sql.xml.
+      The below connection string is added here just to show you how you can
+      override the default connection string in /config/settings.xml
+      -->
+      <connection_string><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></connection_string>
+
+      <mandatory_parameters>id,name,phone</mandatory_parameters>
+      <query>
+      <![CDATA[
+
+      -- update contact
+      declare @id UNIQUEIDENTIFIER = {{id}};
+      declare @name nvarchar(500) = {{name}};
+      declare @phone nvarchar(100) = {{phone}};
+      
+      -- check if contact exists
+      
+      declare @error_msg nvarchar(500);
+      
+      -- return an http 404 error (not found error) if the contact does not exist
+      
+      if ((select count(*) from [phone_book] where id = @id) < 1)
+      begin 
+          set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
+          -- to return http error code `404 Not found` throw 50404 and the app will return 404.
+          throw 50404, @error_msg, 1;
+          return;
+      end
+      
+      -- update the contact, and return it back to the http client
+
+      update [phone_book] set name = @name, phone = @phone where id = @id;
+      select id, name, phone from [phone_book] where id = @id;
+      ]]>
+      </query>
+    </update_contact>
+
+
+    <get_contacts>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        
+        select * from [phone_book] 
+        where 
+        (@name is null or name like '%' +  @name + '%')
+        and
+        (@phone is null or phone like '%' + @phone + '%');
+        
+        ]]>
+      </query>
+    </get_contacts>
+
+    <generate_error>
+      <query>
+        <![CDATA[
+          -- deliberately generate an error
+          declare @error_msg nvarchar(500);
+          set @error_msg = 'This is a generated error';
+          throw 60000, @error_msg, 1;
+        ]]>
+      </query>
+    </generate_error>
+
+    <!-- this is to showcase how you can override the default 
+    variable delimiters regex for each query
+    -->
+    <hello_world_using_pipes_as_var_delimiters>
+      <variables_regex><![CDATA[(?<open_marker>\|\|)(?<param>.*?)?(?<close_marker>\|\|)]]></variables_regex>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = ||name||;
+        
+        if (@name is null or @name = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </hello_world_using_pipes_as_var_delimiters>
+
+
+  </queries>
+  
+</settings>
