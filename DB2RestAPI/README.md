@@ -68,7 +68,7 @@ select 'hello ' + @name + '!' as message_from_db;
 Now, let's try to create a new record in the `phone_book` table. 
 1. To do that, change the request URL to `http://localhost:<your_custom_port>/add_contact` and change the request method to `POST`.
 1. Fill `Content-Type` header with `application/json`.
-1. Fill the request body with the following JSON:
+1. Fill the request body with the following JSON: 
 ```json
 {
 	"name": "John",
