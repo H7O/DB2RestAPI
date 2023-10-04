@@ -30,6 +30,8 @@
   in your HTTP response.
   -->
   <debug_mode_header_value>54321</debug_mode_header_value>
+  
+  <default_generic_error_message><![CDATA[An error occurred while processing your request.]]></default_generic_error_message>
 
 
 </settings>

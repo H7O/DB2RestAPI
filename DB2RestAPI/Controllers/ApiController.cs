@@ -167,7 +167,14 @@ namespace DB2RestAPI.Controllers
                 //    return BadRequest(new { success = false, message = ex.Message, stack_trace = ex.StackTrace });
                 //}
 
-                return BadRequest(new { success = false, message = "Error retrieving data. Kindly contact support." });
+                // get `default_generic_error_message` from config file
+                // if it is not defined, use a default value `An error occurred while processing your request.`
+                
+                var defaultGenericErrorMessage = this._configuration.GetSection("default_generic_error_message")?.Value;
+                if (string.IsNullOrWhiteSpace(defaultGenericErrorMessage))
+                    defaultGenericErrorMessage = "An error occurred while processing your request.";
+
+                return BadRequest(new { success = false, message = defaultGenericErrorMessage });
             }
 
         }
