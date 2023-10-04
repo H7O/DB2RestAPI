@@ -198,9 +198,11 @@ Now, let's try to retrieve records from the `phone_book` table.
 	"name": "j"
 }
 ```
-> **Note**: The `name` property is a search parameter. The API will return all records that contain the `name` value in the `name` column. The search is case-insensitive.
-> You can also use the `phone` property as a search parameter. The API will return all records that contain the `phone` value in the `phone` column. The search is case-insensitive.
-> You can also use both `name` and `phone` properties as search parameters. The API will return all records that contain the `name` value in the `name` column and the `phone` value in the `phone` column. The search is case-insensitive.
+The `name` property is a search parameter. The API will return all records that contain the `name` value in the `name` column. The search is case-insensitive.
+
+You can also use the `phone` property as a search parameter. The API will return all records that contain the `phone` value in the `phone` column. The search is case-insensitive.
+
+You can also use both `name` and `phone` properties as search parameters. The API will return all records that contain the `name` value in the `name` column and the `phone` value in the `phone` column. The search is case-insensitive.
 
 Check the `/config/sql.xml` file for the `get_contact` query to see how the search parameters are used in the query.
 
