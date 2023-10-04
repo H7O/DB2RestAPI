@@ -69,7 +69,7 @@ select 'hello ' + @name + '!' as message_from_db;
 ### Example 1 - Adding a phone book record
 
 Now, let's try to create a new record in the `phone_book` table. 
-1. To do that, change the request URL to `http://localhost:<your_custom_port>/add_contact` and change the request method to `POST`.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/add_contact` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
@@ -159,7 +159,7 @@ The default error message content can be changed in the `/config/settings.xml` f
 ### Example 2 - Updating a phone book record
 
 Now, let's try to update a record in the `phone_book` table.
-1. To do that, change the request URL to `http://localhost:<your_custom_port>/update_contact` and change the request method to `POST`.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/update_contact` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
@@ -180,16 +180,45 @@ Now, let's try to update a record in the `phone_book` table.
 ]
 ```
 The response above shows the updated record.
-5. To see how the API works, change the `name` property in the request body and send the request again. You should see a different response from the database.
+
+5. To see how the API works, change the `name` and/or `phone` properties in the request body and send the request again. You should see a different response from the database.
 6. Try updating the same record multiple times.
-8. Try also updating a record that doesn't exist.
+7. Try also updating a record that doesn't exist.
 You should get an error message from the database saying that the record doesn't exist.
 The error will be returned to the client as HTTP error code 404 (not found error).
 
-### Example 3 - Deleting a phone book record
+### Example 3 - Retrieving phone book records
+
+Now, let's try to retrieve records from the `phone_book` table.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contact` and change the request method to `POST`.
+2. Fill `Content-Type` header with `application/json`.
+3. Fill the request body with the following JSON: 
+```json
+{
+	"name": "j"
+}
+```
+> **Note**: The `name` property is a search parameter. The API will return all records that contain the `name` value in the `name` column. The search is case-insensitive.
+> You can also use the `phone` property as a search parameter. The API will return all records that contain the `phone` value in the `phone` column. The search is case-insensitive.
+> You can also use both `name` and `phone` properties as search parameters. The API will return all records that contain the `name` value in the `name` column and the `phone` value in the `phone` column. The search is case-insensitive.
+
+Check the `/config/sql.xml` file for the `get_contact` query to see how the search parameters are used in the query.
+
+4. Try passing `take` and `skip` parameters in the request body to limit the number of records returned and to skip a number of records.
+```json
+{
+	"name": "j",
+	"take": 10,
+	"skip": 0
+}
+```
+
+This helps in implementing pagination in your API. Check the `/config/sql.xml` file for the `get_contact` query to see how the `take` and `skip` parameters are used in the query.
+
+### Example 4 - Deleting a phone book record
 
 Now, let's try to delete a record in the `phone_book` table.
-1. To do that, change the request URL to `http://localhost:<your_custom_port>/delete_contact` and change the request method to `POST`.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/delete_contact` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
