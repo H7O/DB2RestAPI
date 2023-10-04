@@ -148,8 +148,19 @@ namespace DB2RestAPI.Controllers
                                        && debugModeHeaderValue == this._configuration.GetSection("debug_mode_header_value")?.Value
                                        && debugModeHeaderValue != Microsoft.Extensions.Primitives.StringValues.Empty
                                        )
-                    return BadRequest(new { success = false, message = ex.Message, stack_trace = ex.StackTrace });
-                
+                {
+
+                    var errorMsg = $"====== exception ======{Environment.NewLine}"
+                        + $"{ex.Message}{Environment.NewLine}{Environment.NewLine}"
+                        + $"====== stack trace ====={Environment.NewLine}"
+                        + $"{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}";
+
+                    this.Response.ContentType = "text/plain";
+                    this.Response.StatusCode = 500;
+                    await this.Response.WriteAsync(errorMsg);
+                    await this.Response.CompleteAsync();
+
+                }
                 //if (bool.TryParse(this._configuration.GetSection("debug_mode")?.Value, out bool debugMode)
                 //                       && debugMode)
                 //{
