@@ -228,6 +228,8 @@ Now, let's try to delete a record in the `phone_book` table.
 	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0"
 }
 ```
+> **Note**: The above is an example `id` value. You can use any `id` value that you get from the API when you add a new record or retrieve records.
+
 4. Send the request and you should see the following JDON respons: 
 ```json
 [
@@ -238,8 +240,10 @@ Now, let's try to delete a record in the `phone_book` table.
 	}
 ]
 ```
+> **Note**: The above is an example response. You'll get the same response when you update a record but with different values. The response is just to show you the record that was deleted.
+
+If the record doesn't exist, you'll get an error message from the database saying that the record doesn't exist.
+The error will be returned to the client as HTTP error code 404 (not found error).
 
 
-
-
-** documentation in progress - more examples to be added soon **
+**documentation in progress - more examples to be added soon**
