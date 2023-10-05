@@ -61,7 +61,7 @@ end
 select 'hello ' + @name + '!' as message_from_db;
 ```
 > **Note**: Passing parameters is safe and secure. The solution is designed to protect against SQL injection attacks by default via utilizing SQL Server's built-in parameterization feature. 
-> The SQL parameterization feature is offered by [Com.H.Data.Common on NuGet](https://github.com/H7O/Com.H.Data.Common) / [Com.H.Data.Common on GitHub](https://www.nuget.org/packages/Com.H.Data.Common/).
+> The SQL parameterization feature is offered by `Com.H.Data.Common` package (available on [Github](https://github.com/H7O/Com.H.Data.Common) / [Nuget](https://www.nuget.org/packages/Com.H.Data.Common/).
 
 
 ## Phonebook API examples
