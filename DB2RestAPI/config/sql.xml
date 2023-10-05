@@ -153,6 +153,56 @@
     </get_contacts>
 
 
+    <get_contacts_with_count>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        declare @take int = {{take}};
+        declare @skip int = {{skip}};
+        -- default take to 100 if not specified
+        if (@take is null or @take < 1)
+        begin
+            set @take = 100;
+        end
+        -- make sure max take doesn't exceed 1000
+        if (@take > 1000)
+        begin
+            set @take = 1000;
+        end
+        -- default skip to 0 if not specified
+        if (@skip is null or @skip < 0)
+        begin
+            set @skip = 0;
+        end
+        
+      select * from [phone_book] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%')
+        order by [name]
+        offset @skip rows
+        fetch next @take rows only;        
+        
+        ]]>
+      </query>
+      <count_query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        select count(*) from [phone_book] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%');
+        
+        ]]>
+      </count_query>
+
+    </get_contacts_with_count>
+
+
+
+
     <delete_contact>
       <mandatory_parameters>id</mandatory_parameters>
       <query>

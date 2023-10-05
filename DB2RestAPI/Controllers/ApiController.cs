@@ -6,7 +6,7 @@ using System.Security.Cryptography.Xml;
 using System.Text.Json;
 using Com.H.Collections.Generic;
 using static System.Net.Mime.MediaTypeNames;
-
+using System.Dynamic;
 
 namespace DB2RestAPI.Controllers
 {
@@ -107,12 +107,28 @@ namespace DB2RestAPI.Controllers
 
             #endregion
 
-
+            // check if count query is defined
+            var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
             try
             {
-                return Ok(this._connection
-                    .ExecuteQuery(query, qParams)
-                    .ToChamberedEnumerable());
+                if (string.IsNullOrWhiteSpace(countQuery))
+                    return Ok(this._connection
+                        .ExecuteQuery(query, qParams)
+                        .ToChamberedEnumerable());
+                else
+                {
+                    return Ok(
+                        new
+                        {
+                            success = true,
+                            count = ((ExpandoObject?)this._connection
+                            .ExecuteQuery(countQuery, qParams)
+                            .ToList()?.FirstOrDefault())?.FirstOrDefault().Value,
+                            data = this._connection
+                                .ExecuteQuery(query, qParams)
+                                .ToChamberedEnumerable()
+                        });
+                }
             }
             catch (Exception ex)
             {
