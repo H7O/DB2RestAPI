@@ -190,7 +190,7 @@ The error will be returned to the client as HTTP error code 404 (not found error
 ### Example 3 - Retrieving phone book records
 
 Now, let's try to retrieve records from the `phone_book` table.
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contact` and change the request method to `POST`.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contacts` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
@@ -215,9 +215,115 @@ Check the `/config/sql.xml` file for the `get_contact` query to see how the sear
 }
 ```
 
-This helps in implementing pagination in your API. Check the `/config/sql.xml` file for the `get_contact` query to see how the `take` and `skip` parameters are used in the query.
+This helps in implementing pagination in your API. Check the `/config/sql.xml` file for the `get_contacts` query to see how the `take` and `skip` parameters are used in the query.
 
-### Example 4 - Deleting a phone book record
+Also, to implement predictable pagination, check out the next example that demonstrates how to retrive records along with the total number of the returned records.
+
+### Example 4 - Retrieving phone book records along with the total number of records
+
+Now, let's try to retrieve records from the `phone_book` table along with the total number of records.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contacts_with_count` and change the request method to `POST`.
+1. Fill `Content-Type` header with `application/json`.
+1. Fill the request body with the following JSON: 
+```json
+{
+	"name": "j",
+	"take": 3,
+	"skip": 0
+}
+```
+The `name` property is a search parameter. The API will return all records that contain the `name` value in the `name` column. The search is case-insensitive.
+
+The difference this time compared to the previous example is that the API will return the total number of records that match the search criteria along with the records.
+
+The total number of records is returned in the `count` property in the response.
+
+The records are returned in the `data` property in the response.
+
+```json
+{
+	"count": 20,
+	"data": [
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+			"name": "John Update 1",
+			"phone": "1234567890"
+		},
+        {
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b1",
+			"name": "John Update 2",
+			"phone": "1234567890"
+		},
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b2",
+			"name": "John Update 3",
+			"phone": "1234567890"
+		}
+	]
+}
+```
+
+The above response shows the first 3 records that match the search criteria along with the total number of records that match the search criteria.
+
+To paginate through the records, you can change the `skip` parameter in the request body to skip a number of records.
+
+Check the `/config/sql.xml` file for the `get_contact_with_count` node to see how the search parameters are used in the query.
+
+```xml
+    <get_contacts_with_count>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        declare @take int = {{take}};
+        declare @skip int = {{skip}};
+        -- default take to 100 if not specified
+        if (@take is null or @take < 1)
+        begin
+            set @take = 100;
+        end
+        -- make sure max take doesn't exceed 1000
+        if (@take > 1000)
+        begin
+            set @take = 1000;
+        end
+        -- default skip to 0 if not specified
+        if (@skip is null or @skip < 0)
+        begin
+            set @skip = 0;
+        end
+        
+      select * from [phone_book] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%')
+        order by [name]
+        offset @skip rows
+        fetch next @take rows only;        
+        
+        ]]>
+      </query>
+      <count_query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        select count(*) from [phone_book] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%');
+        
+        ]]>
+      </count_query>
+
+    </get_contacts_with_count>
+```
+
+Notice how in the above query, the `take` and `skip` parameters are used to implement pagination.
+
+Also, notice how the `count_query` node is used to return the total number of records that match the search criteria whereas the `query` node is used to return the actual records.
+
+
+### Example 5 - Deleting a phone book record
 
 Now, let's try to delete a record in the `phone_book` table.
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/delete_contact` and change the request method to `POST`.
