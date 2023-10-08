@@ -69,37 +69,41 @@ namespace DB2RestAPI.Controllers
 
             #region check local API keys
 
-            var apiKeysSection = serviceQuerySection.GetSection("api_keys:key");
-
-            if (apiKeysSection != null 
-                && apiKeysSection.Exists()
-                && !(this.Request?.Path.Value?.StartsWith("/swagger") == true)
-                ) 
+            if (bool.TryParse(_configuration.GetSection("enable_global_api_keys")?.Value, out bool globalAPICheckEnabled)
+                && !globalAPICheckEnabled)
             {
-                var apiKeys = apiKeysSection.GetChildren().Select(x => x.Value).ToArray();
+                var apiKeysSection = serviceQuerySection.GetSection("api_keys:key");
 
-                if (apiKeys.Length > 0)
+                if (apiKeysSection != null
+                    && apiKeysSection.Exists()
+                    // && !(this.Request?.Path.Value?.StartsWith("/swagger") == true)
+                    )
                 {
-                    if (this.Request == null
-                        ||
-                        !this.Request.Headers.TryGetValue("x-api-key", out
-                        var extractedApiKey))
-                    {
-                        return new ObjectResult(new { success = false, message = "Api key was not provided" })
-                        {
-                            StatusCode = 401
-                        };
-                    }
+                    var apiKeys = apiKeysSection.GetChildren().Select(x => x.Value).ToArray();
 
-                    if (!apiKeys.Any(x => x?.Equals(extractedApiKey.ToString()) == true))
+                    if (apiKeys.Length > 0)
                     {
-                        this.Response.StatusCode = 401;
-                        this.Response.ContentType = "application/json";
-                        await this.Response.WriteAsync(@"{""success"":false, ""message"":""Unauthorized client""}");
-                        return new ObjectResult(new { success = false, message = "Unauthorized client" })
+                        if (this.Request == null
+                            ||
+                            !this.Request.Headers.TryGetValue("x-api-key", out
+                            var extractedApiKey))
                         {
-                            StatusCode = 401
-                        };
+                            return new ObjectResult(new { success = false, message = "API key was not provided" })
+                            {
+                                StatusCode = 401
+                            };
+                        }
+
+                        if (!apiKeys.Any(x => x?.Equals(extractedApiKey.ToString()) == true))
+                        {
+                            //this.Response.StatusCode = 401;
+                            //this.Response.ContentType = "application/json";
+                            //await this.Response.WriteAsync(@"{""success"":false, ""message"":""Unauthorized client""}");
+                            return new ObjectResult(new { success = false, message = "Unauthorized client" })
+                            {
+                                StatusCode = 401
+                            };
+                        }
                     }
                 }
             }
