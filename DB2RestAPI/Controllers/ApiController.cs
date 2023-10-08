@@ -27,6 +27,8 @@ namespace DB2RestAPI.Controllers
         [Route("{api}")]
         public async Task<ActionResult> Index(string api, [FromBody] JsonElement payload)
         {
+
+
             #region check api endpoint name and payload
             if (string.IsNullOrWhiteSpace(api))
                 return BadRequest(new { success = false, message = "No API Endpoint specified" });
@@ -64,6 +66,45 @@ namespace DB2RestAPI.Controllers
                 return BadRequest(new { success = false, message = $"Service `{api}` not yet implemented" });
 
             #endregion
+
+            #region check local API keys
+
+            var apiKeysSection = serviceQuerySection.GetSection("api_keys:key");
+
+            if (apiKeysSection != null 
+                && apiKeysSection.Exists()
+                && !(this.Request?.Path.Value?.StartsWith("/swagger") == true)
+                ) 
+            {
+                var apiKeys = apiKeysSection.GetChildren().Select(x => x.Value).ToArray();
+
+                if (apiKeys.Length > 0)
+                {
+                    if (this.Request == null
+                        ||
+                        !this.Request.Headers.TryGetValue("x-api-key", out
+                        var extractedApiKey))
+                    {
+                        return new ObjectResult(new { success = false, message = "Api key was not provided" })
+                        {
+                            StatusCode = 401
+                        };
+                    }
+
+                    if (!apiKeys.Any(x => x?.Equals(extractedApiKey.ToString()) == true))
+                    {
+                        this.Response.StatusCode = 401;
+                        this.Response.ContentType = "application/json";
+                        await this.Response.WriteAsync(@"{""success"":false, ""message"":""Unauthorized client""}");
+                        return new ObjectResult(new { success = false, message = "Unauthorized client" })
+                        {
+                            StatusCode = 401
+                        };
+                    }
+                }
+            }
+            #endregion
+
 
             #region check mandatory parameters
             var mandatoryParameters = serviceQuerySection

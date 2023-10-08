@@ -9,7 +9,7 @@
   alternatively, you can skip this process if you don't need to use API keys, or you'd prefer to pass the API key to your query in sql.xml 
   and implement your own check in SQL instead
   -->
-  <skip_checking_api_keys>true</skip_checking_api_keys>
+  <enable_global_api_keys>false</enable_global_api_keys>
   
   <!-- the default regex that detects variable delimiters in sql queries
   is `(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})` 

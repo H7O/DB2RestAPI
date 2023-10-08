@@ -238,6 +238,26 @@
       </query>
     </generate_error>
 
+
+    <protected_hello_world>
+      <api_keys>
+        <key>api key 1</key>
+        <key>api key 2</key>
+      </api_keys>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </protected_hello_world>
+
+
     <!-- this is to showcase how you can override the default 
     variable delimiters regex for each query
     -->

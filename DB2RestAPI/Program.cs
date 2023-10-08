@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
     .AddXmlFile("config/settings.xml", optional: false, reloadOnChange: true)
     .AddXmlFile("config/sql.xml", optional: false, reloadOnChange: true)
-    .AddXmlFile("config/api_keys.xml", optional: false, reloadOnChange: true);
+    .AddXmlFile("config/global_api_keys.xml", optional: false, reloadOnChange: true);
 
 
 // Add services to the container.
