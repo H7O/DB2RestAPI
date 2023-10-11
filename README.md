@@ -10,16 +10,16 @@ However, for public APIs or B2B APIs with API keys, you can use this solution as
 
 ## How to use
 
-1. Create a sample database and name it `test`, then run the SQL script below to create a sample `phone_book` table within the `test` database that you just created.
+1. Create a sample database and name it `test`, then run the SQL script below to create a sample `phonebook` table within the `test` database that you just created.
 
 > **Note**: Download and install either SQL Server Developer Edition or SQL Server Express if you don't have SQL Server installed on your machine
 
 ```sql
-CREATE TABLE [dbo].[phone_book] (
-    [id]    UNIQUEIDENTIFIER CONSTRAINT [DEFAULT_phone_book_id] DEFAULT (newid()) NOT NULL,
+CREATE TABLE [dbo].[phonebook] (
+    [id]    UNIQUEIDENTIFIER CONSTRAINT [DEFAULT_phonebook_id] DEFAULT (newid()) NOT NULL,
     [name]  NVARCHAR (500)   NULL,
     [phone] NVARCHAR (100)   NULL,
-    CONSTRAINT [PK_phone_book] PRIMARY KEY CLUSTERED ([id] ASC)
+    CONSTRAINT [PK_phonebook] PRIMARY KEY CLUSTERED ([id] ASC)
 );
 ```
 
@@ -66,9 +66,9 @@ select 'hello ' + @name + '!' as message_from_db;
 
 ## Phonebook API examples
 
-### Example 1 - Adding a phone book record
+### Example 1 - Adding a phonebook record
 
-Now, let's try to create a new record in the `phone_book` table. 
+Now, let's try to create a new record in the `phonebook` table. 
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/add_contact` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
@@ -118,13 +118,13 @@ The following XML tag in `/config/sql.xml` for `add_contact` illustrates how to 
             name nvarchar(500),
             phone nvarchar(100)
         );
-        insert into @existing_contact select top 1 id, name, phone from [phone_book] where name = @name and phone = @phone;
+        insert into @existing_contact select top 1 id, name, phone from [phonebook] where name = @name and phone = @phone;
       
         declare @error_msg nvarchar(500);
       
         -- return an http 409 error (conflict error) if the contact already exists
       
-        if ((select count(*) from [phone_book] where name = @name and phone = @phone) > 0)
+        if ((select count(*) from [phonebook] where name = @name and phone = @phone) > 0)
         begin 
             set @error_msg = 'Contact with name ' + @name + ' and phone ' + @phone + ' already exists';
             -- to return http error code `409 Conflict` throw 50409 and the app will return 409.
@@ -134,7 +134,7 @@ The following XML tag in `/config/sql.xml` for `add_contact` illustrates how to 
         end
       
       -- insert new contact, and return it back to the http client
-      insert into [phone_book] (id, name, phone) 
+      insert into [phonebook] (id, name, phone) 
       output inserted.id, inserted.name, inserted.phone
       values (newid(), @name, @phone)
       
@@ -156,9 +156,9 @@ This is a safety measure to prevent exposing any sensitive information from the 
 
 The default error message content can be changed in the `/config/settings.xml` file by changing the `default_generic_error_message` node.
 
-### Example 2 - Updating a phone book record
+### Example 2 - Updating a phonebook record
 
-Now, let's try to update a record in the `phone_book` table.
+Now, let's try to update a record in the `phonebook` table.
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/update_contact` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
@@ -187,9 +187,9 @@ The response above shows the updated record.
 You should get an error message from the database saying that the record doesn't exist.
 The error will be returned to the client as HTTP error code 404 (not found error).
 
-### Example 3 - Retrieving phone book records
+### Example 3 - Retrieving phonebook records
 
-Now, let's try to retrieve records from the `phone_book` table.
+Now, let's try to retrieve records from the `phonebook` table.
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contacts` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
@@ -219,9 +219,9 @@ This helps in implementing pagination in your API. Check the `/config/sql.xml` f
 
 Also, to implement predictable pagination, check out the next example that demonstrates how to retrive records along with the total number of the returned records.
 
-### Example 4 - Retrieving phone book records along with the total number of records
+### Example 4 - Retrieving phonebook records along with the total number of records
 
-Now, let's try to retrieve records from the `phone_book` table along with the total number of records.
+Now, let's try to retrieve records from the `phonebook` table along with the total number of records.
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contacts_with_count` and change the request method to `POST`.
 1. Fill `Content-Type` header with `application/json`.
 1. Fill the request body with the following JSON: 
@@ -293,7 +293,7 @@ Check the `/config/sql.xml` file for the `get_contact_with_count` node to see ho
             set @skip = 0;
         end
         
-      select * from [phone_book] 
+      select * from [phonebook] 
         where 
           (@name is null or [name] like '%' +  @name + '%')
           or (@phone is null or [phone] like '%' +  @phone + '%')
@@ -307,7 +307,7 @@ Check the `/config/sql.xml` file for the `get_contact_with_count` node to see ho
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
-        select count(*) from [phone_book] 
+        select count(*) from [phonebook] 
         where 
           (@name is null or [name] like '%' +  @name + '%')
           or (@phone is null or [phone] like '%' +  @phone + '%');
@@ -323,9 +323,9 @@ Notice how in the above query, the `take` and `skip` parameters are used to impl
 Also, notice how the `count_query` node is used to return the total number of records that match the search criteria whereas the `query` node is used to return the actual records.
 
 
-### Example 5 - Deleting a phone book record
+### Example 5 - Deleting a phonebook record
 
-Now, let's try to delete a record in the `phone_book` table.
+Now, let's try to delete a record in the `phonebook` table.
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/delete_contact` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
