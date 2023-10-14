@@ -277,6 +277,22 @@
     </hello_world_using_pipes_as_var_delimiters>
 
 
+    <hello_world_with_headers>
+      <cache>
+        
+      </cache>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {header{some-http-header}};
+        
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </hello_world_with_headers>
 
 
   </queries>

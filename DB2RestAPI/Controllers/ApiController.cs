@@ -7,6 +7,7 @@ using System.Text.Json;
 using Com.H.Collections.Generic;
 using static System.Net.Mime.MediaTypeNames;
 using System.Dynamic;
+using Microsoft.IdentityModel.Tokens;
 
 namespace DB2RestAPI.Controllers
 {
@@ -24,26 +25,37 @@ namespace DB2RestAPI.Controllers
         [Produces("application/json")]
         [HttpGet]
         [HttpPost]
-        [Route("{api}")]
-        public async Task<ActionResult> Index(string api, [FromBody] JsonElement payload)
+        [HttpDelete]
+        [HttpPut]
+        [Route("{*route}")]
+        public async Task<ActionResult> Index(
+            [FromBody] JsonElement payload)
         {
+            #region extract route data from the request
+            // get route data from the request and extract the api endpoint name
+            // from multiple segments separated by `/`
+            // then replace `$2F` with `/` in the endpoint name
+            var route = this.RouteData.Values["route"]?
+                .ToString()?
+                .Replace("$2F", "/");
+            #endregion
 
 
             #region check api endpoint name and payload
-            if (string.IsNullOrWhiteSpace(api))
+            if (string.IsNullOrWhiteSpace(route))
                 return BadRequest(new { success = false, message = "No API Endpoint specified" });
-            if (api.Length > 200)
+            if (route.Length > 500)
                 return ValidationProblem(new ValidationProblemDetails
                 {
-                    Detail = "Endpoint name is too long",
+                    Detail = "Endpoint route is too long",
                     Status = StatusCodes.Status400BadRequest,
-                    Title = "Endpoint name is too long",
+                    Title = "Endpoint route is too long",
                 });
 
 
             #endregion
 
-            #region check if endpoint is allowed
+            #region check if endpoint is defined in sql.xml config file
 
             if (this._configuration == null)
                 return BadRequest(new { success = false, message = "Configuration is null" });
@@ -53,17 +65,17 @@ namespace DB2RestAPI.Controllers
             if (queries == null || !queries.Exists())
                 return BadRequest(new { success = false, message = "No API Endpoints defined" });
 
-            var serviceQuerySection = queries.GetSection(api);
+            var serviceQuerySection = queries.GetSection(route);
 
             if (serviceQuerySection == null || !serviceQuerySection.Exists())
-                return NotFound(new { success = false, message = $"API Endpoint `{api}` not found" });
+                return NotFound(new { success = false, message = $"API Endpoint `{route}` not found" });
 
             var serviceQuery = serviceQuerySection.GetSection("query");
 
             var query = serviceQuery?.Value;
 
             if (string.IsNullOrWhiteSpace(query))
-                return BadRequest(new { success = false, message = $"Service `{api}` not yet implemented" });
+                return BadRequest(new { success = false, message = $"Service `{route}` not yet implemented" });
 
             #endregion
 
@@ -149,6 +161,24 @@ namespace DB2RestAPI.Controllers
                     DataModel = payload,
                     QueryParamsRegex = customVarRegex
                 });
+
+            // add headers to qParams
+            var headers = this.Request.Headers;
+            if (headers != null && headers.Count > 0)
+            {
+                foreach (var header in headers)
+                {
+                    qParams.Add(new QueryParams()
+                    {
+                        DataModel = new Dictionary<string, object>()
+                        {
+                            { header.Key, string.Join("|", header.Value.Where(x=>!string.IsNullOrEmpty(x))) }
+                        },
+                        QueryParamsRegex = @"(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})"
+                    });
+                }
+            }
+
 
             #endregion
 
