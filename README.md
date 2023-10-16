@@ -1,12 +1,12 @@
-# Database-to-Rest API
+# Automatic Database-to-REST API converter and publisher
 
-This is a sample solution that shows how to create a REST API from a database with DB-first approach.
+A no-code solution that automatically converts your SQL queries to RESTful APIs without API coding knowledge.
 
-All you need to have is knowledge in writing SQL queries and you'll hopefully be on your way building safe and secure REST APIs in minutes.
+All you need to have is knowledge in writing basic SQL queries and you'll hopefully be on your way building safe and secure REST APIs in minutes.
 
-You can expand on this solution to add more features like authentication, authorization, logging, etc..
+And although not required, but if you happen to be a .NET developer, you can expand on this solution to add more features / customizations of your liking.
 
-However, for public APIs or B2B APIs with API keys, you can use this solution as is. You'll be surprised how easy it is to build a REST API from a database using this approach.
+However, for public APIs or B2B APIs with API keys, you can use this solution as is. You'll be surprised how easy it is to build a REST API from a database using the DB-First approach offered by this solution.
 
 ## How to use
 
