@@ -39,7 +39,7 @@ CREATE TABLE [dbo].[phonebook] (
 	"name": "John",
 }
 ```
-12. Send the request and you should see the following JDON respons: 
+12. Send the request and you should see the following JSON respons: 
 ```json
 
 [
@@ -78,7 +78,7 @@ Now, let's try to create a new record in the `phonebook` table.
 	"phone": "1234567890"
 }
 ```
-4. Send the request and you should see the following JDON respons: 
+4. Send the request and you should see the following JSON respons: 
 ```json
 [
 	{
@@ -169,7 +169,7 @@ Now, let's try to update a record in the `phonebook` table.
 	"phone": "1234567890"
 }
 ```
-4. Send the request and you should see the following JDON respons: 
+4. Send the request and you should see the following JSON respons: 
 ```json
 [
 	{
@@ -336,7 +336,7 @@ Now, let's try to delete a record in the `phonebook` table.
 ```
 > **Note**: The above is an example `id` value. You can use any `id` value that you get from the API when you add a new record or retrieve records.
 
-4. Send the request and you should see the following JDON respons: 
+4. Send the request and you should see the following JSON respons: 
 ```json
 [
 	{
