@@ -6,7 +6,8 @@ using System.Security.Cryptography.Xml;
 using System.Text.Json;
 using Com.H.Collections.Generic;
 using static System.Net.Mime.MediaTypeNames;
-
+using System.Dynamic;
+using Microsoft.IdentityModel.Tokens;
 
 namespace DB2RestAPI.Controllers
 {
@@ -24,24 +25,37 @@ namespace DB2RestAPI.Controllers
         [Produces("application/json")]
         [HttpGet]
         [HttpPost]
-        [Route("{api}")]
-        public async Task<ActionResult> Index(string api, [FromBody] JsonElement payload)
+        [HttpDelete]
+        [HttpPut]
+        [Route("{*route}")]
+        public async Task<ActionResult> Index(
+            [FromBody] JsonElement payload)
         {
+            #region extract route data from the request
+            // get route data from the request and extract the api endpoint name
+            // from multiple segments separated by `/`
+            // then replace `$2F` with `/` in the endpoint name
+            var route = this.RouteData.Values["route"]?
+                .ToString()?
+                .Replace("$2F", "/");
+            #endregion
+
+
             #region check api endpoint name and payload
-            if (string.IsNullOrWhiteSpace(api))
+            if (string.IsNullOrWhiteSpace(route))
                 return BadRequest(new { success = false, message = "No API Endpoint specified" });
-            if (api.Length > 200)
+            if (route.Length > 500)
                 return ValidationProblem(new ValidationProblemDetails
                 {
-                    Detail = "Endpoint name is too long",
+                    Detail = "Endpoint route is too long",
                     Status = StatusCodes.Status400BadRequest,
-                    Title = "Endpoint name is too long",
+                    Title = "Endpoint route is too long",
                 });
 
 
             #endregion
 
-            #region check if endpoint is allowed
+            #region check if endpoint is defined in sql.xml config file
 
             if (this._configuration == null)
                 return BadRequest(new { success = false, message = "Configuration is null" });
@@ -51,19 +65,62 @@ namespace DB2RestAPI.Controllers
             if (queries == null || !queries.Exists())
                 return BadRequest(new { success = false, message = "No API Endpoints defined" });
 
-            var serviceQuerySection = queries.GetSection(api);
+            var serviceQuerySection = queries.GetSection(route);
 
             if (serviceQuerySection == null || !serviceQuerySection.Exists())
-                return NotFound(new { success = false, message = $"API Endpoint `{api}` not found" });
+                return NotFound(new { success = false, message = $"API Endpoint `{route}` not found" });
 
             var serviceQuery = serviceQuerySection.GetSection("query");
 
             var query = serviceQuery?.Value;
 
             if (string.IsNullOrWhiteSpace(query))
-                return BadRequest(new { success = false, message = $"Service `{api}` not yet implemented" });
+                return BadRequest(new { success = false, message = $"Service `{route}` not yet implemented" });
 
             #endregion
+
+            #region check local API keys
+
+            if (bool.TryParse(_configuration.GetSection("enable_global_api_keys")?.Value, out bool globalAPICheckEnabled)
+                && !globalAPICheckEnabled)
+            {
+                var apiKeysSection = serviceQuerySection.GetSection("api_keys:key");
+
+                if (apiKeysSection != null
+                    && apiKeysSection.Exists()
+                    // && !(this.Request?.Path.Value?.StartsWith("/swagger") == true)
+                    )
+                {
+                    var apiKeys = apiKeysSection.GetChildren().Select(x => x.Value).ToArray();
+
+                    if (apiKeys.Length > 0)
+                    {
+                        if (this.Request == null
+                            ||
+                            !this.Request.Headers.TryGetValue("x-api-key", out
+                            var extractedApiKey))
+                        {
+                            return new ObjectResult(new { success = false, message = "API key was not provided" })
+                            {
+                                StatusCode = 401
+                            };
+                        }
+
+                        if (!apiKeys.Any(x => x?.Equals(extractedApiKey.ToString()) == true))
+                        {
+                            //this.Response.StatusCode = 401;
+                            //this.Response.ContentType = "application/json";
+                            //await this.Response.WriteAsync(@"{""success"":false, ""message"":""Unauthorized client""}");
+                            return new ObjectResult(new { success = false, message = "Unauthorized client" })
+                            {
+                                StatusCode = 401
+                            };
+                        }
+                    }
+                }
+            }
+            #endregion
+
 
             #region check mandatory parameters
             var mandatoryParameters = serviceQuerySection
@@ -105,14 +162,48 @@ namespace DB2RestAPI.Controllers
                     QueryParamsRegex = customVarRegex
                 });
 
+            // add headers to qParams
+            var headers = this.Request.Headers;
+            if (headers != null && headers.Count > 0)
+            {
+                foreach (var header in headers)
+                {
+                    qParams.Add(new QueryParams()
+                    {
+                        DataModel = new Dictionary<string, object>()
+                        {
+                            { header.Key, string.Join("|", header.Value.Where(x=>!string.IsNullOrEmpty(x))) }
+                        },
+                        QueryParamsRegex = @"(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})"
+                    });
+                }
+            }
+
+
             #endregion
 
-
+            // check if count query is defined
+            var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
             try
             {
-                return Ok(this._connection
-                    .ExecuteQuery(query, qParams)
-                    .ToChamberedEnumerable());
+                if (string.IsNullOrWhiteSpace(countQuery))
+                    return Ok(this._connection
+                        .ExecuteQuery(query, qParams)
+                        .ToChamberedEnumerable());
+                else
+                {
+                    return Ok(
+                        new
+                        {
+                            success = true,
+                            count = ((ExpandoObject?)this._connection
+                            .ExecuteQuery(countQuery, qParams)
+                            .ToList()?.FirstOrDefault())?.FirstOrDefault().Value,
+                            data = this._connection
+                                .ExecuteQuery(query, qParams)
+                                .ToChamberedEnumerable()
+                        });
+                }
             }
             catch (Exception ex)
             {
@@ -148,15 +239,33 @@ namespace DB2RestAPI.Controllers
                                        && debugModeHeaderValue == this._configuration.GetSection("debug_mode_header_value")?.Value
                                        && debugModeHeaderValue != Microsoft.Extensions.Primitives.StringValues.Empty
                                        )
-                    return BadRequest(new { success = false, message = ex.Message, stack_trace = ex.StackTrace });
-                
+                {
+
+                    var errorMsg = $"====== exception ======{Environment.NewLine}"
+                        + $"{ex.Message}{Environment.NewLine}{Environment.NewLine}"
+                        + $"====== stack trace ====={Environment.NewLine}"
+                        + $"{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}";
+
+                    this.Response.ContentType = "text/plain";
+                    this.Response.StatusCode = 500;
+                    await this.Response.WriteAsync(errorMsg);
+                    await this.Response.CompleteAsync();
+
+                }
                 //if (bool.TryParse(this._configuration.GetSection("debug_mode")?.Value, out bool debugMode)
                 //                       && debugMode)
                 //{
                 //    return BadRequest(new { success = false, message = ex.Message, stack_trace = ex.StackTrace });
                 //}
 
-                return BadRequest(new { success = false, message = "Error retrieving data. Kindly contact support." });
+                // get `default_generic_error_message` from config file
+                // if it is not defined, use a default value `An error occurred while processing your request.`
+                
+                var defaultGenericErrorMessage = this._configuration.GetSection("default_generic_error_message")?.Value;
+                if (string.IsNullOrWhiteSpace(defaultGenericErrorMessage))
+                    defaultGenericErrorMessage = "An error occurred while processing your request.";
+
+                return BadRequest(new { success = false, message = defaultGenericErrorMessage });
             }
 
         }

@@ -14,8 +14,8 @@ namespace DB2RestAPI.Middlewares
         }
         public async Task InvokeAsync(HttpContext context)
         {
-            if (bool.TryParse(_configuration.GetSection("skip_checking_api_keys")?.Value, out bool checkAPIKeys)
-                && checkAPIKeys)
+            if (bool.TryParse(_configuration.GetSection("enable_global_api_keys")?.Value, out bool checkAPIKeys)
+                && !checkAPIKeys)
             {
                 await _next(context);
                 return;

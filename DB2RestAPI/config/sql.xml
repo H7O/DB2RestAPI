@@ -17,14 +17,11 @@
 
 
     <add_contact>
-      <!-- connection_string tag is optional, 
-      the system will pickup the connection string you defined in /config/settings.xml 
-      if you haven't set one here. 
-      Also, if you're only accessing one database server, 
-      it's encouraged to set a default one in /config/settings.xml instead  
-      of defining it in each query in sql.xml
+      <!--
+      You can enforce mandatory parameters in your query by adding them in the `mandatory_parameters` node.
+      Mandatory parameters are parameters that must be passed in the HTTP request.
+      If any of the mandatory parameters are missing, the app will return an HTTP 400 error (bad request error).
       -->
-      <connection_string><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True]]></connection_string>
       <mandatory_parameters>name,phone</mandatory_parameters>
       <query>
       <![CDATA[
@@ -104,8 +101,17 @@
       
       -- update the contact, and return it back to the http client
 
-      update [phone_book] set name = @name, phone = @phone where id = @id;
-      select id, name, phone from [phone_book] where id = @id;
+      update [phone_book] 
+      set 
+            [name] = @name, 
+            phone = @phone 
+      output 
+        inserted.id, 
+        inserted.name, 
+        inserted.phone
+      where 
+        id = @id;      
+      
       ]]>
       </query>
     </update_contact>
@@ -116,16 +122,110 @@
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
+        declare @take int = {{take}};
+        declare @skip int = {{skip}};
+        -- default take to 100 if not specified
+        if (@take is null or @take < 1)
+        begin
+            set @take = 100;
+        end
+        -- make sure max take doesn't exceed 1000
+        if (@take > 1000)
+        begin
+            set @take = 1000;
+        end
+        -- default skip to 0 if not specified
+        if (@skip is null or @skip < 0)
+        begin
+            set @skip = 0;
+        end
         
-        select * from [phone_book] 
+      select * from [phone_book] 
         where 
-        (@name is null or name like '%' +  @name + '%')
-        and
-        (@phone is null or phone like '%' + @phone + '%');
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%')
+        order by [name]
+        offset @skip rows
+        fetch next @take rows only;        
         
         ]]>
       </query>
     </get_contacts>
+
+
+    <get_contacts_with_count>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        declare @take int = {{take}};
+        declare @skip int = {{skip}};
+        -- default take to 100 if not specified
+        if (@take is null or @take < 1)
+        begin
+            set @take = 100;
+        end
+        -- make sure max take doesn't exceed 1000
+        if (@take > 1000)
+        begin
+            set @take = 1000;
+        end
+        -- default skip to 0 if not specified
+        if (@skip is null or @skip < 0)
+        begin
+            set @skip = 0;
+        end
+        
+      select * from [phone_book] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%')
+        order by [name]
+        offset @skip rows
+        fetch next @take rows only;        
+        
+        ]]>
+      </query>
+      <count_query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        select count(*) from [phone_book] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          or (@phone is null or [phone] like '%' +  @phone + '%');
+        
+        ]]>
+      </count_query>
+
+    </get_contacts_with_count>
+
+
+
+
+    <delete_contact>
+      <mandatory_parameters>id</mandatory_parameters>
+      <query>
+        <![CDATA[
+        declare @id UNIQUEIDENTIFIER = {{id}};
+        -- check if contact exists
+        declare @error_msg nvarchar(500);
+        -- return an http 404 error (not found error) if the contact does not exist
+        if ((select count(*) from [phone_book] where id = @id) < 1)
+        begin 
+            set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
+            -- to return http error code `404 Not found` throw 50404 and the app will return 404.
+            throw 50404, @error_msg, 1;
+            return;
+        end
+        -- delete the contact
+        delete from [phone_book] 
+        OUTPUT DELETED.id, DELETED.name, DELETED.phone
+        where id = @id;
+        
+        ]]>
+      </query>
+    </delete_contact>
 
     <generate_error>
       <query>
@@ -137,6 +237,26 @@
         ]]>
       </query>
     </generate_error>
+
+
+    <protected_hello_world>
+      <api_keys>
+        <key>api key 1</key>
+        <key>api key 2</key>
+      </api_keys>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </protected_hello_world>
+
 
     <!-- this is to showcase how you can override the default 
     variable delimiters regex for each query
@@ -155,6 +275,24 @@
         ]]>
       </query>
     </hello_world_using_pipes_as_var_delimiters>
+
+
+    <hello_world_with_headers>
+      <cache>
+        
+      </cache>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {header{some-http-header}};
+        
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </hello_world_with_headers>
 
 
   </queries>
