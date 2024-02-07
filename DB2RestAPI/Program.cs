@@ -18,7 +18,7 @@ builder.Services.AddScoped<DbConnection, DbConnection>(
     .GetConnectionString("default"))
     );
 
-builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+// builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
 
 builder.Services.AddControllers();
