@@ -431,13 +431,11 @@ exclude from the request before routing it to the external API.
 
 In the above example, the request will be routed to `https://catfact.ninja/fact` and the `x-api-key` and `host` headers will be excluded from the request before routing it to the external API.
 
-The same applies to the `hello_world_routed` and `protected_hello_world_routed` routes.
+> **Note**: To use the API gateway feature, you need to change the request URL to `https://localhost:<your_custom_port>/cat_facts` or `https://localhost:<your_custom_port>/hello_world_routed` or `https://localhost:<your_custom_port>/protected_hello_world_routed` and send the request.
 
-To use the API gateway feature, you need to change the request URL to `https://localhost:<your_custom_port>/cat_facts` or `https://localhost:<your_custom_port>/hello_world_routed` or `https://localhost:<your_custom_port>/protected_hello_world_routed` and send the request.
+The solution will route the request to the external API or the local API based on the route you specified in the `api_gateway.xml` file and/or the SQL queries you specify in `sql.xml`.
 
-The solution will route the request to the external API or the local API based on the route you specified in the `api_gateway.xml` file.
-
-The solution will also exclude the headers you specified in the `api_gateway.xml` file from the request before routing it to the external API or the local API.
+The solution will also exclude the headers you specified in the `api_gateway.xml` file from the request before routing it to the external APIs.
 
 The reason for offering the option to exclude headers from the request before routing it to the external API is 
 to prevent exposing sensitive information to the external API and remove
