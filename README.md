@@ -368,7 +368,7 @@ To achieve this, the solution has a setup file under `config` folder called `api
 The `api_gateway.xml` file has the following structure:
 
 ```xml
-<setting>
+<settings>
 	<routes>
         <cat_facts>
             <url>https://catfact.ninja/fact</url>
