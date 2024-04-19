@@ -1,0 +1,44 @@
+﻿<settings>
+  <routes>
+
+    <cat_facts>
+      <url>https://catfact.ninja/fact</url>
+      <headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
+    </cat_facts>
+
+    <hello_world_routed>
+      <url>https://localhost:7054/hello_world</url>
+      <headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
+      <ignore_certificate_errors>true</ignore_certificate_errors>
+    </hello_world_routed>
+
+    <!-- 
+    adds API Keys protection to to the unprotected `catfact.ninja/fact` API
+    before routing
+    -->
+    <locally_protected_cat_facts>
+      <api_keys>
+        <key>local api key 1</key>
+        <key>local api key 2</key>
+      </api_keys>
+
+      <url>https://catfact.ninja/fact</url>
+      <headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
+
+    </locally_protected_cat_facts>
+
+    <!-- 
+    calls the already protected `protected_hello_world` API and passes the `x-api-key`
+    coming from the client request back to the API without doing 
+    any API keys protection of its own upfront and relying
+    on the protection of the `protected_hello_world` API
+    -->
+    <remote_protected_hello_world_routed>
+      <url>https://localhost:7054/protected_hello_world</url>
+      <headers_to_exclude_from_routing>host</headers_to_exclude_from_routing>
+      <ignore_certificate_errors>true</ignore_certificate_errors>
+    </remote_protected_hello_world_routed>
+
+
+  </routes>
+</settings>

@@ -6,12 +6,13 @@
 
   <!-- 
   if 'true', the system will look for HTTP header 'x-api-key' for the key and try to find if it's available in config/api_keys.xml 
-  alternatively, you can skip this process if you don't need to use API keys, or you'd prefer to pass the API key to your query in sql.xml 
-  and implement your own check in SQL instead
+  alternatively, you can skip this process if either you don't need to use API keys, 
+  you'd like to use local API keys in `sql.xml` or `routes.xml`, 
+  or you'd prefer to pass the API key to your query in sql.xml and implement your own check in SQL instead
   -->
   <enable_global_api_keys>false</enable_global_api_keys>
   
-  <!-- the default regex that detects variable delimiters in sql queries
+  <!-- the default regex that detects json payload variable delimiters in sql queries
   is `(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})` 
   even if you delete the `default_variables_regex` node, 
   the system will use the default regex above.
@@ -24,6 +25,42 @@
   -->
   <default_variables_regex><![CDATA[(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})]]></default_variables_regex>
 
+
+  <!-- the default regex that detects query string variables (e.g., the `?name=John&phone=123` in `https://example.com/your_api_call?name=John&phone=123` ) in sql queries
+  is `(?<open_marker>\{qs\{)(?<param>.*?)?(?<close_marker>\}\})`
+  even if you delete the `default_query_string_variables_regex` node,
+  the system will use the default regex above.
+  You can override the default regex for each query in sql.xml
+  by just simply adding the `query_string_variables_regex` attribute to the `query` node
+  -->
+  <default_query_string_variables_regex><![CDATA[(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})]]></default_query_string_variables_regex>
+
+  <!-- the default regex that detects header variables (e.g., the `x-api-key` in HTTP headers) in sql queries
+  is `(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})`
+  even if you delete the `default_headers_variables_regex` node,
+  the system will use the default regex above.
+  You can override the default regex for each query in sql.xml
+  by just simply adding the `headers_variables_regex` attribute to the `query` node
+  -->
+  <default_headers_variables_regex>
+    <![CDATA[(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+  </default_headers_variables_regex>
+
+  <!--
+  NOTE: if you use the same regex for two (or more) types of variables,
+  and you pass the same variable in two (or more) types of variables,
+  the system will prioritize the variable to use in the following order:
+  1. payload variables
+  2. query string variables
+  3. header variables
+  
+  So based on the above order, if you pass `name` in both payload and query string variables 
+  (e.g., in query string you have `?name=John1` and in json payload you have `{ "name" : "John2" }`),
+  and you have the regex for both payload and query string being the same,
+  the system will use the value of `name` in payload variables, i.e., `John2`.
+  
+  -->
+  
   <!-- passing the value in the below `debug_mode_header_value` 
   as a value to header `debug-mode` in your HTTP request will enable debug mode
   allowing you to see the SQL query errors returned by the database server
@@ -32,6 +69,24 @@
   <debug_mode_header_value>54321</debug_mode_header_value>
   
   <default_generic_error_message><![CDATA[An error occurred while processing your request.]]></default_generic_error_message>
+
+  <!-- Default headers to ignore when routing API Gateway requests 
+  (e.g., when you have a route in `api_gateway.xml` that routes requests to another API)
+  This is important to strip headers like `Host` when routing requests to another API
+  as it may cause issues with the target API TLS certificate validation.
+  Or you may want to strip `x-api-key` header when routing requests to another API
+  when the `x-api-key` is processed locally by this application and not needed by the target API.
+  This value can be overridden in each route in `api_gateway.xml` by adding the `headers_to_exclude_from_routing` attribute to the `route` node
+  -->
+  <default_headers_to_exclude_from_routing>Host</default_headers_to_exclude_from_routing>
+
+  <!--
+  If 'true', the system will ignore certificate errors when routing requests to another API
+  (e.g., when you have a route in `api_gateway.xml` that routes requests to another API)
+  This is useful when the target API has a self-signed certificate or an expired certificate.
+  This value can be overridden in each route in `api_gateway.xml` by adding the `ignore_certificate_errors` attribute to the `route` node
+  -->
+  <ignore_certificate_errors_when_routing>false</ignore_certificate_errors_when_routing>
 
 
 </settings>

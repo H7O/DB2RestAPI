@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
     .AddXmlFile("config/settings.xml", optional: false, reloadOnChange: true)
     .AddXmlFile("config/sql.xml", optional: false, reloadOnChange: true)
+    .AddXmlFile("config/api_gateway.xml", optional: false, reloadOnChange: true)
     .AddXmlFile("config/global_api_keys.xml", optional: false, reloadOnChange: true);
 
 
