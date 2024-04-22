@@ -37,6 +37,12 @@
       <url>https://localhost:7054/protected_hello_world</url>
       <headers_to_exclude_from_routing>host</headers_to_exclude_from_routing>
       <ignore_certificate_errors>true</ignore_certificate_errors>
+      <headers>
+        <header>
+          <name>x-api-key</name>
+          <value>api key 1</value>
+        </header>
+      </headers>
     </remote_protected_hello_world_routed>
 
 

@@ -11,6 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Net.Http;
 using Azure;
+using System.Reflection.PortableExecutable;
 
 namespace DB2RestAPI.Controllers
 {
@@ -260,19 +261,44 @@ namespace DB2RestAPI.Controllers
                 // see if there are headers that should not be passed to the server for this particular route
                 var headersToExclude = routeSection.GetValue<string>("headers_to_exclude_from_routing")?
                     .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+
                 // .GetSection("headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
                 if (headersToExclude == null || headersToExclude.Length < 1)
                     // check if there are default headers to exclude for all routes
                     headersToExclude = this._configuration.GetValue<string>("default_headers_to_exclude_from_routing")?
                         .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        // .GetSection("default_headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
-                    
+                // .GetSection("default_headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
+
+                // see if there are headers to override for this particular route defined in the config file under:
+                //       <headers>
+                //          <header>
+                //              <name>x-api-key</name>
+                //              <value>local api key 1</value>
+                //          </header>
+                //      </headers>
+                var headersToOverride = routeSection.GetSection("headers")?.GetChildren()?
+                    // remove null `name` headers
+                    .Where(x => !string.IsNullOrWhiteSpace(x.GetValue<string>("name")))
+                    .Select(x => new KeyValuePair<string, string>(x.GetValue<string>("name")!, 
+                    x.GetValue<string>("value")??string.Empty))
+                    .ToDictionary(x => x.Key, x => x.Value);
+
+                if (headersToOverride?.Count > 0 == true)
+                {
+                    foreach (var header in headersToOverride)
+                    {
+                        _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
+                }
 
                 foreach (var header in this.Request.Headers)
                 {
+
                     if (
                         // exclude headers that should not be passed to the server (make sure to accomodate for case sensitivity)
                         headersToExclude?.Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
+                        || headersToOverride?.Select(x => x.Key).Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
                         )
                         continue;
                     _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
