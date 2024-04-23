@@ -2,6 +2,7 @@
   <queries>
 
     <hello_world>
+      <mandatory_parameters>name</mandatory_parameters>
       <query>
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
