@@ -34,6 +34,7 @@
     on the protection of the `protected_hello_world` API
     -->
     <remote_protected_hello_world_routed>
+      
       <url>https://localhost:7054/protected_hello_world</url>
       <headers_to_exclude_from_routing>host</headers_to_exclude_from_routing>
       <ignore_certificate_errors>true</ignore_certificate_errors>

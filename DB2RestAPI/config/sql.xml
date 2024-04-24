@@ -241,6 +241,7 @@
 
 
     <protected_hello_world>
+      
       <api_keys>
         <key>api key 1</key>
         <key>api key 2</key>

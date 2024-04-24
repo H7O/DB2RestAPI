@@ -84,6 +84,7 @@ namespace DB2RestAPI.Controllers
 
             #endregion
 
+
             #region checking if the request is an API gateway routing request
             var routes = this._configuration.GetSection("routes");
 
@@ -133,9 +134,14 @@ namespace DB2RestAPI.Controllers
 
             #endregion
 
-            #region check mandatory parameters
+            #region check mandatory parameters for SQL queries end points
 
-            var mandatoryParamsCheckResponse = GetFailedMandatoryParamsCheckIfAny(serviceQuerySection, qParams);
+            var mandatoryParamsCheckResponse = 
+                GetFailedMandatoryParamsCheckIfAny(
+                    serviceQuerySection, 
+                    qParams,
+                    mandatoryParameters: GetMadatoryParameters(serviceQuerySection)
+                    );
             if (mandatoryParamsCheckResponse != null)
                 return mandatoryParamsCheckResponse;
 
@@ -249,6 +255,17 @@ namespace DB2RestAPI.Controllers
 
             if (!string.IsNullOrWhiteSpace(url))
             {
+
+                var mandatoryParameters = GetMadatoryParameters(routeSection);
+                if (mandatoryParameters != null
+                    && mandatoryParameters.Length > 0
+                    )
+                {
+                    var qParams = GetParams(routeSection, payload);
+                    var failedMandatoryParamsCheck = GetFailedMandatoryParamsCheckIfAny(routeSection, qParams, mandatoryParameters);
+                    if (failedMandatoryParamsCheck != null)
+                        return failedMandatoryParamsCheck;
+                }
                 // check if `this.Request` has query string
                 // if queryString has values, append it to the url, and if the url already has a query string, append it with `&`
                 if (!string.IsNullOrWhiteSpace(this.Request.QueryString.Value))
@@ -424,16 +441,26 @@ namespace DB2RestAPI.Controllers
         }
 
 
-        private ObjectResult? GetFailedMandatoryParamsCheckIfAny(
-            IConfiguration serviceQuerySection,
-            List<QueryParams> qParams
-            
-            )
+        private string[]? GetMadatoryParameters(IConfiguration serviceQuerySection)
         {
             var mandatoryParameters = serviceQuerySection
                 .GetSection("mandatory_parameters")?.Value?
                 .Split(new char[] { ',', ' ', '\n', '\r' },
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                               StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            return mandatoryParameters;
+        }
+        private ObjectResult? GetFailedMandatoryParamsCheckIfAny(
+            IConfiguration serviceQuerySection,
+            List<QueryParams> qParams,
+            string[]? mandatoryParameters = null
+            
+            )
+        {
+            //var mandatoryParameters = serviceQuerySection
+            //    .GetSection("mandatory_parameters")?.Value?
+            //    .Split(new char[] { ',', ' ', '\n', '\r' },
+            //    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             if (mandatoryParameters != null && mandatoryParameters.Length > 0)
             {
