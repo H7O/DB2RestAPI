@@ -457,34 +457,27 @@ namespace DB2RestAPI.Controllers
             
             )
         {
-            //var mandatoryParameters = serviceQuerySection
-            //    .GetSection("mandatory_parameters")?.Value?
-            //    .Split(new char[] { ',', ' ', '\n', '\r' },
-            //    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (mandatoryParameters == null || mandatoryParameters.Length < 1)
+                return null;
 
-            if (mandatoryParameters != null && mandatoryParameters.Length > 0)
+            List<string> keys = new List<string>();
+            foreach (var qParam in qParams)
             {
-                List<string> keys = new List<string>();
-                foreach (var qParam in qParams)
-                {
-                    IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
-                    if (model == null) continue;
+                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
+                if (model == null) continue;
 
-                    keys = keys.Union(model.Keys).ToList();
-                }
-
-
-
-
-                var missingMandatoryParams = mandatoryParameters.Where(x => !(keys.Contains(x) == true)).ToArray();
-
-                if (missingMandatoryParams.Length > 0)
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message = $"Missing mandatory parameters: {string.Join(",", missingMandatoryParams)}"
-                    });
+                keys = keys.Union(model.Keys).ToList();
             }
+
+            var missingMandatoryParams = mandatoryParameters.Where(x => !(keys.Contains(x) == true)).ToArray();
+
+            if (missingMandatoryParams.Length > 0)
+                return BadRequest(new
+                {
+                    success = false,
+                    message = $"Missing mandatory parameters: {string.Join(",", missingMandatoryParams)}"
+                });
+            
             return null;
 
         }

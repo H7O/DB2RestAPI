@@ -354,18 +354,15 @@ The error will be returned to the client as HTTP error code 404 (not found error
 
 ### Example 5 - Acting as an API gateway
 
-The solution offers an option to act as an API gateway routing requests to different other APIs.
+The solution also offers the feature of acting as an API gateway to seamlessly route requests to various other APIs.
 
-This is helpful as it offers a collection of APIs from a single unified base URL to consumers without 
-those consumers have to be concerned about the technical details from where the data of those APIs are coming from, 
-whether from calls to databases to which the solution has direct access, or from external APIs routed through this solution.
+This capability is helpful for consolidating a multitude of APIs under a single, unified base URL. Consumers benefit without needing to delve into the intricacies of where the data originates&mdash;be it from direct database calls or external APIs routed through the solution.
 
-Also, in such a scenario, the solution can be used to enforce the same API keys for all APIs, whether local or external regardless
-of whether or not the external APIs require API keys.
+Moreover, in this setup, uniform API key enforcement becomes easy to manage. Whether interfacing with local resources or external services, the solution can enforce consistent API key usage, even if the external APIs don't inherently require such authentication.
 
-To achieve this, the solution has a setup file under `config` folder called `api_gateway.xml` that can be used to route requests to different APIs.
+To implement this functionality, we can utilize a setup file, `api_gateway.xml`, located within the config folder, to configure route mappings to different APIs.
 
-The `api_gateway.xml` file has the following structure:
+Here's the structure of the `api_gateway.xml` file:
 
 ```xml
 <settings>
@@ -379,41 +376,14 @@ The `api_gateway.xml` file has the following structure:
 			<headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
             <ignore_certificate_errors>true</ignore_certificate_errors>
         </hello_world_routed>
-        <!-- 
-        adds API Keys protection to to the unprotected `catfact.ninja/fact` API
-        before routing
-        -->
-        <locally_protected_cat_facts>
-          <api_keys>
-            <key>local api key 1</key>
-            <key>local api key 2</key>
-          </api_keys>
-
-          <url>https://catfact.ninja/fact</url>
-          <headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
-
-        </locally_protected_cat_facts>
-
-        <!-- 
-        calls the already protected `protected_hello_world` API and passes the `x-api-key`
-        coming from the client request back to the API without doing 
-        any API keys protection of its own upfront and relying
-        on the protection of the `protected_hello_world` API
-        -->
-        <remote_protected_hello_world_routed>
-          <url>https://localhost:7054/protected_hello_world</url>
-          <headers_to_exclude_from_routing>host</headers_to_exclude_from_routing>
-          <ignore_certificate_errors>true</ignore_certificate_errors>
-        </remote_protected_hello_world_routed>
-
-
+        <!-- Additional examples -->
 	</routes>
 </settings>
 ```
 
-The `routes` node contains a collection of routes that you can define.
+The <routes> node contains a collection of customizable route configurations.
 
-Let's take the `cat_facts` route as an example:
+Consider the `cat_facts` route as an illustration:
 
 ```xml
 <cat_facts>
@@ -422,32 +392,20 @@ Let's take the `cat_facts` route as an example:
 </cat_facts>
 ```
 
-The `cat_facts` node is the name of the route. You can name it anything you want.
+In this example:
 
-The `url` node is the URL to which the request will be routed.
+* The `<cat_facts>` node denotes the route's name, which can be tailored as needed.
+* The `<url>` node specifies the destination URL for routing the request.
+* Optionally, the `<headers_to_exclude_from_routing>` node allows exclusion of specific headers from the request before routing.
 
-The `headers_to_exclude_from_routing` node is an optional node having a comma-separated list of headers that you want to 
-exclude from the request before routing it to the external API.
+>**Usage Note:** To leverage the API gateway functionality, adjust your request URL to https://localhost:<your_custom_port>/cat_facts or similar, depending on the configured routes in api_gateway.xml, and initiate the request.
 
-In the above example, the request will be routed to `https://catfact.ninja/fact` and the `x-api-key` and `host` headers will be excluded from the request before routing it to the external API.
+The solution automatically directs requests to the designated external or local APIs based on the specified routes in `api_gateway.xml` and/or SQL queries outlined in `sql.xml`. Additionally, it automatically filters out the designated headers from the request before routing, optimizing compatibility and security.
 
-> **Note**: To use the API gateway feature, you need to change the request URL to `https://localhost:<your_custom_port>/cat_facts` or `https://localhost:<your_custom_port>/hello_world_routed` or `https://localhost:<your_custom_port>/protected_hello_world_routed` and send the request.
+By offering to exclude headers selectively, the solution safeguards against exposing sensitive data to external APIs while circumventing potential routing issues caused by extraneous headers. For instance, preemptively removing the `host` header prevents TLS handshake errors during routing, while omitting the `x-api-key` header shields our solution's API key from exposure to external services.
 
-The solution will route the request to the external API or the local API based on the route you specified in the `api_gateway.xml` file and/or the SQL queries you specify in `sql.xml`.
+Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
 
-The solution will also exclude the headers you specified in the `api_gateway.xml` file from the request before routing it to the external APIs.
-
-The reason for offering the option to exclude headers from the request before routing it to the external API is 
-to prevent exposing sensitive information to the external API and remove
-unwanted headers that might cause issues when routing the request to the external API.
-
-For example, you must `host` header in the request before routing it to the external API to prevent causing TLS handshake errors when routing the request to the external API.
-
-And also you might want to exclude the `x-api-key` header from the request before routing it to the external API to prevent exposing the API key of your solution to the external API.
-
-`ignore_certificate_errors` node is an optional node that you can use to ignore certificate errors when routing the request to the external API.
-
-This is useful when the external API has an invalid SSL certificate (e.g., self signed) and you want to ignore the certificate errors and route the request to the external API anyway.
 
 
 **documentation in progress - more examples to be added soon**
