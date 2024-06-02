@@ -5,6 +5,9 @@
       <mandatory_parameters>name</mandatory_parameters>
       <query>
         <![CDATA[
+        -- add delay of 1 minute
+        waitfor delay '00:00:10';
+        
         declare @name nvarchar(500) = {{name}};
         
         if (@name is null or ltrim(rtrim(@name)) = '')

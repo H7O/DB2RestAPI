@@ -88,5 +88,10 @@
   -->
   <ignore_certificate_errors_when_routing>false</ignore_certificate_errors_when_routing>
 
+  <!--
+  Allows for passing a timeout value in seconds for the DB command execution
+  -->
+  <default_db_command_timeout>30</default_db_command_timeout>
+
 
 </settings>

@@ -12,6 +12,7 @@ using System.Text;
 using System.Net.Http;
 using Azure;
 using System.Reflection.PortableExecutable;
+using Microsoft.Extensions.Http;
 
 namespace DB2RestAPI.Controllers
 {
@@ -23,6 +24,7 @@ namespace DB2RestAPI.Controllers
         private static readonly string _defaultVariablesRegex = @"(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})"; 
         private static readonly string _defaultHeadersRegex = @"(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})";
         private static readonly string _defaultQueryStringRegex = @"(?<open_marker>\{qs\{)(?<param>.*?)?(?<close_marker>\}\})";
+
         /// <summary>
         /// exclude `Transfer-Encoding` and `Content-Length` headers
         /// as they are set by the server automatically
@@ -169,11 +171,14 @@ namespace DB2RestAPI.Controllers
 
             // check if count query is defined
             var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
+            int? dbCommandTimeout = 
+                serviceQuerySection.GetValue<int?>("db_command_timeout")??
+                this._configuration.GetValue<int?>("default_db_command_timeout");
             try
             {
                 if (string.IsNullOrWhiteSpace(countQuery))
                     return Ok(this._connection
-                        .ExecuteQuery(query, qParams)
+                        .ExecuteQuery(query, qParams, commandTimeout : dbCommandTimeout)
                         .ToChamberedEnumerable());
                 else
                 {
@@ -182,10 +187,10 @@ namespace DB2RestAPI.Controllers
                         {
                             success = true,
                             count = ((ExpandoObject?)this._connection
-                            .ExecuteQuery(countQuery, qParams)
+                            .ExecuteQuery(countQuery, qParams, commandTimeout: dbCommandTimeout)
                             .ToList()?.FirstOrDefault())?.FirstOrDefault().Value,
                             data = this._connection
-                                .ExecuteQuery(query, qParams)
+                                .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
                                 .ToChamberedEnumerable()
                         });
                 }
