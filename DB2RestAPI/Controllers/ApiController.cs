@@ -39,14 +39,19 @@ namespace DB2RestAPI.Controllers
         /// </summary>
         private static readonly string[] _proxyHeadersToExclude = new string[] { "Transfer-Encoding", "Content-Length" };
 
+        private readonly IHttpClientFactory _httpClientFactory;
+
             
             
         public ApiController(
             IConfiguration configuration, 
-            DbConnection connection)
+            DbConnection connection,
+            IHttpClientFactory httpClientFactory
+            )
         {
             _configuration = configuration;
             _connection = connection;
+            _httpClientFactory = httpClientFactory;
         }
 
         [Produces("application/json")]
@@ -340,15 +345,16 @@ namespace DB2RestAPI.Controllers
                     {
                         ignoreCertificateErrors = this._configuration.GetValue<bool?>("ignore_certificate_errors_when_routing");
                     }
-
-                    using (var client = ignoreCertificateErrors == true 
-                        ? new HttpClient(GetServerCertificateHandlerThatIgnoresErrors())
-                        : new HttpClient())
+                    using (var client = ignoreCertificateErrors == true
+                        ? _httpClientFactory.CreateClient("ignoreCertificateErrors")
+                        : _httpClientFactory.CreateClient()
+                        )
 
                     {
+
                         var response = await client.SendAsync(request); // , HttpCompletionOption.ResponseHeadersRead);
 
-                        
+
                         // proxy the response back to the caller as is (i.e., without processing)
 
                         // setup the response content headers
@@ -358,7 +364,7 @@ namespace DB2RestAPI.Controllers
                         }
 
                         // setup the response headers
-                        foreach(var header in response.Headers
+                        foreach (var header in response.Headers
                             // exclude `Transfer-Encoding` and `Content-Length` headers
                             // as they are set by the server automatically
                             // and should not be set manually by the proxy
@@ -369,18 +375,18 @@ namespace DB2RestAPI.Controllers
                             // the server will set it based on the response content type
                             // and the proxy should not set it manually
                             // as it may cause issues with the response stream.
-                            .Where(x=>!new string[] { "Transfer-Encoding", "Content-Length" }.Contains(x.Key))
+                            .Where(x => !new string[] { "Transfer-Encoding", "Content-Length" }.Contains(x.Key))
                             )
                         {
                             Response.Headers[header.Key] = header.Value.ToArray();
                         }
-                        
+
                         // copy the proxy call stream to the response stream
                         await response.Content.CopyToAsync(Response.BodyWriter.AsStream());
 
                         // complete the response stream
                         Response.BodyWriter.Complete();
-                        
+
                         // return an empty result (since the response is already sent)
                         return new EmptyResult();
                     }
@@ -690,12 +696,12 @@ namespace DB2RestAPI.Controllers
         /// or is self-signed.
         /// </summary>
         /// <returns></returns>
-        private HttpClientHandler GetServerCertificateHandlerThatIgnoresErrors()
-        {
-            var handler = new HttpClientHandler();
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-            return handler;
-        }
+        //private HttpClientHandler GetServerCertificateHandlerThatIgnoresErrors()
+        //{
+        //    var handler = new HttpClientHandler();
+        //    handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+        //    return handler;
+        //}
 
     }
 }

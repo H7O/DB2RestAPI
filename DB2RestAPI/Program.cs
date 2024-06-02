@@ -21,6 +21,22 @@ builder.Services.AddScoped<DbConnection, DbConnection>(
 
 // builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
+builder.Services.AddHttpClient();
+
+builder.Services.AddHttpClient("ignoreCertificateErrors", c =>
+{
+    // No additional configuration required here
+})
+.ConfigurePrimaryHttpMessageHandler(() =>
+{
+    return new HttpClientHandler
+    {
+        // Ignore certificate errors
+        ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+    };
+});
+
+
 
 builder.Services.AddControllers();
 
