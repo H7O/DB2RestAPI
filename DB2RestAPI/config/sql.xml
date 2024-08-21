@@ -2,19 +2,22 @@
   <queries>
 
     <hello_world>
-      <mandatory_parameters>name</mandatory_parameters>
       <query>
         <![CDATA[
         
         declare @name nvarchar(500) = {{name}};
-        
+
+
         if (@name is null or ltrim(rtrim(@name)) = '')
         begin
             set @name = 'world';
         end
-        select 'hello ' + @name + '!' as message_from_db;
+        select 'hello ' + @name + '!' as message_from_db
+        
+        
         ]]>
       </query>
+
     </hello_world>
 
 
@@ -296,6 +299,34 @@
         ]]>
       </query>
     </hello_world_with_headers>
+
+    <hello_world_with_cache>
+      <cache>
+        <memory>
+          <duration_in_miliseconds>20000</duration_in_miliseconds>
+          <invalidators>name</invalidators>
+        </memory>
+      </cache>
+      <query>
+        <![CDATA[
+        
+        declare @name nvarchar(500) = {{name}};
+
+
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
+        
+        
+        ]]>
+      </query>
+
+
+    </hello_world_with_cache>
+
+
 
 
   </queries>

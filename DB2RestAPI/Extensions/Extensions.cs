@@ -1,4 +1,4 @@
-﻿namespace Com.H.Collections.Generic
+﻿namespace Com.H.Collections.Generic.Depricated
 {
     // extension methods for IEnumerable<dynamic> that are 
     // copied from Com.H library (github link below)

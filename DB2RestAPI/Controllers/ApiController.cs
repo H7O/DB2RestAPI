@@ -13,14 +13,19 @@ using System.Net.Http;
 using Azure;
 using System.Reflection.PortableExecutable;
 using Microsoft.Extensions.Http;
+using DB2RestAPI.Cache;
+using DB2RestAPI.JsonBinder;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 
 namespace DB2RestAPI.Controllers
 {
-    [Produces("application/json")]
+
+    
     public class ApiController : ControllerBase
     {
         private readonly IConfiguration _configuration;
         private readonly DbConnection _connection;
+        
         private static readonly string _defaultVariablesRegex = @"(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})"; 
         private static readonly string _defaultHeadersRegex = @"(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})";
         private static readonly string _defaultQueryStringRegex = @"(?<open_marker>\{qs\{)(?<param>.*?)?(?<close_marker>\}\})";
@@ -41,18 +46,43 @@ namespace DB2RestAPI.Controllers
 
         private readonly IHttpClientFactory _httpClientFactory;
 
-            
+        // private readonly Com.H.Cache.MemoryCache _cache;
             
         public ApiController(
             IConfiguration configuration, 
             DbConnection connection,
-            IHttpClientFactory httpClientFactory
+            IHttpClientFactory httpClientFactory //,
+            //Com.H.Cache.MemoryCache cacheService
             )
         {
+            
             _configuration = configuration;
             _connection = connection;
             _httpClientFactory = httpClientFactory;
+            // _cache = cacheService;
         }
+
+
+
+        /// <summary>
+        /// Similar to Index method but expects its endpoint to have a prefix of `json/`
+        /// Ignores the `Content-Type` header and processes the request payload as JSON
+        /// by default. The request is passed to the Index method for processing.
+        /// </summary>
+        /// <param name="payload">Payload to be passed to Index method under the hood</param>
+        /// <returns>Payload return from Index method</returns>
+        [HttpGet]
+        [HttpPost]
+        [HttpDelete]
+        [HttpPut]
+        [Route("json/{*route}")]
+        public async Task<IActionResult> JsonProxy(
+            [ModelBinder(BinderType = typeof(BodyModelBinder))] JsonElement payload)
+        {
+            return await Index(payload);
+        }
+
+
 
         [Produces("application/json")]
         [HttpGet]
@@ -152,53 +182,29 @@ namespace DB2RestAPI.Controllers
             if (mandatoryParamsCheckResponse != null)
                 return mandatoryParamsCheckResponse;
 
-            //var mandatoryParameters = serviceQuerySection
-            //    .GetSection("mandatory_parameters")?.Value?
-            //    .Split(new char[] { ',', ' ', '\n', '\r' },
-            //    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            //if (mandatoryParameters != null && mandatoryParameters.Length > 0)
-            //{
-            //    var propertyNames = payload.Equals(default) ? null : payload.EnumerateObject().Select(x => x.Name).ToArray();
-
-            //    var missingMandatoryParams = mandatoryParameters.Where(x => !(propertyNames?.Contains(x) == true)).ToArray();
-
-            //    if (missingMandatoryParams.Length > 0)
-            //        return BadRequest(new
-            //        {
-            //            success = false,
-            //            message = $"Missing mandatory parameters: {string.Join(",", missingMandatoryParams)}"
-            //        });
-            //}
-
-
             #endregion
 
-            // check if count query is defined
-            var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
-            int? dbCommandTimeout = 
-                serviceQuerySection.GetValue<int?>("db_command_timeout")??
-                this._configuration.GetValue<int?>("default_db_command_timeout");
+
+            // get the cacheService info for the current service query section (if available)
+            var cacheService = GetCacheService(serviceQuerySection, qParams);
+
+
             try
             {
-                if (string.IsNullOrWhiteSpace(countQuery))
-                    return Ok(this._connection
-                        .ExecuteQuery(query, qParams, commandTimeout : dbCommandTimeout)
-                        .ToChamberedEnumerable());
-                else
+                if (cacheService.HasValue)
                 {
-                    return Ok(
-                        new
+                    return cacheService.Value.Cache.Get<ObjectResult>(
+                        cacheService.Value.Info.Key,
+                        () =>
                         {
-                            success = true,
-                            count = ((ExpandoObject?)this._connection
-                            .ExecuteQuery(countQuery, qParams, commandTimeout: dbCommandTimeout)
-                            .ToList()?.FirstOrDefault())?.FirstOrDefault().Value,
-                            data = this._connection
-                                .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
-                                .ToChamberedEnumerable()
-                        });
+                            Console.WriteLine("trying to get result");
+                            return this.GetResultFromDb(serviceQuerySection, query, qParams, disableDifferredExecution: true);
+                        },
+                         cacheService.Value.Info.Duration)!;
                 }
+
+                return this.GetResultFromDb(serviceQuerySection, query, qParams);
+
             }
             catch (Exception ex)
             {
@@ -227,7 +233,7 @@ namespace DB2RestAPI.Controllers
                 // check if user passed `debug-mode` header in 
                 // the request and if it has a value that 
                 // corresponds to the value defined in the config file
-                // under `debug_mode_header_value` key
+                // under `debug_mode_header_value` cacheKey
                 // if so, return the full error message and stack trace
                 // else return a generic error message
                 if (this.IsDebugMode())
@@ -249,7 +255,130 @@ namespace DB2RestAPI.Controllers
 
         }
 
-        
+        /// <summary>
+        /// Executes a database query and returns the result as an <see cref="ObjectResult"/>.
+        /// </summary>
+        /// <param name="serviceQuerySection">The configuration section for the specific service query.</param>
+        /// <param name="query">The SQL query to be executed.</param>
+        /// <param name="qParams">A list of query parameters to be used in the query.</param>
+        /// <returns>An <see cref="ObjectResult"/> containing the result of the query execution.</returns>
+        public ObjectResult GetResultFromDb(
+            IConfigurationSection serviceQuerySection,
+            string query,
+            List<QueryParams> qParams,
+            bool disableDifferredExecution = false
+            )
+        {
+            int? dbCommandTimeout =
+                serviceQuerySection.GetValue<int?>("db_command_timeout") ??
+                this._configuration.GetValue<int?>("default_db_command_timeout");
+
+            // check if count query is defined
+            var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
+
+            if (string.IsNullOrWhiteSpace(countQuery))
+            {
+                return Ok(disableDifferredExecution?
+                    this._connection
+                            .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout).ToArray()
+                    :
+                    this._connection
+                            .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
+                            .ToChamberedEnumerable());
+            }
+            
+            return Ok(
+                new
+                {
+                    success = true,
+                    count = ((ExpandoObject?)this._connection
+                    .ExecuteQuery(countQuery, qParams, commandTimeout: dbCommandTimeout)
+                    .ToList()?.FirstOrDefault())?.FirstOrDefault().Value,
+                    data = disableDifferredExecution
+                        ? this._connection
+                        .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
+                        .ToArray()
+                        :
+                        this._connection
+                        .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
+                        .ToChamberedEnumerable()
+                });
+        }
+
+
+        /// <summary>
+        /// Retrieves cacheService along with the cacheService configuration details for a specific service query section.
+        /// </summary>
+        /// <param name="serviceQuerySection">The configuration section for the specific service query.</param>
+        /// <param name="qParams">A list of query parameters used to construct the cacheService key.</param>
+        /// <returns>
+        /// An instance of <see cref="Com.H.Cache.MemoryCache"/> if caching is enabled and properly configured; otherwise, <c>null</c>.
+        /// </returns>
+        public (Com.H.Cache.MemoryCache Cache, CacheInfo Info)? GetCacheService(IConfigurationSection serviceQuerySection, List<QueryParams> qParams)
+        {
+
+            // Retrieve the cacheService section from the service query section
+            var cacheSection = serviceQuerySection.GetSection("cache");
+            if (cacheSection == null || !cacheSection.Exists())
+                return null;
+
+            // Retrieve the memory cacheService section from the cacheService section
+            var memorySection = cacheSection.GetSection("memory");
+            if (memorySection == null || !memorySection.Exists())
+                return null;
+
+            // Determine the cacheService duration
+            int duration = memorySection.GetValue<int?>("duration_in_miliseconds") ??
+                this._configuration.GetValue<int?>("cacheService:default_duration_in_miliseconds") ?? -1;
+            if (duration < 1)
+                return null;
+
+            //var defaultCacheSection = this._configuration.GetSection("cacheService");
+            //if (defaultCacheSection is null || !defaultCacheSection.Exists()
+            //    ||
+            //    !(bool.TryParse(defaultCacheSection["enabled"], out bool cacheEnabled) && cacheEnabled)
+            //    ) return null;
+
+            Com.H.Cache.MemoryCache? memoryCache = this.HttpContext.RequestServices.GetService<Com.H.Cache.MemoryCache>();
+            if (memoryCache == null)
+                return null;
+
+            // Retrieve cacheService invalidators
+            var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
+            List<string> invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+            // Construct the cacheService key
+            SortedDictionary<string, object> invalidatorsValues = new SortedDictionary<string, object>();
+            foreach (var qParam in qParams)
+            {
+                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
+                if (model == null) continue;
+                foreach (var key in invalidators)
+                {
+                    if (model.ContainsKey(key))
+                        invalidatorsValues[key] = model[key];
+                }
+            }
+
+            var cacheKey = serviceQuerySection.Key;
+            if (invalidatorsValues.Count > 0)
+                cacheKey += string.Join("|", invalidatorsValues.Select(x => $"{x.Key}={x.Value}"));
+
+            // Return the Cache class along with the CacheInfo object
+            return new()
+            {
+                Cache = memoryCache,
+                Info = new CacheInfo
+                {
+                    Duration = TimeSpan.FromMilliseconds(duration),
+                    Key = cacheKey
+                }
+            };
+
+        }
+
+        #region API gateway functionality
         private async Task<IActionResult> GetRoutedResponse(
                     IConfiguration routeSection,
                     JsonElement payload
@@ -306,8 +435,8 @@ namespace DB2RestAPI.Controllers
                 // see if there are headers to override for this particular route defined in the config file under:
                 //       <headers>
                 //          <header>
-                //              <name>x-api-key</name>
-                //              <value>local api key 1</value>
+                //              <name>x-api-cacheKey</name>
+                //              <value>local api cacheKey 1</value>
                 //          </header>
                 //      </headers>
                 var headersToOverride = routeSection.GetSection("headers")?.GetChildren()?
@@ -402,14 +531,15 @@ namespace DB2RestAPI.Controllers
 
         }
 
+        #endregion
 
         /// <summary>
-        /// Check if the request has an API key and if it is valid
+        /// Check if the request has an API cacheKey and if it is valid
         /// </summary>
         /// <param name="section"></param>
         /// <returns>
-        /// If the request requires an API key before processing
-        /// and the API key is not provided or is invalid,
+        /// If the request requires an API cacheKey before processing
+        /// and the API cacheKey is not provided or is invalid,
         /// return a response with status code 401
         /// </returns>
         private ObjectResult? GetFailedAPIKeysCheckResponseIfAny(
@@ -426,10 +556,10 @@ namespace DB2RestAPI.Controllers
                 {
                     if (this.Request == null
                         ||
-                        !this.Request.Headers.TryGetValue("x-api-key", out
+                        !this.Request.Headers.TryGetValue("x-api-cacheKey", out
                         var extractedApiKey))
                     {
-                        return new ObjectResult(new { success = false, message = "API key was not provided" })
+                        return new ObjectResult(new { success = false, message = "API cacheKey was not provided" })
                         {
                             StatusCode = 401
                         };
@@ -495,7 +625,7 @@ namespace DB2RestAPI.Controllers
 
         private string[] GetAPIKeys(IConfiguration section)
         {
-            var apiKeysSection = section.GetSection("api_keys:key");
+            var apiKeysSection = section.GetSection("api_keys:cacheKey");
 
             if (apiKeysSection != null
                                && apiKeysSection.Exists())
@@ -548,7 +678,7 @@ namespace DB2RestAPI.Controllers
             // check if user passed `debug-mode` header in 
             // the request and if it has a value that 
             // corresponds to the value defined in the config file
-            // under `debug_mode_header_value` key
+            // under `debug_mode_header_value` cacheKey
             // if so, return the full error message and stack trace
             // else return a generic error message
             if (this.IsDebugMode())

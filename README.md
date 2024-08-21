@@ -406,6 +406,50 @@ By offering to exclude headers selectively, the solution safeguards against expo
 
 Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
 
+### Example 5 - Cached API responses
+
+The solution offers the ability to cache API responses for a specified duration, enhancing performance and reducing latency for frequently accessed data.
+
+To enable this feature, add `cache` node to any of your SQL queries in `sql.xml` file, as shown below:
+
+```xml
+    <hello_world_with_cache>
+      <cache>
+        <memory>
+          <duration_in_miliseconds>20000</duration_in_miliseconds>
+          <invalidators>name</invalidators>
+        </memory>
+      </cache>
+      <query>
+        <![CDATA[
+        
+        declare @name nvarchar(500) = {{name}};
+
+
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
+        
+        
+        ]]>
+      </query>
+
+
+    </hello_world_with_cache>
+
+```
+
+In the above example, the `hello_world_with_cache` query is configured to cache its response for 20 seconds. The `invalidators` node specifies the parameters that, when changed, will invalidate the cache and trigger a fresh query execution.
+
+The response will be cached in memory for the specified duration, enhancing performance by eliminating the need to re-execute the query for subsequent requests within the cache's timeframe.
+
+The `Time now is` part of the response is added to demonstrate that the response is indeed cached and not re-executed for subsequent requests within the cache's timeframe.
+
+>**Usage Note:** To leverage the cached API response, simply call the API as usual. The solution will automatically cache the response based on the specified duration and invalidators.
+
+Try changing the `name` parameter in the request body and sending the request multiple times within the cache's timeframe. You should see the same response with the same timestamp, indicating that the response is cached and not re-executed.
 
 
 **documentation in progress - more examples to be added soon**

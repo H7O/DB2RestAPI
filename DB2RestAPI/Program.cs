@@ -1,3 +1,5 @@
+using Com.H.Cache;
+using DB2RestAPI.JsonBinder;
 using DB2RestAPI.Middlewares;
 using System.Data.Common;
 
@@ -18,6 +20,31 @@ builder.Services.AddScoped<DbConnection, DbConnection>(
         provider.GetRequiredService<IConfiguration>()
     .GetConnectionString("default"))
     );
+var cacheSection = builder.Configuration.GetSection("cache");
+if (cacheSection is not null && cacheSection.Exists())
+{
+    // check if cacheSection has a property named "enabled" and if it is set to true
+    if (bool.TryParse(cacheSection["enabled"], out bool cacheEnabled) && cacheEnabled)
+    {
+        builder.Services.AddSingleton(provider =>
+        {
+            var cache = new MemoryCache();
+            bool.TryParse(cacheSection["cache_null_values"], out bool cacheNullValues);
+            cache.CacheNullValues = cacheNullValues;
+            if (int.TryParse(cacheSection["check_cache_expiry_interval_in_miliseconds"], out int checkCacheExpiryInterval))
+                // get main cancellationToken from the host
+                cache.StartAutoCleanup(TimeSpan.FromMilliseconds(checkCacheExpiryInterval), 
+                    provider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+            else 
+                cache.StartAutoCleanup(TimeSpan.FromMinutes(1), 
+                    provider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+            return cache;
+        });
+    }
+}
+
+
+
 
 // builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
@@ -36,6 +63,10 @@ builder.Services.AddHttpClient("ignoreCertificateErrors", c =>
     };
 });
 
+//builder.Services.AddMvc(options =>
+//{
+//    options.ModelBinderProviders.Insert(0, new JsonModelBinderProvider());
+//});
 
 
 builder.Services.AddControllers();

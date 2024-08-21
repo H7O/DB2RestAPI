@@ -92,6 +92,14 @@
   Allows for passing a timeout value in seconds for the DB command execution
   -->
   <default_db_command_timeout>30</default_db_command_timeout>
+  
+  <cache>
+    <enabled>true</enabled>
+    <default_duration_in_miliseconds>5000</default_duration_in_miliseconds>
+    <cache_null_values>false</cache_null_values>
+    <check_cache_expiry_interval_in_miliseconds>10000</check_cache_expiry_interval_in_miliseconds>
+  </cache>
+  
 
 
 </settings>
