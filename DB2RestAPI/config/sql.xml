@@ -12,7 +12,9 @@
         begin
             set @name = 'world';
         end
-        select 'hello ' + @name + '!' as message_from_db
+        select 
+        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db,
+        null as test;
         
         
         ]]>
@@ -327,6 +329,19 @@
     </hello_world_with_cache>
 
 
+    <nested_json>
+      <query>
+        <![CDATA[
+        SELECT 
+            1 as id,
+            'John' as [name],
+            (select * from (values 
+		        (55555, 'Dubai'), 
+		        (44444, 'Abu Dhabi')) as t (phone, city) for json path) AS {type{json{phones}}}
+        
+        ]]>
+      </query>
+    </nested_json>
 
 
   </queries>

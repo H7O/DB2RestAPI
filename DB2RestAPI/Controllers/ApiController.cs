@@ -14,17 +14,24 @@ using Azure;
 using System.Reflection.PortableExecutable;
 using Microsoft.Extensions.Http;
 using DB2RestAPI.Cache;
-using DB2RestAPI.JsonBinder;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using DB2RestAPI.Settings;
 
 namespace DB2RestAPI.Controllers
 {
 
     
-    public class ApiController : ControllerBase
+    public class ApiController(
+        IConfiguration configuration,
+        DbConnection connection,
+        IHttpClientFactory httpClientFactory,
+        SettingsService settingsService
+            //,
+            //Com.H.CacheService.MemoryCache cacheService
+            ) : ControllerBase
     {
-        private readonly IConfiguration _configuration;
-        private readonly DbConnection _connection;
+        private readonly IConfiguration _configuration = configuration;
+        private readonly DbConnection _connection = connection;
         
         private static readonly string _defaultVariablesRegex = @"(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})"; 
         private static readonly string _defaultHeadersRegex = @"(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})";
@@ -44,23 +51,11 @@ namespace DB2RestAPI.Controllers
         /// </summary>
         private static readonly string[] _proxyHeadersToExclude = new string[] { "Transfer-Encoding", "Content-Length" };
 
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
 
-        // private readonly Com.H.Cache.MemoryCache _cache;
-            
-        public ApiController(
-            IConfiguration configuration, 
-            DbConnection connection,
-            IHttpClientFactory httpClientFactory //,
-            //Com.H.Cache.MemoryCache cacheService
-            )
-        {
-            
-            _configuration = configuration;
-            _connection = connection;
-            _httpClientFactory = httpClientFactory;
-            // _cache = cacheService;
-        }
+        // private readonly Com.H.CacheService.MemoryCache _cache;
+
+        private readonly SettingsService _settings = settingsService;
 
 
 
@@ -77,9 +72,11 @@ namespace DB2RestAPI.Controllers
         [HttpPut]
         [Route("json/{*route}")]
         public async Task<IActionResult> JsonProxy(
-            [ModelBinder(BinderType = typeof(BodyModelBinder))] JsonElement payload)
+            [ModelBinder(BinderType = typeof(BodyModelBinder))] JsonElement payload,
+            CancellationToken cancellationToken
+            )
         {
-            return await Index(payload);
+            return await Index(payload, cancellationToken);
         }
 
 
@@ -91,8 +88,11 @@ namespace DB2RestAPI.Controllers
         [HttpPut]
         [Route("{*route}")]
         public async Task<IActionResult> Index(
-            [FromBody] JsonElement payload)
+            [FromBody] JsonElement payload,
+            CancellationToken cancellationToken
+            )
         {
+            
             #region extract route data from the request
             // get route data from the request and extract the api endpoint name
             // from multiple segments separated by `/`
@@ -101,7 +101,7 @@ namespace DB2RestAPI.Controllers
                 .ToString()?
                 .Replace("$2F", "/");
             #endregion
-
+            
             #region check if configuration is null
             if (this._configuration == null)
                 return BadRequest(new { success = false, message = "Configuration is null" });
@@ -233,7 +233,7 @@ namespace DB2RestAPI.Controllers
                 // check if user passed `debug-mode` header in 
                 // the request and if it has a value that 
                 // corresponds to the value defined in the config file
-                // under `debug_mode_header_value` cacheKey
+                // under `debug_mode_header_value` key
                 // if so, return the full error message and stack trace
                 // else return a generic error message
                 if (this.IsDebugMode())
@@ -275,6 +275,7 @@ namespace DB2RestAPI.Controllers
 
             // check if count query is defined
             var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
+
 
             if (string.IsNullOrWhiteSpace(countQuery))
             {
@@ -365,7 +366,7 @@ namespace DB2RestAPI.Controllers
             if (invalidatorsValues.Count > 0)
                 cacheKey += string.Join("|", invalidatorsValues.Select(x => $"{x.Key}={x.Value}"));
 
-            // Return the Cache class along with the CacheInfo object
+            // Return the CacheService class along with the CacheInfo object
             return new()
             {
                 Cache = memoryCache,
@@ -379,7 +380,164 @@ namespace DB2RestAPI.Controllers
         }
 
         #region API gateway functionality
-        private async Task<IActionResult> GetRoutedResponse(
+
+        public async Task<IActionResult> GetRoutedResponse(
+                    IConfigurationSection routeSection,
+                    JsonElement payload
+            )
+        {
+            #region local API keys check 
+            var failedAPIKeysCheck = this._settings
+                .GetFailedAPIKeysCheckResponseIfAny(routeSection, Request);
+            if (failedAPIKeysCheck != null)
+                return failedAPIKeysCheck;
+            #endregion
+
+            #region url check
+            var url = routeSection.GetValue<string>("url");
+
+            if (string.IsNullOrWhiteSpace(url))
+                return BadRequest(new { success = false, message = $"Improper route settings" });
+            #endregion
+
+
+            var mandatoryParameters = this._settings.GetMandatoryParameters(routeSection);
+                if (mandatoryParameters != null
+                    && mandatoryParameters.Length > 0
+                    )
+                {
+                    var qParams = this._settings.GetParams(routeSection, Request, payload);
+                    var failedMandatoryParamsCheck =
+                        this._settings.GetFailedMandatoryParamsCheckIfAny(routeSection, qParams);
+                    if (failedMandatoryParamsCheck != null)
+                        return failedMandatoryParamsCheck;
+                }
+                // check if `this.Request` has query string
+                // if queryString has values, append it to the url, and if the url already has a query string, append it with `&`
+                if (!string.IsNullOrWhiteSpace(this.Request.QueryString.Value))
+                {
+                    // url += (url.Contains("?") ? "&" : "?") + this.Request.QueryString.Value.Substring(1);
+                    url += string.Concat(url.Contains('?') ? "&" : "?", this.Request.QueryString.Value.AsSpan(1));
+                }
+
+                // route the current request (with headers and action to url)
+                var request = new HttpRequestMessage(new HttpMethod(this.Request.Method), url);
+                request.Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json");
+
+                // var passApiKey = routeSection.GetValue<bool?>("pass_api_key") ?? false;
+
+                // get headers from the current request and add them to the new request
+
+                // see if there are headers that should not be passed to the server for this particular route
+                var headersToExclude = routeSection.GetValue<string>("headers_to_exclude_from_routing")?
+                    .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+
+                // .GetSection("headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
+                if (headersToExclude == null || headersToExclude.Length < 1)
+                    // check if there are default headers to exclude for all routes
+                    headersToExclude = this._configuration.GetValue<string>("default_headers_to_exclude_from_routing")?
+                        .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                // .GetSection("default_headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
+
+                // see if there are headers to override for this particular route defined in the config file under:
+                //       <headers>
+                //          <header>
+                //              <name>x-api-key</name>
+                //              <value>local api key 1</value>
+                //          </header>
+                //      </headers>
+                var headersToOverride = routeSection.GetSection("headers")?.GetChildren()?
+                    // remove null `name` headers
+                    .Where(x => !string.IsNullOrWhiteSpace(x.GetValue<string>("name")))
+                    .Select(x => new KeyValuePair<string, string>(x.GetValue<string>("name")!,
+                    x.GetValue<string>("value") ?? string.Empty))
+                    .ToDictionary(x => x.Key, x => x.Value);
+
+                if (headersToOverride?.Count > 0 == true)
+                {
+                    foreach (var header in headersToOverride)
+                    {
+                        _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
+                }
+
+                foreach (var header in this.Request.Headers)
+                {
+
+                    if (
+                        // exclude headers that should not be passed to the server (make sure to accomodate for case sensitivity)
+                        headersToExclude?.Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
+                        || headersToOverride?.Select(x => x.Key).Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
+                        )
+                        continue;
+                    _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                }
+
+                try
+                {
+                    var ignoreCertificateErrors = routeSection.GetValue<bool?>("ignore_certificate_errors");
+
+                    ignoreCertificateErrors ??= this._configuration.GetValue<bool?>("ignore_certificate_errors_when_routing");
+                    using (var client = ignoreCertificateErrors == true
+                        ? _httpClientFactory.CreateClient("ignoreCertificateErrors")
+                        : _httpClientFactory.CreateClient()
+                        )
+
+                    {
+
+                        var response = await client.SendAsync(request); // , HttpCompletionOption.ResponseHeadersRead);
+
+
+                        // proxy the response back to the caller as is (i.e., without processing)
+
+                        // setup the response content headers
+                        foreach (var header in response.Content.Headers)
+                        {
+                            Response.HttpContext.Response.Headers[header.Key] = header.Value.ToArray();
+                        }
+
+                        // setup the response headers
+                        foreach (var header in response.Headers
+                            // exclude `Transfer-Encoding` and `Content-Length` headers
+                            // as they are set by the server automatically
+                            // and should not be set manually by the proxy
+                            // reason for that is that the server will set the `Content-Length` header
+                            // based on the actual content length, and if the proxy sets it manually
+                            // it may cause issues with the response stream.
+                            // And the reason why we exclude `Transfer-Encoding` header is that
+                            // the server will set it based on the response content type
+                            // and the proxy should not set it manually
+                            // as it may cause issues with the response stream.
+                            .Where(x => !new string[] { "Transfer-Encoding", "Content-Length" }.Contains(x.Key))
+                            )
+                        {
+                            Response.Headers[header.Key] = header.Value.ToArray();
+                        }
+
+                        // copy the proxy call stream to the response stream
+                        await response.Content.CopyToAsync(Response.BodyWriter.AsStream());
+
+                        // complete the response stream
+                        Response.BodyWriter.Complete();
+
+                        // return an empty result (since the response is already sent)
+                        return new EmptyResult();
+                    }
+
+
+                }
+                catch (Exception ex)
+                {
+                    return this._settings.GetExceptionResponse(Request, ex);
+                }
+            }
+            
+
+
+        
+
+        private async Task<IActionResult> GetRoutedResponseDepricated(
                     IConfiguration routeSection,
                     JsonElement payload
                     )
@@ -409,7 +567,8 @@ namespace DB2RestAPI.Controllers
                 // if queryString has values, append it to the url, and if the url already has a query string, append it with `&`
                 if (!string.IsNullOrWhiteSpace(this.Request.QueryString.Value))
                 {
-                    url += (url.Contains("?") ? "&" : "?") + this.Request.QueryString.Value.Substring(1);
+                    url += string.Concat(url.Contains('?') ? "&" : "?", this.Request.QueryString.Value.AsSpan(1));
+                    // url += (url.Contains("?") ? "&" : "?") + this.Request.QueryString.Value.Substring(1);
                 }
 
                 // route the current request (with headers and action to url)
@@ -435,8 +594,8 @@ namespace DB2RestAPI.Controllers
                 // see if there are headers to override for this particular route defined in the config file under:
                 //       <headers>
                 //          <header>
-                //              <name>x-api-cacheKey</name>
-                //              <value>local api cacheKey 1</value>
+                //              <name>x-api-key</name>
+                //              <value>local api key 1</value>
                 //          </header>
                 //      </headers>
                 var headersToOverride = routeSection.GetSection("headers")?.GetChildren()?
@@ -470,10 +629,7 @@ namespace DB2RestAPI.Controllers
                 {
                     var ignoreCertificateErrors = routeSection.GetValue<bool?>("ignore_certificate_errors");
 
-                    if (ignoreCertificateErrors == null)
-                    {
-                        ignoreCertificateErrors = this._configuration.GetValue<bool?>("ignore_certificate_errors_when_routing");
-                    }
+                    ignoreCertificateErrors ??= this._configuration.GetValue<bool?>("ignore_certificate_errors_when_routing");
                     using (var client = ignoreCertificateErrors == true
                         ? _httpClientFactory.CreateClient("ignoreCertificateErrors")
                         : _httpClientFactory.CreateClient()
@@ -534,12 +690,12 @@ namespace DB2RestAPI.Controllers
         #endregion
 
         /// <summary>
-        /// Check if the request has an API cacheKey and if it is valid
+        /// Check if the request has an API key and if it is valid
         /// </summary>
         /// <param name="section"></param>
         /// <returns>
-        /// If the request requires an API cacheKey before processing
-        /// and the API cacheKey is not provided or is invalid,
+        /// If the request requires an API key before processing
+        /// and the API key is not provided or is invalid,
         /// return a response with status code 401
         /// </returns>
         private ObjectResult? GetFailedAPIKeysCheckResponseIfAny(
@@ -556,10 +712,10 @@ namespace DB2RestAPI.Controllers
                 {
                     if (this.Request == null
                         ||
-                        !this.Request.Headers.TryGetValue("x-api-cacheKey", out
+                        !this.Request.Headers.TryGetValue("x-api-key", out
                         var extractedApiKey))
                     {
-                        return new ObjectResult(new { success = false, message = "API cacheKey was not provided" })
+                        return new ObjectResult(new { success = false, message = "API key was not provided" })
                         {
                             StatusCode = 401
                         };
@@ -625,7 +781,7 @@ namespace DB2RestAPI.Controllers
 
         private string[] GetAPIKeys(IConfiguration section)
         {
-            var apiKeysSection = section.GetSection("api_keys:cacheKey");
+            var apiKeysSection = section.GetSection("api_keys:key");
 
             if (apiKeysSection != null
                                && apiKeysSection.Exists())
@@ -678,7 +834,7 @@ namespace DB2RestAPI.Controllers
             // check if user passed `debug-mode` header in 
             // the request and if it has a value that 
             // corresponds to the value defined in the config file
-            // under `debug_mode_header_value` cacheKey
+            // under `debug_mode_header_value` key
             // if so, return the full error message and stack trace
             // else return a generic error message
             if (this.IsDebugMode())

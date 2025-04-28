@@ -4,6 +4,13 @@
     <default><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
   </ConnectionStrings>
 
+  <additional_configurations>
+    <path>config/sql.xml</path>
+    <path>config/api_gateway.xml</path>
+    <path>config/global_api_keys.xml</path>
+  </additional_configurations>
+
+
   <!-- 
   if 'true', the system will look for HTTP header 'x-api-key' for the key and try to find if it's available in config/api_keys.xml 
   alternatively, you can skip this process if either you don't need to use API keys, 
