@@ -595,7 +595,7 @@
                       FROM contacts c2
                       WHERE c2.name = c1.name AND c2.active = 1
                       FOR JSON PATH
-                  ) AS phones,
+                  ) AS {type{json{phones}}},
                   1 AS active
               FROM contacts c1
               WHERE c1.active = 1
@@ -607,7 +607,7 @@
       The {type{json{field_name}}} decorator tells the engine to parse the returned JSON string 
       and embed it as a proper nested JSON object instead of an escaped string.
       
-      WITHOUT {type{json{phones}}} decorater, the returned result would look like this:
+      WITHOUT `{type{json{phones}}}` decorator, the returned result would look like this:
       
       ```json
       [
@@ -628,9 +628,9 @@
           }
       ]      
       ```
-      
-      WITH {type{json{phones}}} decorater, the returned result would look like this:
-      
+
+      WITH `{type{json{phones}}}` decorator, the returned result would look like this:
+
       ```json
       [
           {

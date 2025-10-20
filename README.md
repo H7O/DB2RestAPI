@@ -975,7 +975,172 @@ Try changing the `name` parameter in the request body and sending the request mu
 >**Note**: The `invalidators` node is optional and can be used to invalidate the cache when the specified parameters change.
 
 
-### Example 12 - Acting as an API gateway
+### Example 12 - Nested JSON with SQL Server FOR JSON
+
+When working with relational databases, you often need to return hierarchical or nested data structures. SQL Server's `FOR JSON PATH` clause allows you to generate JSON from SQL queries, but by default, SQL Server returns nested JSON as an escaped string rather than a proper JSON object.
+
+This solution provides a **JSON type decorator** that automatically parses these JSON strings and embeds them as proper nested objects in your API response, eliminating the need for additional client-side parsing.
+
+#### The problem
+
+Consider this SQL query that returns contacts with their phone numbers using `FOR JSON PATH`:
+
+```sql
+SELECT
+    name,
+    (
+        SELECT phone
+        FROM contacts c2
+        WHERE c2.name = c1.name AND c2.active = 1
+        FOR JSON PATH
+    ) AS phones,
+    1 AS active
+FROM contacts c1
+WHERE c1.active = 1
+GROUP BY name;
+```
+
+**Without the JSON type decorator**, SQL Server returns the `phones` field as an escaped JSON string:
+
+```json
+[
+    {
+        "name": "Bob Johnson",
+        "phones": "[{\"phone\":\"+1-555-0103\"},{\"phone\":\"+1-555-0104\"}]",
+        "active": 1
+    },
+    {
+        "name": "Jane Smith",
+        "phones": "[{\"phone\":\"+1-555-0102\"}]",
+        "active": 1
+    }
+]
+```
+
+Notice how `phones` is a string containing escaped JSON characters (`\"`) rather than a proper JSON array.
+
+Clients would need to call `JSON.parse()` on the `phones` field to work with it as an object:
+
+```javascript
+// Client-side workaround without decorator
+const data = await fetch('/contacts').then(r => r.json());
+data.forEach(contact => {
+    contact.phones = JSON.parse(contact.phones); // Manual parsing required!
+});
+```
+
+#### The solution: JSON type decorator
+
+Add the `{type{json{field_name}}}` decorator to automatically parse JSON string fields into proper objects:
+
+```xml
+<nested_json>
+  <query>
+    <![CDATA[
+      SELECT
+          name,
+          (
+              SELECT phone
+              FROM contacts c2
+              WHERE c2.name = c1.name AND c2.active = 1
+              FOR JSON PATH
+          ) AS {type{json{phones}}},
+          1 AS active
+      FROM contacts c1
+      WHERE c1.active = 1
+      GROUP BY name;
+    ]]>
+  </query>
+</nested_json>
+```
+
+**With the `{type{json{phones}}}` decorator**, the API automatically returns properly nested JSON:
+
+```json
+[
+    {
+        "name": "Bob Johnson",
+        "phones": [
+            {
+                "phone": "+1-555-0103"
+            },
+            {
+                "phone": "+1-555-0104"
+            }
+        ],
+        "active": 1
+    },
+    {
+        "name": "Jane Smith",
+        "phones": [
+            {
+                "phone": "+1-555-0102"
+            }
+        ],
+        "active": 1
+    }
+]
+```
+
+Now `phones` is a proper JSON array that clients can use directly without additional parsing!
+
+```javascript
+// Client-side code with decorator - no manual parsing needed!
+const data = await fetch('/nested_json').then(r => r.json());
+data.forEach(contact => {
+    contact.phones.forEach(phoneObj => {
+        console.log(phoneObj.phone); // Works directly!
+    });
+});
+```
+
+#### How it works
+
+The `{type{json{field_name}}}` decorator tells the API engine to:
+1. Recognize that the specified field contains a JSON string
+2. Parse the JSON string during response serialization
+3. Embed it as a proper nested object/array in the final response
+
+This happens automatically on the server side, so your API consumers receive clean, properly structured JSON without any extra work.
+
+#### Multiple nested fields
+
+You can use the decorator for multiple fields in the same query:
+
+```sql
+SELECT
+    name,
+    (
+        SELECT phone, type
+        FROM phones
+        WHERE contact_id = c.id
+        FOR JSON PATH
+    ) AS {type{json{phones}}},
+    (
+        SELECT street, city, country
+        FROM addresses
+        WHERE contact_id = c.id
+        FOR JSON PATH
+    ) AS {type{json{addresses}}},
+    active
+FROM contacts c
+WHERE active = 1;
+```
+
+Both `phones` and `addresses` will be returned as proper JSON arrays in the response.
+
+#### Benefits
+
+✅ **Cleaner API responses** - Proper JSON structure without escaped strings  
+✅ **Better client experience** - No manual `JSON.parse()` calls needed  
+✅ **Type safety** - IDEs and TypeScript can infer proper types  
+✅ **Reduced errors** - Eliminates parsing errors on the client side  
+✅ **Performance** - Parsing happens once on the server instead of on every client  
+
+> **Note**: This feature leverages the `Com.H.Text.Json` package which provides advanced JSON serialization capabilities including the type decorator syntax. The decorator works seamlessly with SQL Server's `FOR JSON PATH`, `FOR JSON AUTO`, and any other scenario where you need to embed JSON strings as proper objects.
+
+
+### Example 13 - Acting as an API gateway
 
 The solution also offers the feature of acting as an API gateway to seamlessly route requests to various other APIs.
 
@@ -1023,7 +1188,7 @@ By offering to exclude headers selectively, the solution safeguards against expo
 
 Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
 
-### Example 13 - Protecting your API routes from unauthorized access
+### Example 14 - Protecting your API routes from unauthorized access
 
 You can protect your API routes from unauthorized access by adding the `api_keys` tag to your API node in `api_gateway.xml` file just as we did in example 10 with the `api_keys` tag in `sql.xml` file.
 
@@ -1048,7 +1213,7 @@ With the above configuration, callers to the `https://localhost:7054/locally_pro
 
 > **Note**: If you don't specify the `api_keys` tag in your API node, the route will be publically accessible unless you define global api keys in `/config/global_api_keys.xml` file.
 
-### Example 14 - Custom endpoint path
+### Example 15 - Custom endpoint path
 
 You can customize the endpoint path by adding the `route` tag to your API node in `api_gateway.xml` file just as we did with the `route` tag in `sql.xml` file.
 
@@ -1068,7 +1233,7 @@ Here is a sample of a custom endpoint path in `api_gateway.xml` file:
 
 The above endpoint path will be accessible at `https://localhost:7054/cat/facts/list` and will be routed to the `https://catfact.ninja/fact` API.
 
-### Example 15 - Wildcard route matching
+### Example 16 - Wildcard route matching
 
 You can use wildcard route matching to route multiple endpoints to single base URL by using the `*` wildcard character.
 
@@ -1092,7 +1257,7 @@ This is helpful when you have multiple endpoints that share the same base URL bu
 
 > **Note**: The `*` wildcard character can be used to match any number of characters.
 
-### Example 16 - Caching API gateway responses
+### Example 17 - Caching API gateway responses
 
 Just like database queries, API gateway routes can also benefit from caching to improve performance and reduce load on target APIs.
 
