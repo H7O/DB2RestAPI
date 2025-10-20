@@ -1,93 +1,113 @@
 ﻿using Com.H.Cache;
 using Com.H.Data.Common;
 using Com.H.Threading;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace DB2RestAPI.Cache
 {
-    public class CacheService(IConfiguration configuration, IServiceProvider provider)
+    public class CacheService(
+        IConfiguration configuration, 
+        IServiceProvider provider,
+        HybridCache cache
+        )
     {
         private readonly IConfiguration _configuration = configuration;
         private readonly IServiceProvider _provider = provider;
-        private MemoryCache? cache;
-        private Lock cacheCreationLock = new Lock();
-        private readonly AtomicGate cacheCreated = new AtomicGate();
-
+        private readonly HybridCache _cache = cache;
 
         /// <summary>
-        /// Gets the memory cache instance, initializing it if necessary.
+        /// Retrieves an item from the cache or generates it using the specified data factory function.
+        /// This method is specifically designed for API Gateway caching.
         /// </summary>
-        public MemoryCache Cache
+        /// <typeparam name="T">The type of the item to retrieve or generate.</typeparam>
+        /// <param name="serviceSection">The configuration section containing cache settings.</param>
+        /// <param name="context">The HTTP context containing request information.</param>
+        /// <param name="resolvedRoute">The resolved route path after wildcard matching.</param>
+        /// <param name="dataFactory">A function that generates the item if it is not found in the cache.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        public async Task<T?> GetForGateway<T>(
+                IConfigurationSection serviceSection,
+                HttpContext context,
+                string resolvedRoute,
+                Func<bool, Task<T?>> dataFactory,
+                CancellationToken cancellationToken = default
+            ) where T : class
         {
-            get
+            var cacheInfo = GetCacheInfoForGateway(serviceSection, context, resolvedRoute);
+            if (cacheInfo == null)
             {
-                // Check if the cache has already been created
-                if (this.cacheCreated.IsOpen) return this.cache!;
-
-                // Lock to ensure thread-safe initialization of the cache
-                lock (cacheCreationLock)
-                {
-                    // If the cache is already initialized, return it
-                    if (this.cache != null) return this.cache;
-
-                    // Create a new MemoryCache instance
-                    this.cache = new MemoryCache();
-
-                    // Retrieve the cache configuration section from the main configuration
-                    var cacheSection = _configuration.GetSection("cache");
-                    bool cacheNullValues = false;
-                    int checkCacheExpiryInterval = 60000; // Default interval in milliseconds
-
-                    // If the cache section exists, read the configuration values
-                    if (cacheSection is not null && cacheSection.Exists())
-                    {
-                        // Try to parse the cache_null_values setting
-                        bool.TryParse(cacheSection["cache_null_values"], out cacheNullValues);
-
-                        // Try to parse the check_cache_expiry_interval_in_miliseconds setting
-                        int.TryParse(cacheSection["check_cache_expiry_interval_in_miliseconds"], out checkCacheExpiryInterval);
-                        if (checkCacheExpiryInterval < 1)
-                        {
-                            checkCacheExpiryInterval = 60000; // Default interval in milliseconds
-                        }
-                    }
-
-                    // Set the cache configuration values
-                    cache.CacheNullValues = cacheNullValues;
-
-                    // Start the auto-cleanup process for the cache
-                    cache.StartAutoCleanup(
-                        TimeSpan.FromMilliseconds(checkCacheExpiryInterval),
-                        _provider.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping
-                    );
-                    // Mark the cache as created
-                    _ = this.cacheCreated.TryOpen();
-                }
-
-
-                // Return the initialized cache
-                return cache;
+                // if there is no cache configuration, just return the data by calling
+                // the dataFactory with disableDeferredExecution = false (streaming mode)
+                return await dataFactory(false);
             }
+
+            var options = new HybridCacheEntryOptions
+            {
+                Expiration = cacheInfo.Duration,
+                LocalCacheExpiration = cacheInfo.Duration,
+            };
+            return await this._cache.GetOrCreateAsync<T>(
+                cacheInfo.Key, // Unique key to the cache entry
+                
+                async cancel => await dataFactory(true), 
+                // ^ Data factory to generate the item (buffered mode for caching)
+                options: options,
+                cancellationToken: cancellationToken);
         }
 
-        public T Get<T>(
-            IConfigurationSection serviceSection, 
-            List<QueryParams> qParams, 
-            Func<T> dataFactory,
-            Func<T>? nonCachedDataFactory = null
+        /// <summary>
+        /// Retrieves an item from the cache or generates it using the specified data factory function.
+        /// </summary>
+        /// <remarks>If the cache information cannot be determined from the provided configuration section
+        /// and query parameters, the data factory is invoked without caching the result.</remarks>
+        /// <typeparam name="T">The type of the item to retrieve or generate.</typeparam>
+        /// <param name="serviceSection">The configuration section containing cache settings.</param>
+        /// <param name="qParams">A list of query parameters used to identify the cache entry.</param>
+        /// <param name="dataFactory">A function that generates the item if it is not found in the cache. The function receives a boolean
+        /// indicating whether the data for the cache to be generated in deffered fashion and returned as an iterator (yet to be triggered) 
+        /// or the whole data to be generated in memory and returned directly.
+        /// This is helpful as the dataFactory function needs to tell the downstream functions how to handle the data generation accordingly.
+        /// If the data is meant for streaming back to the client, then it should be generated in deffered fashion.
+        /// And if the data is meant to be cached in memory, then it should be generated directly.
+        /// The boolean value represents `disableDefferedExecution`, this means if it's true, then the data should be generated directly,
+        /// and if it's false, then the data should be generated in deffered fashion.
+        /// </param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>A task that represents the asynchronous operation. The task result contains the item retrieved from the
+        /// cache or generated by the data factory.</returns>
+        public async Task<T> Get<T>(
+                IConfigurationSection serviceSection,
+                List<DbQueryParams> qParams,
+                Func<bool, Task<T>> dataFactory,
+                CancellationToken cancellationToken = default
             )
         {
             var cacheInfo = GetCacheInfo(serviceSection, qParams);
             if (cacheInfo == null)
             {
-                if (nonCachedDataFactory != null)
-                    return nonCachedDataFactory();
-                return dataFactory();
+                // if there is no cache configuration, just return the data by calling
+                // the dataFactory with disableDefferedExecution = false (which means the data should be generated in deffered fashion)
+                return await dataFactory(false);
             }
-            TimeSpan duration = cacheInfo.Duration;
-            return this.Cache.Get<T>(cacheInfo.Key, dataFactory, duration)!;
+
+            var options = new HybridCacheEntryOptions
+            {
+                Expiration = cacheInfo.Duration,
+                LocalCacheExpiration = cacheInfo.Duration,
+            };
+            return await this._cache.GetOrCreateAsync<T>(
+                cacheInfo.Key, // Unique key to the cache entry
+                
+                async cancel => await dataFactory(true), 
+                // ^ Data factory to generate the item (in direct fashion for caching) if not found in cache
+                options:options,
+                cancellationToken: cancellationToken);
         }
+
+
 
         /// <summary>
         /// Returns a cache mechanism along with the cache configuration details for a specific service section.
@@ -97,84 +117,200 @@ namespace DB2RestAPI.Cache
         /// <returns>
         /// An instance of <see cref="CacheInfo"/> if caching is enabled and properly configured; otherwise, <c>null</c>.
         /// </returns>
-        private CacheInfo? GetCacheInfo(IConfigurationSection serviceSection, List<QueryParams> qParams)
+        private CacheInfo? GetCacheInfo(IConfigurationSection serviceSection, List<DbQueryParams> qParams)
         {
-            // Retrieve the cacheService section from the service (query or gateway) section
-            var cacheSection = serviceSection.GetSection("cache");
-            if (cacheSection == null || !cacheSection.Exists())
-                return null;
-            // Retrieve the memory cacheService section from the cacheService section
-            var memorySection = cacheSection.GetSection("memory");
-            if (memorySection == null || !memorySection.Exists())
+            // Retrieve the memory cache section directly
+            var memorySection = serviceSection.GetSection("cache:memory");
+            if (!memorySection.Exists())
                 return null;
 
-            // Determine the cacheService duration
-            int duration = memorySection.GetValue<int?>("duration_in_miliseconds") ??
-                this._configuration.GetValue<int?>("cacheService:default_duration_in_miliseconds") ?? -1;
+            // Determine the cache duration
+            int duration = memorySection.GetValue<int?>("duration_in_milliseconds") ??
+                this._configuration.GetValue<int?>("default_cache:memory:default_duration_in_milliseconds") ?? -1;
             if (duration < 1)
                 return null;
 
-            // Retrieve cacheService invalidators
-            var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
-            List<string> invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            int maxPerValueCacheSize = memorySection.GetValue<int?>("max_per_value_cache_size") ??
+                this._configuration.GetValue<int?>("default_cache:memory:max_per_value_cache_size") ?? 1000;
 
-            // Construct the cacheService key
-            SortedDictionary<string, object> invalidatorsValues = new SortedDictionary<string, object>();
+            // Retrieve cache invalidators
+            var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
+            var invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            // Construct the cache key
+            SortedDictionary<string, string> invalidatorsValues = new();
             foreach (var qParam in qParams)
             {
-                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
+                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters() as IDictionary<string, object>;
                 if (model == null) continue;
-                foreach (var key in invalidators)
+                foreach (var key in invalidators.Where(x => model.ContainsKey(x)))
                 {
-                    if (model.ContainsKey(key))
-                        invalidatorsValues[key] = model[key];
+                    var value = model[key];
+                    string strValue = value is string s ? s : value?.ToString() ?? string.Empty;
+
+                    if (strValue.Length <= maxPerValueCacheSize)
+                    {
+                        invalidatorsValues[key] = strValue;
+                    }
                 }
             }
 
-            var cacheKey = serviceSection.Key
-                + (invalidatorsValues.Count < 1 ? string.Empty 
-                : 
-                string.Join("|", invalidatorsValues.Select(x => $"{x.Key}={x.Value}")));
+            var sb = new StringBuilder(serviceSection.Key);
+            if (invalidatorsValues.Count > 0)
+            {
+                foreach (var kv in invalidatorsValues)
+                {
+                    sb.Append('|').Append(kv.Key).Append('=').Append(kv.Value);
+                }
+            }
 
-            // convert cacheKey to a hash
-            cacheKey = cacheKey.ToMD5Hash();
-            // Return the CacheService class along with the CacheInfo object
+            var cacheKey = sb.ToString().ToXxHash3().ToString();
+
             return new CacheInfo()
             {
-                Cache = this.Cache,
                 Duration = TimeSpan.FromMilliseconds(duration),
                 Key = cacheKey
             };
-
         }
 
-    }
-
-    public static class CacheServiceExtensions
-    {
-        public static bool HasCacheConfiguration(this IConfigurationSection serviceQuerySection)
+        /// <summary>
+        /// Returns cache configuration details for API Gateway routes.
+        /// Builds cache key from HTTP method, resolved route, query parameters, and headers.
+        /// </summary>
+        /// <param name="serviceSection">The configuration section for the API gateway route.</param>
+        /// <param name="context">The HTTP context containing request information.</param>
+        /// <param name="resolvedRoute">The resolved route path after wildcard matching.</param>
+        /// <returns>
+        /// An instance of <see cref="CacheInfo"/> if caching is enabled and properly configured; otherwise, <c>null</c>.
+        /// </returns>
+        private CacheInfo? GetCacheInfoForGateway(
+            IConfigurationSection serviceSection, 
+            HttpContext context,
+            string resolvedRoute)
         {
-            // Retrieve the cacheService section from the service (query or gateway) section
-            var cacheSection = serviceQuerySection.GetSection("cache");
-            if (cacheSection == null || !cacheSection.Exists())
-                return false;
-            // Retrieve the memory cacheService section from the cacheService section
-            var memorySection = cacheSection.GetSection("memory");
-            if (memorySection == null || !memorySection.Exists())
-                return false;
+            // Retrieve the memory cache section directly
+            var memorySection = serviceSection.GetSection("cache:memory");
+            if (!memorySection.Exists())
+                return null;
 
-            return true;
+            // Determine the cache duration
+            int duration = memorySection.GetValue<int?>("duration_in_milliseconds") ??
+                this._configuration.GetValue<int?>("default_cache:memory:default_duration_in_milliseconds") ?? -1;
+            if (duration < 1)
+                return null;
+
+            int maxPerValueCacheSize = memorySection.GetValue<int?>("max_per_value_cache_size") ??
+                this._configuration.GetValue<int?>("default_cache:memory:max_per_value_cache_size") ?? 1000;
+
+            // Retrieve cache invalidators
+            var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
+            var invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            // Build cache key components: method + route + query params + headers
+            SortedDictionary<string, string> invalidatorsValues = new();
+            
+            // Check query string parameters
+            foreach (var queryParam in context.Request.Query)
+            {
+                if (invalidators.Contains(queryParam.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    var value = queryParam.Value.ToString();
+                    if (value.Length <= maxPerValueCacheSize)
+                    {
+                        invalidatorsValues[queryParam.Key] = value;
+                    }
+                }
+            }
+            
+            // Check headers
+            foreach (var header in context.Request.Headers)
+            {
+                if (invalidators.Contains(header.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    var value = header.Value.ToString();
+                    if (value.Length <= maxPerValueCacheSize)
+                    {
+                        invalidatorsValues[header.Key] = value;
+                    }
+                }
+            }
+
+            // Construct the cache key: section + method + route + invalidators
+            var sb = new StringBuilder(serviceSection.Key);
+            sb.Append('|').Append(context.Request.Method); // Include HTTP method
+            sb.Append('|').Append(resolvedRoute); // Include resolved route path
+            
+            if (invalidatorsValues.Count > 0)
+            {
+                foreach (var kv in invalidatorsValues)
+                {
+                    sb.Append('|').Append(kv.Key).Append('=').Append(kv.Value);
+                }
+            }
+
+            var cacheKey = sb.ToString().ToXxHash3().ToString();
+
+            return new CacheInfo()
+            {
+                Duration = TimeSpan.FromMilliseconds(duration),
+                Key = cacheKey
+            };
         }
+
+
+
     }
+
+    //public static class CacheServiceExtensions
+    //{
+    //    public static bool HasCacheConfiguration(this IConfigurationSection serviceQuerySection)
+    //    {
+    //        // Retrieve the cacheService section from the service (query or gateway) section
+    //        var cacheSection = serviceQuerySection.GetSection("cache");
+    //        if (cacheSection == null || !cacheSection.Exists())
+    //            return false;
+    //        // Retrieve the memory cacheService section from the cacheService section
+    //        var memorySection = cacheSection.GetSection("memory");
+    //        if (memorySection == null || !memorySection.Exists())
+    //            return false;
+
+    //        return true;
+    //    }
+    //}
 
     internal static class StringExtensions
     {
-        public static string ToMD5Hash(this string text)
+
+        //internal static string GenerateCacheKey(
+        //    string endpoint,
+        //    IDictionary<string, object> invalidatingParams)
+        //{
+        //    var sb = new StringBuilder(endpoint);
+
+        //    foreach (var param in invalidatingParams.OrderBy(p => p.Key))
+        //    {
+        //        sb.Append(':');
+        //        sb.Append(param.Key);
+        //        sb.Append('=');
+        //        sb.Append(param.Value);
+        //    }
+
+        //    return sb.ToString().ToXxHash3().ToString();
+        //}
+
+        internal static ulong ToXxHash3(this string text)
         {
-            using var md5 = MD5.Create();
-            return BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "");
+            Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetMaxByteCount(text.Length)];
+            int bytesWritten = Encoding.UTF8.GetBytes(text, buffer);
+            return System.IO.Hashing.XxHash3.HashToUInt64(buffer.Slice(0, bytesWritten));
         }
+        //internal static string ToMD5Hash(this string text)
+        //{
+        //    using var md5 = System.Security.Cryptography.MD5.Create();
+        //    return BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "");
+        //}
 
     }
 }

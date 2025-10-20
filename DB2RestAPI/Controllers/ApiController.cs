@@ -16,68 +16,68 @@ using Microsoft.Extensions.Http;
 using DB2RestAPI.Cache;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using DB2RestAPI.Settings;
+using Microsoft.Data.SqlClient;
 
 namespace DB2RestAPI.Controllers
 {
 
-    
+    /// <summary>
+    /// route, section, service_type, parameters, and payload should already be available  
+    /// in the context.Items when this middleware is called.
+    /// `route` is a string representing the route of the request.
+    /// `section` is an IConfigurationSection representing the configuration section of the route.
+    /// `service_type` is a string representing the type of service. Current supported services 
+    /// are `api_gateway` and `db_query`, however `db_query` is the only one that is currently acceptable 
+    /// for this controller since if the `service_type` is `api_gateway` then 
+    /// the request should have been handled by the `Step4APIGatewayProcess` middleware.
+    /// `parameters` is a List<Com.H.Data.Common.QueryParams> representing the parameters of the request.
+    /// Which includes the query string parameters, the body parameters, the route parameters and headers parameters.
+    /// `payload` is a JsonElement representing the body of the request.
+    /// </summary>
+
     public class ApiController(
         IConfiguration configuration,
         DbConnection connection,
-        IHttpClientFactory httpClientFactory,
-        SettingsService settingsService
+        SettingsService settingsService,
+        ILogger<ApiController> logger
+
             //,
             //Com.H.CacheService.MemoryCache cacheService
             ) : ControllerBase
     {
         private readonly IConfiguration _configuration = configuration;
         private readonly DbConnection _connection = connection;
-        
-        private static readonly string _defaultVariablesRegex = @"(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})"; 
-        private static readonly string _defaultHeadersRegex = @"(?<open_marker>\{header\{)(?<param>.*?)?(?<close_marker>\}\})";
-        private static readonly string _defaultQueryStringRegex = @"(?<open_marker>\{qs\{)(?<param>.*?)?(?<close_marker>\}\})";
 
-        /// <summary>
-        /// exclude `Transfer-Encoding` and `Content-Length` headers
-        /// as they are set by the server automatically
-        /// and should not be set manually by the proxy
-        /// reason for that is that the server will set the `Content-Length` header
-        /// based on the actual content length, and if the proxy sets it manually
-        /// it may cause issues with the response stream.
-        /// And the reason why we exclude `Transfer-Encoding` header is that
-        /// the server will set it based on the response content type
-        /// and the proxy should not set it manually
-        /// as it may cause issues with the response stream.
-        /// </summary>
-        private static readonly string[] _proxyHeadersToExclude = new string[] { "Transfer-Encoding", "Content-Length" };
+        private readonly ILogger<ApiController> _logger = logger;
 
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
-
-        // private readonly Com.H.CacheService.MemoryCache _cache;
 
         private readonly SettingsService _settings = settingsService;
 
+        private static readonly string _errorCode = "API Controller Error";
 
 
-        /// <summary>
-        /// Similar to Index method but expects its endpoint to have a prefix of `json/`
-        /// Ignores the `Content-Type` header and processes the request payload as JSON
-        /// by default. The request is passed to the Index method for processing.
-        /// </summary>
-        /// <param name="payload">Payload to be passed to Index method under the hood</param>
-        /// <returns>Payload return from Index method</returns>
-        [HttpGet]
-        [HttpPost]
-        [HttpDelete]
-        [HttpPut]
-        [Route("json/{*route}")]
-        public async Task<IActionResult> JsonProxy(
-            [ModelBinder(BinderType = typeof(BodyModelBinder))] JsonElement payload,
-            CancellationToken cancellationToken
-            )
-        {
-            return await Index(payload, cancellationToken);
-        }
+
+        ///// <summary>
+        ///// Similar to Index method but expects its endpoint to have a prefix of `json/`
+        ///// Ignores the `Content-Type` header and processes the request payload as JSON
+        ///// by default. The request is passed to the Index method for processing.
+        ///// </summary>
+        ///// <param name="payload">Payload to be passed to Index method under the hood</param>
+        ///// <returns>Payload return from Index method</returns>
+        //[HttpGet]
+        //[HttpPost]
+        //[HttpDelete]
+        //[HttpPut]
+        //[Route("json/{*route}")]
+        //public async Task<IActionResult> JsonProxy(
+        //    [ModelBinder(BinderType = typeof(BodyModelBinder))] JsonElement payload,
+        //    CancellationToken cancellationToken
+        //    )
+        //{
+        //    return await Index();
+        //}
+
+
 
 
 
@@ -88,127 +88,122 @@ namespace DB2RestAPI.Controllers
         [HttpPut]
         [Route("{*route}")]
         public async Task<IActionResult> Index(
-            [FromBody] JsonElement payload,
-            CancellationToken cancellationToken
             )
         {
-            
-            #region extract route data from the request
-            // get route data from the request and extract the api endpoint name
-            // from multiple segments separated by `/`
-            // then replace `$2F` with `/` in the endpoint name
-            var route = this.RouteData.Values["route"]?
-                .ToString()?
-                .Replace("$2F", "/");
-            #endregion
-            
-            #region check if configuration is null
-            if (this._configuration == null)
-                return BadRequest(new { success = false, message = "Configuration is null" });
+            #region log the time and the method name
+            this._logger.LogDebug("{time}: in ApiController.Index method",
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
             #endregion
 
-            #region check api endpoint name and payload
-            if (string.IsNullOrWhiteSpace(route))
-                return BadRequest(new { success = false, message = "No API Endpoint specified" });
-            if (route.Length > 500)
-                return ValidationProblem(new ValidationProblemDetails
-                {
-                    Detail = "Endpoint route is too long",
-                    Status = StatusCodes.Status400BadRequest,
-                    Title = "Endpoint route is too long",
-                });
+            #region if no section passed from the previous middlewares, return 500
+            IConfigurationSection? section = HttpContext.Items.ContainsKey("section")
+                ? HttpContext.Items["section"] as IConfigurationSection
+                : null;
 
-
-            #endregion
-
-
-            #region checking if the request is an API gateway routing request
-            var routes = this._configuration.GetSection("routes");
-
-            if (routes !=null && routes.Exists())
+            if (section == null || !section.Exists())
             {
-                var routeSection = routes.GetSection(route);
-
-                if (routeSection != null && routeSection.Exists())
+                return StatusCode(500, new
                 {
-                    return await GetRoutedResponse(routeSection, payload);
-                }
-            }   
-
+                    success = false,
+                    message = $"Improper service setup. (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                });
+                ;
+            }
             #endregion
 
-            #region check if endpoint is defined in sql.xml config file
+            #region if service_type is not db_query, return 500
+            if (HttpContext.Items.ContainsKey("service_type")
+                && HttpContext.Items["service_type"] as string != "db_query")
+            {
+                return StatusCode(500,
+                        new
+                        {
+                            success = false,
+                            message = $"Improper service setup. (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        });
+            }
+            #endregion
 
+            #region check if the query is empty, return 500 
 
-            var queries = this._configuration.GetSection("queries");
-
-            if (queries == null || !queries.Exists())
-                return BadRequest(new { success = false, message = "No API Endpoints defined" });
-
-            var serviceQuerySection = queries.GetSection(route);
-
-            if (serviceQuerySection == null || !serviceQuerySection.Exists())
-                return NotFound(new { success = false, message = $"API Endpoint `{route}` not found" });
-
-            var serviceQuery = serviceQuerySection.GetSection("query");
-
-            var query = serviceQuery?.Value;
+            var query = section.GetValue<string>("query");
 
             if (string.IsNullOrWhiteSpace(query))
-                return BadRequest(new { success = false, message = $"Service `{route}` not yet implemented" });
+            {
+                return StatusCode(500,
+                    new
+                    {
+                        success = false,
+                        message = $"No query defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                    });
+            }
 
             #endregion
 
-            #region check local API keys if defined for the endpoint
-            var sqlSectionApiKeysCheckResponse = GetFailedAPIKeysCheckResponseIfAny(serviceQuerySection);
-            if (sqlSectionApiKeysCheckResponse != null)
-                return sqlSectionApiKeysCheckResponse;
+            #region get parameters
+            var qParams = HttpContext.Items["parameters"] as List<DbQueryParams>;
+            // If the parameters are not available, then there is a misconfiguration in the middleware chain
+            // as even if the request does not have any parameters, the middleware chain should
+            // have provided a default set of parameters for each parameter category (i.e., route, query string, body, headers)
+            if (qParams == null || 
+                qParams.Count < 1)
+            {
+                return StatusCode(500,
+                    new
+                    {
+                        success = false,
+                        message = $"No default parameters defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                    });
+            }
             #endregion
 
 
-            #region prepare query parameters
-            var qParams = GetParams(serviceQuerySection, payload);
-
+            #region resolve DbConnection from request scope
+            // If the connection is not provided, use the default connection from the settings
+            DbConnection connection = _connection;
+            // See if the section has a connection string name defined, if so, use it to get the connection string from the configuration
+            // and override the default connection
+            var connectionStringName = section.GetSection("connection_string_name")?.Value;
+            if (!string.IsNullOrWhiteSpace(connectionStringName))
+            {
+                var connectionString = _configuration.GetConnectionString(connectionStringName);
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    return StatusCode(500,
+                        new
+                        {
+                            success = false,
+                            message = $"Connection string `{connectionStringName}` is not defined in the configuration."
+                        });
+                }
+                // If the connection string is the same as the default connection string,
+                // then use the default connection, otherwise create a new connection
+                if (_connection.ConnectionString != connectionString)
+                    // todo: consider using a connection pool here
+                    // also consider detecting the type of the connection string
+                    // i.e., if it is a SQL Server connection string, then use SqlConnection
+                    // if it is a MySQL connection string, then use MySqlConnection, etc.
+                    connection = new SqlConnection(connectionString);
+                
+            }
             #endregion
 
-            #region check mandatory parameters for SQL queries end points
 
-            var mandatoryParamsCheckResponse = 
-                GetFailedMandatoryParamsCheckIfAny(
-                    serviceQuerySection, 
-                    qParams,
-                    mandatoryParameters: GetMadatoryParameters(serviceQuerySection)
-                    );
-            if (mandatoryParamsCheckResponse != null)
-                return mandatoryParamsCheckResponse;
-
-            #endregion
-
-
-            // get the cacheService info for the current service query section (if available)
-            var cacheService = GetCacheService(serviceQuerySection, qParams);
-
-
+            #region get the data from DB and return it
             try
             {
-                if (cacheService.HasValue)
-                {
-                    return cacheService.Value.Cache.Get<ObjectResult>(
-                        cacheService.Value.Info.Key,
-                        () =>
-                        {
-                            Console.WriteLine("trying to get result");
-                            return this.GetResultFromDb(serviceQuerySection, query, qParams, disableDifferredExecution: true);
-                        },
-                         cacheService.Value.Info.Duration)!;
-                }
-
-                return this.GetResultFromDb(serviceQuerySection, query, qParams);
+                var response = await _settings.CacheService
+                    .Get<ObjectResult>(
+                    section, 
+                    qParams,
+                    disableDiffered => GetResultFromDbAsync(section, connection, query, qParams, disableDiffered),
+                    HttpContext.RequestAborted
+                    );
+                return response;
 
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
-
                 if (ex.InnerException != null
                     &&
                     typeof(Microsoft.Data.SqlClient.SqlException).IsAssignableFrom(ex.InnerException.GetType())
@@ -218,12 +213,12 @@ namespace DB2RestAPI.Controllers
                     if (sqlException.Number >= 50000 && sqlException.Number < 51000)
                     {
                         return new ObjectResult(sqlException.Message)
-                        { 
+                        {
                             StatusCode = sqlException.Number - 50000,
-                            Value = new 
-                            { 
-                                success = false, 
-                                message = sqlException.Message, 
+                            Value = new
+                            {
+                                success = false,
+                                message = sqlException.Message,
                                 error_number = sqlException.Number - 50000
                             }
                         };
@@ -236,7 +231,7 @@ namespace DB2RestAPI.Controllers
                 // under `debug_mode_header_value` key
                 // if so, return the full error message and stack trace
                 // else return a generic error message
-                if (this.IsDebugMode())
+                if (_settings.IsDebugMode(Request))
                 {
 
                     var errorMsg = $"====== exception ======{Environment.NewLine}"
@@ -250,8 +245,11 @@ namespace DB2RestAPI.Controllers
                     await this.Response.CompleteAsync();
                 }
 
-                return BadRequest(new { success = false, message = GetDefaultGenericErrorMessage()});
+                return BadRequest(new { success = false, message = _settings.GetDefaultGenericErrorMessage() });
+
             }
+
+            #endregion
 
         }
 
@@ -261,11 +259,13 @@ namespace DB2RestAPI.Controllers
         /// <param name="serviceQuerySection">The configuration section for the specific service query.</param>
         /// <param name="query">The SQL query to be executed.</param>
         /// <param name="qParams">A list of query parameters to be used in the query.</param>
+        /// <param name="disableDifferredExecution">For caching purposes, retrieves all records in memory if enabled so they could be placed in a cache mechanism</param>
         /// <returns>An <see cref="ObjectResult"/> containing the result of the query execution.</returns>
-        public ObjectResult GetResultFromDb(
+        public async Task<ObjectResult> GetResultFromDbAsync(
             IConfigurationSection serviceQuerySection,
+            DbConnection connection,
             string query,
-            List<QueryParams> qParams,
+            List<DbQueryParams> qParams,
             bool disableDifferredExecution = false
             )
         {
@@ -276,718 +276,134 @@ namespace DB2RestAPI.Controllers
             // check if count query is defined
             var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
 
+            var customSuccessStatusCode = serviceQuerySection.GetValue<int?>("success_status_code")??
+                this._configuration.GetValue<int?>("default_success_status_code") ?? 200;
+
+
 
             if (string.IsNullOrWhiteSpace(countQuery))
             {
-                return Ok(disableDifferredExecution?
-                    this._connection
-                            .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout).ToArray()
-                    :
-                    this._connection
-                            .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
-                            .ToChamberedEnumerable());
+                var responseStructure = serviceQuerySection.GetValue<string>("response_structure")?.ToLower() ??
+                    this._configuration.GetValue<string>("default_response_structure")?.ToLower() ?? "auto";
+
+                // check if `response_structure` is valid (valid values are `array`, `single`, `auto`)
+                if (responseStructure != "array" && responseStructure != "single" && responseStructure != "auto")
+                {
+                    return StatusCode(500, new
+                    {
+                        success = false,
+                        message = $"Invalid response structure `{responseStructure}` defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                    });
+                }
+                var resultWithNoCount = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+                HttpContext.RequestAborted.ThrowIfCancellationRequested();
+
+
+                if (responseStructure == "array")
+                {
+                    
+                    if (disableDifferredExecution)
+                    {
+                        return StatusCode(customSuccessStatusCode,
+                            resultWithNoCount.AsEnumerable().ToArray());
+                    }
+                    return StatusCode(customSuccessStatusCode, resultWithNoCount);
+
+                }
+                if (responseStructure == "single")
+                {
+                    // if response structure is single, then return the first record
+
+                    
+                    var singleResult = resultWithNoCount.AsEnumerable().FirstOrDefault();
+                    // close the reader
+                    await resultWithNoCount.CloseReaderAsync();
+                    return StatusCode(customSuccessStatusCode, singleResult);
+
+
+                }
+                if (responseStructure == "auto")
+                {
+                    // if response structure is auto, then return an array if there are more than one record
+                    // and a single record if there is only one record
+                    // ToChamberedAsyncEnumerable is a custom extension method that returns an enumerable that have 
+                    // some of its items already read into memory. In the case below, the extension method is
+                    // instructed to read 2 items into memory and keep the remaining (if any) in the enumerable.
+                    // The returned enumerable from the extension method should have a `ChamberedCount` property
+                    // matching that of the items count its instructed to read into memory.
+                    // If the `ChamberedCount` is less than 2, then this indicates that there is only one (or zero) record
+                    // available in the enumerable (i.e., the enumerable is exhausted, in other words ran out of items to iterate through
+                    // before it got to our `ChamberedCount` limit).
+                    // In this case, we return the first record if it exists, or an empty resultWithNoCount.
+                    
+                    var chamberedResult = await resultWithNoCount.ToChamberedEnumerableAsync(2, HttpContext.RequestAborted);
+
+                    HttpContext.RequestAborted.ThrowIfCancellationRequested();
+
+                    if (chamberedResult.WasExhausted(2))
+                    {
+                        var singleResult = chamberedResult.AsEnumerable().FirstOrDefault();
+                        // close the reader
+                        await resultWithNoCount.CloseReaderAsync();
+                        return StatusCode(customSuccessStatusCode, singleResult);
+                    }
+                    else
+                    {
+                        return StatusCode(customSuccessStatusCode,
+                            disableDifferredExecution ?
+                            chamberedResult.AsEnumerable().ToArray()
+                            :
+                            chamberedResult);
+                    }
+                }
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = $"Invalid response structure `{responseStructure}` defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                });
             }
-            
-            return Ok(
+
+            var resultCount = await connection.ExecuteQueryAsync(countQuery, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+            var rowCount = resultCount.AsEnumerable().FirstOrDefault();
+            HttpContext.RequestAborted.ThrowIfCancellationRequested();
+
+            if (rowCount == null)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = $"Count query `{countQuery}` did not return any records for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                });
+            }
+            // close the reader for the count query
+            await resultCount.CloseReaderAsync();
+
+
+            var result = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+            HttpContext.RequestAborted.ThrowIfCancellationRequested();
+
+            if (disableDifferredExecution)
+            {
+                // if disableDifferredExecution is true, then we want to read all records into memory
+                // so that we can cache them
+                return StatusCode(customSuccessStatusCode,
+                    new
+                    {
+                        success = true,
+                        count = rowCount,
+                        data = result.AsEnumerable().ToArray()
+                    });
+            }
+
+            return StatusCode(customSuccessStatusCode,
                 new
                 {
                     success = true,
-                    count = ((ExpandoObject?)this._connection
-                    .ExecuteQuery(countQuery, qParams, commandTimeout: dbCommandTimeout)
-                    .ToList()?.FirstOrDefault())?.FirstOrDefault().Value,
-                    data = disableDifferredExecution
-                        ? this._connection
-                        .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
-                        .ToArray()
-                        :
-                        this._connection
-                        .ExecuteQuery(query, qParams, commandTimeout: dbCommandTimeout)
-                        .ToChamberedEnumerable()
+                    count = rowCount,
+                    data =  await result.ToChamberedEnumerableAsync()
                 });
         }
 
-
-        /// <summary>
-        /// Retrieves cacheService along with the cacheService configuration details for a specific service query section.
-        /// </summary>
-        /// <param name="serviceQuerySection">The configuration section for the specific service query.</param>
-        /// <param name="qParams">A list of query parameters used to construct the cacheService key.</param>
-        /// <returns>
-        /// An instance of <see cref="Com.H.Cache.MemoryCache"/> if caching is enabled and properly configured; otherwise, <c>null</c>.
-        /// </returns>
-        public (Com.H.Cache.MemoryCache Cache, CacheInfo Info)? GetCacheService(IConfigurationSection serviceQuerySection, List<QueryParams> qParams)
-        {
-
-            // Retrieve the cacheService section from the service query section
-            var cacheSection = serviceQuerySection.GetSection("cache");
-            if (cacheSection == null || !cacheSection.Exists())
-                return null;
-
-            // Retrieve the memory cacheService section from the cacheService section
-            var memorySection = cacheSection.GetSection("memory");
-            if (memorySection == null || !memorySection.Exists())
-                return null;
-
-            // Determine the cacheService duration
-            int duration = memorySection.GetValue<int?>("duration_in_miliseconds") ??
-                this._configuration.GetValue<int?>("cacheService:default_duration_in_miliseconds") ?? -1;
-            if (duration < 1)
-                return null;
-
-            //var defaultCacheSection = this._configuration.GetSection("cacheService");
-            //if (defaultCacheSection is null || !defaultCacheSection.Exists()
-            //    ||
-            //    !(bool.TryParse(defaultCacheSection["enabled"], out bool cacheEnabled) && cacheEnabled)
-            //    ) return null;
-
-            Com.H.Cache.MemoryCache? memoryCache = this.HttpContext.RequestServices.GetService<Com.H.Cache.MemoryCache>();
-            if (memoryCache == null)
-                return null;
-
-            // Retrieve cacheService invalidators
-            var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
-            List<string> invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-
-            // Construct the cacheService key
-            SortedDictionary<string, object> invalidatorsValues = new SortedDictionary<string, object>();
-            foreach (var qParam in qParams)
-            {
-                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
-                if (model == null) continue;
-                foreach (var key in invalidators)
-                {
-                    if (model.ContainsKey(key))
-                        invalidatorsValues[key] = model[key];
-                }
-            }
-
-            var cacheKey = serviceQuerySection.Key;
-            if (invalidatorsValues.Count > 0)
-                cacheKey += string.Join("|", invalidatorsValues.Select(x => $"{x.Key}={x.Value}"));
-
-            // Return the CacheService class along with the CacheInfo object
-            return new()
-            {
-                Cache = memoryCache,
-                Info = new CacheInfo
-                {
-                    Duration = TimeSpan.FromMilliseconds(duration),
-                    Key = cacheKey
-                }
-            };
-
-        }
-
-        #region API gateway functionality
-
-        public async Task<IActionResult> GetRoutedResponse(
-                    IConfigurationSection routeSection,
-                    JsonElement payload
-            )
-        {
-            #region local API keys check 
-            var failedAPIKeysCheck = this._settings
-                .GetFailedAPIKeysCheckResponseIfAny(routeSection, Request);
-            if (failedAPIKeysCheck != null)
-                return failedAPIKeysCheck;
-            #endregion
-
-            #region url check
-            var url = routeSection.GetValue<string>("url");
-
-            if (string.IsNullOrWhiteSpace(url))
-                return BadRequest(new { success = false, message = $"Improper route settings" });
-            #endregion
-
-
-            var mandatoryParameters = this._settings.GetMandatoryParameters(routeSection);
-                if (mandatoryParameters != null
-                    && mandatoryParameters.Length > 0
-                    )
-                {
-                    var qParams = this._settings.GetParams(routeSection, Request, payload);
-                    var failedMandatoryParamsCheck =
-                        this._settings.GetFailedMandatoryParamsCheckIfAny(routeSection, qParams);
-                    if (failedMandatoryParamsCheck != null)
-                        return failedMandatoryParamsCheck;
-                }
-                // check if `this.Request` has query string
-                // if queryString has values, append it to the url, and if the url already has a query string, append it with `&`
-                if (!string.IsNullOrWhiteSpace(this.Request.QueryString.Value))
-                {
-                    // url += (url.Contains("?") ? "&" : "?") + this.Request.QueryString.Value.Substring(1);
-                    url += string.Concat(url.Contains('?') ? "&" : "?", this.Request.QueryString.Value.AsSpan(1));
-                }
-
-                // route the current request (with headers and action to url)
-                var request = new HttpRequestMessage(new HttpMethod(this.Request.Method), url);
-                request.Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json");
-
-                // var passApiKey = routeSection.GetValue<bool?>("pass_api_key") ?? false;
-
-                // get headers from the current request and add them to the new request
-
-                // see if there are headers that should not be passed to the server for this particular route
-                var headersToExclude = routeSection.GetValue<string>("headers_to_exclude_from_routing")?
-                    .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-
-                // .GetSection("headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
-                if (headersToExclude == null || headersToExclude.Length < 1)
-                    // check if there are default headers to exclude for all routes
-                    headersToExclude = this._configuration.GetValue<string>("default_headers_to_exclude_from_routing")?
-                        .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                // .GetSection("default_headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
-
-                // see if there are headers to override for this particular route defined in the config file under:
-                //       <headers>
-                //          <header>
-                //              <name>x-api-key</name>
-                //              <value>local api key 1</value>
-                //          </header>
-                //      </headers>
-                var headersToOverride = routeSection.GetSection("headers")?.GetChildren()?
-                    // remove null `name` headers
-                    .Where(x => !string.IsNullOrWhiteSpace(x.GetValue<string>("name")))
-                    .Select(x => new KeyValuePair<string, string>(x.GetValue<string>("name")!,
-                    x.GetValue<string>("value") ?? string.Empty))
-                    .ToDictionary(x => x.Key, x => x.Value);
-
-                if (headersToOverride?.Count > 0 == true)
-                {
-                    foreach (var header in headersToOverride)
-                    {
-                        _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                    }
-                }
-
-                foreach (var header in this.Request.Headers)
-                {
-
-                    if (
-                        // exclude headers that should not be passed to the server (make sure to accomodate for case sensitivity)
-                        headersToExclude?.Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
-                        || headersToOverride?.Select(x => x.Key).Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
-                        )
-                        continue;
-                    _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
-                }
-
-                try
-                {
-                    var ignoreCertificateErrors = routeSection.GetValue<bool?>("ignore_certificate_errors");
-
-                    ignoreCertificateErrors ??= this._configuration.GetValue<bool?>("ignore_certificate_errors_when_routing");
-                    using (var client = ignoreCertificateErrors == true
-                        ? _httpClientFactory.CreateClient("ignoreCertificateErrors")
-                        : _httpClientFactory.CreateClient()
-                        )
-
-                    {
-
-                        var response = await client.SendAsync(request); // , HttpCompletionOption.ResponseHeadersRead);
-
-
-                        // proxy the response back to the caller as is (i.e., without processing)
-
-                        // setup the response content headers
-                        foreach (var header in response.Content.Headers)
-                        {
-                            Response.HttpContext.Response.Headers[header.Key] = header.Value.ToArray();
-                        }
-
-                        // setup the response headers
-                        foreach (var header in response.Headers
-                            // exclude `Transfer-Encoding` and `Content-Length` headers
-                            // as they are set by the server automatically
-                            // and should not be set manually by the proxy
-                            // reason for that is that the server will set the `Content-Length` header
-                            // based on the actual content length, and if the proxy sets it manually
-                            // it may cause issues with the response stream.
-                            // And the reason why we exclude `Transfer-Encoding` header is that
-                            // the server will set it based on the response content type
-                            // and the proxy should not set it manually
-                            // as it may cause issues with the response stream.
-                            .Where(x => !new string[] { "Transfer-Encoding", "Content-Length" }.Contains(x.Key))
-                            )
-                        {
-                            Response.Headers[header.Key] = header.Value.ToArray();
-                        }
-
-                        // copy the proxy call stream to the response stream
-                        await response.Content.CopyToAsync(Response.BodyWriter.AsStream());
-
-                        // complete the response stream
-                        Response.BodyWriter.Complete();
-
-                        // return an empty result (since the response is already sent)
-                        return new EmptyResult();
-                    }
-
-
-                }
-                catch (Exception ex)
-                {
-                    return this._settings.GetExceptionResponse(Request, ex);
-                }
-            }
-            
-
-
-        
-
-        private async Task<IActionResult> GetRoutedResponseDepricated(
-                    IConfiguration routeSection,
-                    JsonElement payload
-                    )
-        {
-            
-            #region local API keys check 
-            var failedAPIKeysCheck = GetFailedAPIKeysCheckResponseIfAny(routeSection);
-            if (failedAPIKeysCheck != null)
-                return failedAPIKeysCheck;
-            #endregion
-            var url = routeSection.GetValue<string>("url");
-
-            if (!string.IsNullOrWhiteSpace(url))
-            {
-
-                var mandatoryParameters = GetMadatoryParameters(routeSection);
-                if (mandatoryParameters != null
-                    && mandatoryParameters.Length > 0
-                    )
-                {
-                    var qParams = GetParams(routeSection, payload);
-                    var failedMandatoryParamsCheck = GetFailedMandatoryParamsCheckIfAny(routeSection, qParams, mandatoryParameters);
-                    if (failedMandatoryParamsCheck != null)
-                        return failedMandatoryParamsCheck;
-                }
-                // check if `this.Request` has query string
-                // if queryString has values, append it to the url, and if the url already has a query string, append it with `&`
-                if (!string.IsNullOrWhiteSpace(this.Request.QueryString.Value))
-                {
-                    url += string.Concat(url.Contains('?') ? "&" : "?", this.Request.QueryString.Value.AsSpan(1));
-                    // url += (url.Contains("?") ? "&" : "?") + this.Request.QueryString.Value.Substring(1);
-                }
-
-                // route the current request (with headers and action to url)
-                var request = new HttpRequestMessage(new HttpMethod(this.Request.Method), url);
-                request.Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json");
-
-                var passApiKey = routeSection.GetValue<bool?>("pass_api_key") ?? false;
-
-                // get headers from the current request and add them to the new request
-
-                // see if there are headers that should not be passed to the server for this particular route
-                var headersToExclude = routeSection.GetValue<string>("headers_to_exclude_from_routing")?
-                    .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-
-                // .GetSection("headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
-                if (headersToExclude == null || headersToExclude.Length < 1)
-                    // check if there are default headers to exclude for all routes
-                    headersToExclude = this._configuration.GetValue<string>("default_headers_to_exclude_from_routing")?
-                        .Split(new char[] { ',', ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                // .GetSection("default_headers_to_exclude_from_routing")?.GetChildren().Select(x => x.Value).ToArray();
-
-                // see if there are headers to override for this particular route defined in the config file under:
-                //       <headers>
-                //          <header>
-                //              <name>x-api-key</name>
-                //              <value>local api key 1</value>
-                //          </header>
-                //      </headers>
-                var headersToOverride = routeSection.GetSection("headers")?.GetChildren()?
-                    // remove null `name` headers
-                    .Where(x => !string.IsNullOrWhiteSpace(x.GetValue<string>("name")))
-                    .Select(x => new KeyValuePair<string, string>(x.GetValue<string>("name")!, 
-                    x.GetValue<string>("value")??string.Empty))
-                    .ToDictionary(x => x.Key, x => x.Value);
-
-                if (headersToOverride?.Count > 0 == true)
-                {
-                    foreach (var header in headersToOverride)
-                    {
-                        _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                    }
-                }
-
-                foreach (var header in this.Request.Headers)
-                {
-
-                    if (
-                        // exclude headers that should not be passed to the server (make sure to accomodate for case sensitivity)
-                        headersToExclude?.Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
-                        || headersToOverride?.Select(x => x.Key).Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
-                        )
-                        continue;
-                    _ = request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
-                }
-                
-                try
-                {
-                    var ignoreCertificateErrors = routeSection.GetValue<bool?>("ignore_certificate_errors");
-
-                    ignoreCertificateErrors ??= this._configuration.GetValue<bool?>("ignore_certificate_errors_when_routing");
-                    using (var client = ignoreCertificateErrors == true
-                        ? _httpClientFactory.CreateClient("ignoreCertificateErrors")
-                        : _httpClientFactory.CreateClient()
-                        )
-
-                    {
-
-                        var response = await client.SendAsync(request); // , HttpCompletionOption.ResponseHeadersRead);
-
-
-                        // proxy the response back to the caller as is (i.e., without processing)
-
-                        // setup the response content headers
-                        foreach (var header in response.Content.Headers)
-                        {
-                            Response.HttpContext.Response.Headers[header.Key] = header.Value.ToArray();
-                        }
-
-                        // setup the response headers
-                        foreach (var header in response.Headers
-                            // exclude `Transfer-Encoding` and `Content-Length` headers
-                            // as they are set by the server automatically
-                            // and should not be set manually by the proxy
-                            // reason for that is that the server will set the `Content-Length` header
-                            // based on the actual content length, and if the proxy sets it manually
-                            // it may cause issues with the response stream.
-                            // And the reason why we exclude `Transfer-Encoding` header is that
-                            // the server will set it based on the response content type
-                            // and the proxy should not set it manually
-                            // as it may cause issues with the response stream.
-                            .Where(x => !new string[] { "Transfer-Encoding", "Content-Length" }.Contains(x.Key))
-                            )
-                        {
-                            Response.Headers[header.Key] = header.Value.ToArray();
-                        }
-
-                        // copy the proxy call stream to the response stream
-                        await response.Content.CopyToAsync(Response.BodyWriter.AsStream());
-
-                        // complete the response stream
-                        Response.BodyWriter.Complete();
-
-                        // return an empty result (since the response is already sent)
-                        return new EmptyResult();
-                    }
-
-
-                }
-                catch (Exception ex)
-                {
-                    return GetExceptionResponse(ex);
-                }
-            }
-            return BadRequest(new { success = false, message = $"Improper route settings" });
-
-        }
-
-        #endregion
-
-        /// <summary>
-        /// Check if the request has an API key and if it is valid
-        /// </summary>
-        /// <param name="section"></param>
-        /// <returns>
-        /// If the request requires an API key before processing
-        /// and the API key is not provided or is invalid,
-        /// return a response with status code 401
-        /// </returns>
-        private ObjectResult? GetFailedAPIKeysCheckResponseIfAny(
-            IConfiguration section
-            )
-        {
-            if (bool.TryParse(_configuration.GetSection("enable_global_api_keys")?.Value, out bool globalAPICheckEnabled)
-                && !globalAPICheckEnabled)
-            {
-                var apiKeys = GetAPIKeys(section);
-
-                if (apiKeys.Length > 0)
-                    
-                {
-                    if (this.Request == null
-                        ||
-                        !this.Request.Headers.TryGetValue("x-api-key", out
-                        var extractedApiKey))
-                    {
-                        return new ObjectResult(new { success = false, message = "API key was not provided" })
-                        {
-                            StatusCode = 401
-                        };
-                    }
-
-                    if (!apiKeys.Any(x => x?.Equals(extractedApiKey.ToString()) == true))
-                    {
-                        //this.Response.StatusCode = 401;
-                        //this.Response.ContentType = "application/json";
-                        //await this.Response.WriteAsync(@"{""success"":false, ""message"":""Unauthorized client""}");
-                        return new ObjectResult(new { success = false, message = "Unauthorized client" })
-                        {
-                            StatusCode = 401
-                        };
-                    }
-                }
-            }
-            return null;
-
-        }
-
-
-        private string[]? GetMadatoryParameters(IConfiguration serviceQuerySection)
-        {
-            var mandatoryParameters = serviceQuerySection
-                .GetSection("mandatory_parameters")?.Value?
-                .Split(new char[] { ',', ' ', '\n', '\r' },
-                               StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            return mandatoryParameters;
-        }
-        private ObjectResult? GetFailedMandatoryParamsCheckIfAny(
-            IConfiguration serviceQuerySection,
-            List<QueryParams> qParams,
-            string[]? mandatoryParameters = null
-            
-            )
-        {
-            if (mandatoryParameters == null || mandatoryParameters.Length < 1)
-                return null;
-
-            List<string> keys = new List<string>();
-            foreach (var qParam in qParams)
-            {
-                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
-                if (model == null) continue;
-
-                keys = keys.Union(model.Keys).ToList();
-            }
-
-            var missingMandatoryParams = mandatoryParameters.Where(x => !(keys.Contains(x) == true)).ToArray();
-
-            if (missingMandatoryParams.Length > 0)
-                return BadRequest(new
-                {
-                    success = false,
-                    message = $"Missing mandatory parameters: {string.Join(",", missingMandatoryParams)}"
-                });
-            
-            return null;
-
-        }
-
-        private string[] GetAPIKeys(IConfiguration section)
-        {
-            var apiKeysSection = section.GetSection("api_keys:key");
-
-            if (apiKeysSection != null
-                               && apiKeysSection.Exists())
-            {
-                return apiKeysSection.GetChildren().Select(x => x.Value??"")
-                    .Where(x=>!string.IsNullOrWhiteSpace(x))
-                    .ToArray();
-            }
-            return Array.Empty<string>();
-        }
-
-        private bool IsDebugMode()
-        {
-            return Request.Headers.TryGetValue("debug-mode", out var debugModeHeaderValue)
-                                                   && debugModeHeaderValue == this._configuration.GetSection("debug_mode_header_value")?.Value
-                                                   && debugModeHeaderValue != Microsoft.Extensions.Primitives.StringValues.Empty;
-        }
-
-        private string GetDefaultGenericErrorMessage()
-        {
-            var defaultGenericErrorMessage = this._configuration.GetSection("default_generic_error_message")?.Value;
-            if (string.IsNullOrWhiteSpace(defaultGenericErrorMessage))
-                defaultGenericErrorMessage = "An error occurred while processing your request.";
-            return defaultGenericErrorMessage;
-        }
-
-        private ObjectResult GetExceptionResponse(Exception ex)
-        {
-            if (ex.InnerException != null
-                &&
-                typeof(Microsoft.Data.SqlClient.SqlException).IsAssignableFrom(ex.InnerException.GetType())
-                )
-            {
-                Microsoft.Data.SqlClient.SqlException sqlException = (Microsoft.Data.SqlClient.SqlException)ex.InnerException;
-                if (sqlException.Number >= 50000 && sqlException.Number < 51000)
-                {
-                    return new ObjectResult(sqlException.Message)
-                    {
-                        StatusCode = sqlException.Number - 50000,
-                        Value = new
-                        {
-                            success = false,
-                            message = sqlException.Message,
-                            error_number = sqlException.Number - 50000
-                        }
-                    };
-                }
-            }
-
-            // check if user passed `debug-mode` header in 
-            // the request and if it has a value that 
-            // corresponds to the value defined in the config file
-            // under `debug_mode_header_value` key
-            // if so, return the full error message and stack trace
-            // else return a generic error message
-            if (this.IsDebugMode())
-            {
-
-                var errorMsg = $"====== exception ======{Environment.NewLine}"
-                    + $"{ex.Message}{Environment.NewLine}{Environment.NewLine}"
-                    + $"====== stack trace ====={Environment.NewLine}"
-                    + $"{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}";
-
-                // return a plain text response in the form of ObjectResult
-                return new ObjectResult(errorMsg)
-                {
-                    StatusCode = 500
-                };
-
-                //this.Response.ContentType = "text/plain";
-                //this.Response.StatusCode = 500;
-                //await this.Response.WriteAsync(errorMsg);
-                //await this.Response.CompleteAsync();
-
-            }
-
-            // get `default_generic_error_message` from config file
-            // if it is not defined, use a default value `An error occurred while processing your request.`
-
-
-            return BadRequest(new { success = false, message = GetDefaultGenericErrorMessage() });
-        }
-
-        private List<QueryParams> GetParams(IConfiguration serviceQuerySection, JsonElement payload)
-        {
-            #region prepare query parameters
-            var qParams = new List<QueryParams>();
-
-            #region headers
-            // add headers to qParams
-            var headersRegex = serviceQuerySection.GetSection("headers_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(headersRegex))
-                headersRegex = this._configuration.GetSection("default_headers_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(headersRegex))
-                headersRegex = _defaultHeadersRegex;
-
-            if (this.Request.Headers?.Count > 0 == true)
-            {
-                qParams.Add(new QueryParams()
-                {
-                    DataModel = this.Request.Headers
-                    .ToDictionary(x => x.Key, x => string.Join("|", x.Value.Where(x => !string.IsNullOrEmpty(x)))),
-                    QueryParamsRegex = headersRegex
-                });
-            }
-            else
-            {
-                // add custom header with unlikely name to help
-                // set header variables in the query to DbNull.Value
-                // in the event that headers are not passed
-                // and the user has header variables in the query
-                // which if left unset will cause an error
-                qParams.Add(new QueryParams()
-                {
-                    DataModel = new Dictionary<string, string> { { "unlikely_header_to_be_passed", "123" } },
-                    QueryParamsRegex = headersRegex
-                });
-
-            }
-
-            #endregion
-
-            #region query string
-            // add query string to qParams
-            var queryStringRegex = serviceQuerySection.GetSection("query_string_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(queryStringRegex))
-                queryStringRegex = this._configuration.GetSection("default_query_string_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(queryStringRegex))
-                queryStringRegex = _defaultQueryStringRegex;
-
-            if (this.Request.Query?.Count > 0 == true)
-            {
-                qParams.Add(new QueryParams()
-                {
-                    DataModel = this.Request
-                    .Query
-                    .ToDictionary(x => x.Key, x => string.Join("|", x.Value.Where(x => !string.IsNullOrEmpty(x)))),
-                    QueryParamsRegex = queryStringRegex
-                });
-            }
-            else
-            {
-                // add custom query string with unlikely name to help
-                // set URL query string variables in the SQL query to DbNull.Value
-                // in the event that no URL query string variables were passed
-                // and the user has URL query string variables in the SQL query
-                // which if left unset will cause an error
-                qParams.Add(new QueryParams()
-                {
-                    DataModel = new Dictionary<string, string> { { "unlikely_query_string_to_be_passed", "123" } },
-                    QueryParamsRegex = queryStringRegex
-                });
-
-            }
-            #endregion
-
-            #region payload
-            var varRegex = serviceQuerySection.GetSection("variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(varRegex))
-                varRegex = this._configuration.GetSection("default_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(varRegex))
-                varRegex = _defaultVariablesRegex;
-
-            if (!payload.Equals(default)
-                && payload.ValueKind != JsonValueKind.Null
-                && payload.ValueKind != JsonValueKind.Undefined
-                )
-            {
-                qParams.Add(new QueryParams()
-                {
-                    DataModel = payload,
-                    QueryParamsRegex = varRegex
-                });
-            }
-            else 
-            { 
-                // add custom payload with unlikely name to help
-                // set payload variables in the SQL query to DbNull.Value
-                // in the event that no payload variables were passed
-                // and the user has payload variables in the SQL query
-                // which if left unset will cause an error
-                qParams.Add(new QueryParams()
-                {
-                    DataModel = new Dictionary<string, string> { { "unlikely_payload_to_be_passed", "123" } },
-                    QueryParamsRegex = varRegex
-                });
-            }
-
-            #endregion
-
-            return qParams;
-            #endregion
-        }
-
-        /// <summary>
-        /// Returns a handler that ignores server certificate errors.
-        /// Helpful for scenarios where the server certificate is not trusted
-        /// or is self-signed.
-        /// </summary>
-        /// <returns></returns>
-        //private HttpClientHandler GetServerCertificateHandlerThatIgnoresErrors()
-        //{
-        //    var handler = new HttpClientHandler();
-        //    handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-        //    return handler;
-        //}
 
     }
 }

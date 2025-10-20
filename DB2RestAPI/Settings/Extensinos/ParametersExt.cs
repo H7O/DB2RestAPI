@@ -1,6 +1,7 @@
 ﻿using Com.H.Data.Common;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace DB2RestAPI.Settings.Extensinos
 {
@@ -20,7 +21,7 @@ namespace DB2RestAPI.Settings.Extensinos
         }
         public static ObjectResult? GetFailedMandatoryParamsCheckIfAny(
             this IConfiguration serviceQuerySection,
-            List<QueryParams> qParams,
+            List<DbQueryParams> qParams,
             string[]? mandatoryParameters = null
             )
         {
@@ -61,31 +62,31 @@ namespace DB2RestAPI.Settings.Extensinos
 
         #endregion
 
-        public static List<QueryParams> GetParams(
+        public static List<DbQueryParams> GetParams(
             this IConfigurationSection serviceQuerySection,
             IConfiguration configuration,
-            HttpRequest request,
-            JsonElement? payload
+            HttpContext context,
+            string? jsonPayloadString = null
             )
         {
             #region prepare query parameters
-            var qParams = new List<QueryParams>();
+            var qParams = new List<DbQueryParams>();
 
-            #region headers
+            #region get headers variables
             // add headers to qParams
-            var headersRegex = serviceQuerySection.GetSection("headers_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(headersRegex))
-                headersRegex = configuration.GetSection("default_headers_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(headersRegex))
-                headersRegex = DefaultRegex.DefaultHeadersPattern;
+            var headersVarPattern = serviceQuerySection?.GetSection("headers_variables_regex")?.Value;
+            if (string.IsNullOrWhiteSpace(headersVarPattern))
+                headersVarPattern = configuration.GetSection("default_headers_variables_regex")?.Value;
+            if (string.IsNullOrWhiteSpace(headersVarPattern))
+                headersVarPattern = DefaultRegex.DefaultHeadersPattern;
 
-            if (request.Headers?.Count > 0 == true)
+            if (context.Request.Headers?.Count > 0 == true)
             {
-                qParams.Add(new QueryParams()
+                qParams.Add(new DbQueryParams()
                 {
-                    DataModel = request.Headers
+                    DataModel = context.Request.Headers
                     .ToDictionary(x => x.Key, x => string.Join("|", x.Value.Where(x => !string.IsNullOrEmpty(x)))),
-                    QueryParamsRegex = headersRegex
+                    QueryParamsRegex = headersVarPattern
                 });
             }
             else
@@ -95,30 +96,62 @@ namespace DB2RestAPI.Settings.Extensinos
                 // in the event that headers are not passed
                 // and the user has header variables in the query
                 // which if left unset will cause an error
-                qParams.Add(new QueryParams()
+                qParams.Add(new DbQueryParams()
                 {
                     DataModel = new Dictionary<string, string> { { "unlikely_header_to_be_passed", "123" } },
-                    QueryParamsRegex = headersRegex
+                    QueryParamsRegex = headersVarPattern
                 });
 
             }
 
             #endregion
 
-            #region query string
+            #region get payload variables
+            var varRegex = serviceQuerySection?.GetSection("variables_regex")?.Value;
+            if (string.IsNullOrWhiteSpace(varRegex))
+                varRegex = configuration.GetSection("default_variables_regex")?.Value;
+            if (string.IsNullOrWhiteSpace(varRegex))
+                varRegex = DefaultRegex.DefaultVariablesPattern;
+
+            if (
+                !string.IsNullOrWhiteSpace(jsonPayloadString)
+                )
+            {
+                qParams.Add(new DbQueryParams()
+                {
+                    DataModel = jsonPayloadString,
+                    QueryParamsRegex = varRegex
+                });
+            }
+            else
+            {
+                // add custom payload with unlikely name to help
+                // set payload variables in the SQL query to DbNull.Value
+                // in the event that no payload variables were passed
+                // and the user has payload variables in the SQL query
+                // which if left unset will cause an error
+                qParams.Add(new DbQueryParams()
+                {
+                    DataModel = new Dictionary<string, string> { { "unlikely_payload_to_be_passed", "123" } },
+                    QueryParamsRegex = varRegex
+                });
+            }
+
+            #endregion
+
+            #region get query string variables
             // add query string to qParams
-            var queryStringRegex = serviceQuerySection.GetSection("query_string_variables_regex")?.Value;
+            var queryStringRegex = serviceQuerySection?.GetSection("query_string_variables_regex")?.Value;
             if (string.IsNullOrWhiteSpace(queryStringRegex))
                 queryStringRegex = configuration.GetSection("default_query_string_variables_regex")?.Value;
             if (string.IsNullOrWhiteSpace(queryStringRegex))
                 queryStringRegex = DefaultRegex.DefaultQueryStringPattern;
 
-            if (request.Query?.Count > 0 == true)
+            if (context.Request.Query?.Count > 0 == true)
             {
-                qParams.Add(new QueryParams()
+                qParams.Add(new DbQueryParams()
                 {
-                    DataModel = request
-                    .Query
+                    DataModel = context.Request.Query
                     .ToDictionary(x => x.Key, x => string.Join("|", x.Value.Where(x => !string.IsNullOrEmpty(x)))),
                     QueryParamsRegex = queryStringRegex
                 });
@@ -130,7 +163,7 @@ namespace DB2RestAPI.Settings.Extensinos
                 // in the event that no URL query string variables were passed
                 // and the user has URL query string variables in the SQL query
                 // which if left unset will cause an error
-                qParams.Add(new QueryParams()
+                qParams.Add(new DbQueryParams()
                 {
                     DataModel = new Dictionary<string, string> { { "unlikely_query_string_to_be_passed", "123" } },
                     QueryParamsRegex = queryStringRegex
@@ -139,43 +172,38 @@ namespace DB2RestAPI.Settings.Extensinos
             }
             #endregion
 
-            #region payload
-            var varRegex = serviceQuerySection.GetSection("variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(varRegex))
-                varRegex = configuration.GetSection("default_variables_regex")?.Value;
-            if (string.IsNullOrWhiteSpace(varRegex))
-                varRegex = DefaultRegex.DefaultVariablesPattern;
+            #region route variables
 
-            if (
-                payload != null
-                &&
-                payload.HasValue
-                &&
-                !payload.Equals(default)
-                && ((JsonElement) payload).ValueKind != JsonValueKind.Null
-                && ((JsonElement) payload).ValueKind != JsonValueKind.Undefined
-                )
+            var routeParameterPattern = serviceQuerySection?.GetValue<string>("route_variable_pattern");
+            if (string.IsNullOrWhiteSpace(routeParameterPattern))
+                routeParameterPattern = serviceQuerySection?.GetValue<string>("default_route_variables_regex");
+            if (string.IsNullOrWhiteSpace(routeParameterPattern))
+                routeParameterPattern = DefaultRegex.DefaultRouteVariablesPattern;
+
+
+            if (context.Items["route_parameters"] is Dictionary<string, string> routeParameters && routeParameters?.Count > 0)
             {
-                qParams.Add(new QueryParams()
+
+                qParams.Add(new DbQueryParams()
                 {
-                    DataModel = (JsonElement) payload,
-                    QueryParamsRegex = varRegex
+                    DataModel = routeParameters,
+                    QueryParamsRegex = routeParameterPattern
                 });
             }
             else
             {
-                // add custom payload with unlikely name to help
-                // set payload variables in the SQL query to DbNull.Value
-                // in the event that no payload variables were passed
-                // and the user has payload variables in the SQL query
+                // add custom route with unlikely name to help
+                // set route variables in the SQL query to DbNull.Value
+                // in the event that no route variables were passed
+                // and the user has route variables in the SQL query
                 // which if left unset will cause an error
-                qParams.Add(new QueryParams()
+                qParams.Add(new DbQueryParams()
                 {
-                    DataModel = new Dictionary<string, string> { { "unlikely_payload_to_be_passed", "123" } },
-                    QueryParamsRegex = varRegex
+                    DataModel = new Dictionary<string, string> { { "unlikely_route_to_be_passed", "123" } },
+                    QueryParamsRegex = routeParameterPattern
                 });
-            }
 
+            }
             #endregion
 
             return qParams;

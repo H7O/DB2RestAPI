@@ -1,6 +1,26 @@
 using Com.H.Threading;
 using Microsoft.Extensions.Primitives;
 
+/// <summary>
+/// Resolves API gateway routes from configuration by matching incoming route paths
+/// against both exact routes and wildcard routes.
+/// 
+/// This service maintains two collections:
+/// - Exact routes: Dictionary for O(1) lookup of routes with exact path matches
+/// - Wildcard routes: List of routes ending with /* that match path prefixes
+/// 
+/// The resolver automatically reloads routes when the configuration changes.
+/// 
+/// Route matching priority:
+/// 1. First attempts exact match lookup (fastest)
+/// 2. Then checks wildcard routes, ordered by prefix length (most specific first)
+/// 
+/// Example route configurations:
+/// - Exact route: "api/users" matches only "api/users"
+/// - Wildcard route: "api/users/*" matches "api/users/123", "api/users/profile", etc.
+/// 
+/// Thread-safe reloading is ensured using an AtomicGate to prevent concurrent reload operations.
+/// </summary>
 public class RouteConfigResolver
 {
     private Dictionary<string, IConfigurationSection> _exactRoutes = new();
@@ -20,43 +40,58 @@ public class RouteConfigResolver
 
     private void LoadRoutes()
     {
-        if (!_reloadingGate.TryOpen()) return;
-        var routesSection = _configuration.GetSection("routes");
-		if (routesSection == null || !routesSection.Exists())
-			return;
-
-        var newExactRoutes = new Dictionary<string, IConfigurationSection>();
-        var newWildcardRoutes = new List<(string Prefix, IConfigurationSection Config)>();
-		
-        foreach (var routeSection in routesSection.GetChildren())
+        try
         {
-            var path = routeSection.GetValue<string>("path") ?? routeSection.Key;
-            
-            if (path.EndsWith("/*"))
+            if (!_reloadingGate.TryOpen()) return;
+            var routesSection = _configuration.GetSection("routes");
+            if (routesSection == null || !routesSection.Exists())
+                return;
+
+            var newExactRoutes = new Dictionary<string, IConfigurationSection>();
+            var newWildcardRoutes = new List<(string Prefix, IConfigurationSection Config)>();
+
+            foreach (var routeSection in routesSection.GetChildren())
             {
-                // Store wildcard routes separately with their prefix (without the /*)
-                
-                var prefix = path[..^2];
-                // the above is just a shortcut for the below
-                // var prefix = path.Substring(0, path.Length - 2);
-                newWildcardRoutes.Add((prefix, routeSection));
+                var route = routeSection.GetValue<string>("route") ?? routeSection.Key;
+
+                if (route.EndsWith("/*"))
+                {
+                    // Store wildcard routes separately with their prefix (without the /*)
+
+                    var prefix = route[..^2];
+                    // the above is just a shortcut for the below
+                    // var prefix = path.Substring(0, path.Length - 2); // removes the /*
+                    newWildcardRoutes.Add((prefix, routeSection));
+                }
+                else
+                {
+                    // Exact routes can use dictionary for O(1) lookup
+                    newExactRoutes[route] = routeSection;
+                }
             }
-            else
-            {
-                // Exact routes can use dictionary for O(1) lookup
-                newExactRoutes[path] = routeSection;
-            }
+
+            // Sort wildcard routes by descending prefix length for most specific matching
+            newWildcardRoutes.Sort((a, b) => b.Prefix.Length.CompareTo(a.Prefix.Length));
+
+            _exactRoutes = newExactRoutes;
+            _wildcardRoutes = newWildcardRoutes;
         }
-        
-        // Sort wildcard routes by descending prefix length for most specific matching
-        newWildcardRoutes.Sort((a, b) => b.Prefix.Length.CompareTo(a.Prefix.Length));
+        finally
+        {
+            _reloadingGate.TryClose();
+        }
 
-        _exactRoutes = newExactRoutes;
-        _wildcardRoutes = newWildcardRoutes;
-
-        _reloadingGate.TryClose();
     }
-    
+
+    /// <summary>
+    /// Resolves the configuration section for a given route path.
+    /// Matches exact routes first, then wildcard routes by prefix.
+    /// The most specific wildcard match is returned if multiple matches are found.
+    /// Returns null if no match is found.
+    /// </summary>
+    /// <param name="route"></param>
+    /// <returns></returns>
+
     public IConfigurationSection? ResolveRoute(string route)
     {
         // First, try exact match (O(1) lookup)
@@ -64,7 +99,7 @@ public class RouteConfigResolver
         {
             return exactMatch;
         }
-        
+
         // If no exact match, check wildcard routes (most specific first)
         foreach (var (prefix, config) in _wildcardRoutes)
         {
@@ -73,13 +108,21 @@ public class RouteConfigResolver
                 return config;
             }
         }
-        
+
         return null; // No matching route found
     }
     
+    /// <summary>
+    /// Gets the remaining path after the matched route prefix.
+    /// For example, if the route is "api/users/123" and the matched config
+    /// is "api/users/*", this method would return "123".
+    /// </summary>
+    /// <param name="route"></param>
+    /// <param name="matchedConfig"></param>
+    /// <returns></returns>
     public string GetRemainingPath(string route, IConfigurationSection matchedConfig)
     {
-        var configPath = matchedConfig.GetValue<string>("path") ?? matchedConfig.Key;
+        var configPath = matchedConfig.GetValue<string>("route") ?? matchedConfig.Key;
         
         if (configPath.EndsWith("/*"))
         {

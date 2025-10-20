@@ -45,7 +45,7 @@ namespace DB2RestAPI.Settings
         /// </summary>
         public ObjectResult? GetFailedMandatoryParamsCheckIfAny(
             IConfigurationSection serviceQuerySection,
-            List<QueryParams> qParams
+            List<DbQueryParams> qParams
             )
         {
             return serviceQuerySection.GetFailedMandatoryParamsCheckIfAny(qParams,
@@ -64,13 +64,13 @@ namespace DB2RestAPI.Settings
 
         #region parameters
 
-        public List<QueryParams> GetParams(
+        public List<DbQueryParams> GetParams(
             IConfigurationSection serviceQuerySection,
-            HttpRequest request,
-            JsonElement? payload
+            HttpContext context,
+            string? jsonPayloadString = null
             )
         {
-            return serviceQuerySection.GetParams(_configuration, request, payload);
+            return serviceQuerySection.GetParams(_configuration, context, jsonPayloadString);
         }
 
 

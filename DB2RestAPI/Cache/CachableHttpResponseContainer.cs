@@ -5,17 +5,24 @@ namespace DB2RestAPI.Cache
     public class CachableHttpResponseContainer
     {
         private static readonly string[] _headersToExclude = new string[] { "Transfer-Encoding", "Content-Length" };
+        
+        public int StatusCode { get; set; }
         public byte[] Content { get; set; } = null!;
+        
         // Content headers
-        public IHeaderDictionary ContentHeaders { get; set; } = new HeaderDictionary();
+        public Dictionary<string, string[]> ContentHeaders { get; set; } = new Dictionary<string, string[]>();
 
         // Headers
-        public IHeaderDictionary Headers { get; set; } = new HeaderDictionary();
+        public Dictionary<string, string[]> Headers { get; set; } = new Dictionary<string, string[]>();
 
 
         public static async Task<CachableHttpResponseContainer> Parse(HttpResponseMessage response)
         {
-            CachableHttpResponseContainer cachedResponse = new CachableHttpResponseContainer();
+            CachableHttpResponseContainer cachedResponse = new CachableHttpResponseContainer
+            {
+                StatusCode = (int)response.StatusCode
+            };
+            
             // first - copying http content headers
             foreach(var header in response.Content.Headers)
             {

@@ -2,12 +2,26 @@
 
   <ConnectionStrings>
     <default><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
+
+    <!--
+    This is just an example of how you can define a different connection string name for a different database server.
+    You can define as many connection string names as you want that points to different database servers.
+    -->
+    <server2><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></server2>
   </ConnectionStrings>
 
   <additional_configurations>
     <path>config/sql.xml</path>
     <path>config/api_gateway.xml</path>
     <path>config/global_api_keys.xml</path>
+    
+    <!-- 
+    Controls whether the application automatically restarts when configuration file paths are added or removed.
+    - true: Application will automatically stop (allowing IIS/hosting environment to restart it)
+    - false (default): Logs a warning, requires manual application pool recycle to apply path changes
+    Note: Content changes within existing configuration files always reload automatically.
+    -->
+    <restart_on_path_changes>false</restart_on_path_changes>
   </additional_configurations>
 
 
@@ -102,9 +116,9 @@
   
   <cache>
     <enabled>true</enabled>
-    <default_duration_in_miliseconds>5000</default_duration_in_miliseconds>
+    <default_duration_in_milliseconds>5000</default_duration_in_milliseconds>
     <cache_null_values>false</cache_null_values>
-    <check_cache_expiry_interval_in_miliseconds>10000</check_cache_expiry_interval_in_miliseconds>
+    <check_cache_expiry_interval_in_milliseconds>10000</check_cache_expiry_interval_in_milliseconds>
   </cache>
   
 

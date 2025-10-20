@@ -52,80 +52,38 @@
     will get routed to the `https://catfact.ninja/fact` API.
     -->
     <cat_facts_custom_path_example>
-      <path>cat/facts</path>
+      <route>cat/facts/list</route>
       <url>https://catfact.ninja/fact</url>
       <excluded_headers>x-api-key,host</excluded_headers>
     </cat_facts_custom_path_example>
 
-    <!-- 
-    if no path is specified, the path will be the node name. 
-    callers to this API will use the path `cat_facts` (e.g., https://localhost:7054/cat_facts)
-    will get routed to the `https://catfact.ninja/fact` API.
-    -->
-    <cat_facts>
-      <url>https://catfact.ninja/fact</url>
-      <excluded_headers>x-api-key,host</excluded_headers>
-    </cat_facts>
 
-    <!-- 
-    note: I'm trying to decide whether to use * from wildcard path or just the slash at the end (i.e., `cat/facts/`) 
-    is sufficient to denote a wildcard path.
-
-    I.e., should the path be `cat/facts/*` or just `cat/facts/`?
-    or something else entirely, like having a `wildcard_path` element? e.g., <wildcard_path>true</wildcard_path>
-
-    I'm leaning towards just using the slash at the end of the path, because it's more readable and easier to understand.
-
-    The remaining path after the wildcard is appended to the target URL. e.g., if the caller uses the path `cat/facts/123`,
-    the remaining path after the wildcard will be `123` and will be appended to the target URL making the final request URL
-    https://catfact.ninja/fact/123.
-    -->
     <cat_facts_wildcard_path_example>
-      <path>cat/facts/*</path>
-      <url>https://catfact.ninja/fact</url>
+      <route>cat/*</route>
+      <url>https://catfact.ninja/</url>
       <excluded_headers>x-api-key,host</excluded_headers>
     </cat_facts_wildcard_path_example>
 
 
-    <!-- 
-    This showcases how to use a verb.
-    The verb is the HTTP verb that will be used to route the request.
-    If the caller uses a different verb, the request will be rejected.
-    -->
-    <cat_facts_verb_example>
-      <path>cat/facts</path>
-      <verb>post</verb>
-      <url>https://catfact.ninja/fact</url>
+
+    <hello_world_loopback>
+      <route>loopback/hello_world</route>
+      <url>https://localhost:7054/hello_world</url>
       <excluded_headers>x-api-key,host</excluded_headers>
-    </cat_facts_verb_example>
+    </hello_world_loopback>
 
-
-    <cat_facts_wildcard_path_example>
-      <path>cat/facts/*</path>
-      <url>https://catfact.ninja/fact</url>
+    <hello_world_loopback_with_cache>
+      <route>loopback/hello_world_with_cache</route>
+      <url>https://localhost:7054/hello_world</url>
       <excluded_headers>x-api-key,host</excluded_headers>
-      <applied_headers>
-        <header>
-          <name>x-api-key</name>
-          <value>api key 1</value>
-        </header>
-      </applied_headers>
 
-    </cat_facts_wildcard_path_example>
-
-    <cat_facts_verb_example>
-      <path>cat/facts</path>
-      <verb>post</verb>
-      <url>https://catfact.ninja/fact/add</url>
-      <excluded_headers>x-api-key,host</excluded_headers>
-    </cat_facts_verb_example>
-
-    <cat_facts_verb_example>
-      <path>cat/facts</path>
-      <verb>get</verb>
-      <url>https://catfact.ninja/fact/list_all_facts</url>
-      <excluded_headers>x-api-key,host</excluded_headers>
-    </cat_facts_verb_example>
+      <cache>
+        <memory>
+          <duration_in_milliseconds>20000</duration_in_milliseconds>
+          <invalidators>name</invalidators>
+        </memory>
+      </cache>
+    </hello_world_loopback_with_cache>
 
 
 

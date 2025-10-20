@@ -4,6 +4,8 @@ using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 namespace DB2RestAPI.Binders;
+
+
 public class JsonModelBinder : IModelBinder
 {
     public async Task BindModelAsync(ModelBindingContext bindingContext)

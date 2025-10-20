@@ -6,14 +6,25 @@ using Microsoft.Extensions.Configuration;
 namespace DB2RestAPI.Middlewares
 {
     /// <summary>
-    /// `route`, `section` and `service_type` should already be available in the
-    /// context.Items when this middleware is called.
-    /// `route` is a string representing the route of the request.
-    /// `section` is an IConfigurationSection representing the configuration section of the route.
-    /// `service_type` is a string representing the type of service.
-    /// Current supported services are `api_gateway` and `db_query`
-    /// The purpose of this middleware is to check whether or not there are local API keys (local to the `route`) in the request.
-    /// And if so, whether or not they are valid.
+    /// Third middleware in the pipeline that validates route-specific (local) API keys.
+    /// 
+    /// This middleware checks for API keys that are configured locally within individual route definitions,
+    /// providing route-level access control in addition to or instead of global API keys.
+    /// 
+    /// Required context.Items from previous middlewares:
+    /// - `route`: String representing the matched route path
+    /// - `section`: IConfigurationSection for the route's configuration
+    /// - `service_type`: String indicating service type (`api_gateway` or `db_query`)
+    /// 
+    /// The middleware:
+    /// - Validates local API keys specific to the route (if configured)
+    /// - Allows routes to have their own independent API key requirements
+    /// - Works in conjunction with global API keys (Step1) for layered security
+    /// 
+    /// Responses:
+    /// - 401 Unauthorized: Local API key validation failed
+    /// - 500 Internal Server Error: Required context items missing from previous middlewares
+    /// - Passes to next middleware: No local API keys configured or validation successful
     /// </summary>
     public class Step3LocalApiKeysCheck(
         RequestDelegate next,
@@ -23,7 +34,8 @@ namespace DB2RestAPI.Middlewares
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly ILogger<Step3LocalApiKeysCheck> _logger = logger;
-        private static int count = 0;
+        // private static int count = 0;
+        private static readonly string _errorCode = "Step 3 - Local API Keys Check Error";
         public async Task InvokeAsync(HttpContext context)
         {
 
@@ -45,7 +57,7 @@ namespace DB2RestAPI.Middlewares
                         new
                         {
                             success = false,
-                            message = "Improper service setup. (Contact your service provider support and provide them with error code `SMWSE3`)"
+                            message = $"Improper service setup. (Contact your service provider support and provide them with error code `{_errorCode}`)"
                         }
                     )
                     {

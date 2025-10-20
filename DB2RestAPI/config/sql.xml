@@ -1,6 +1,7 @@
 ﻿<settings>
   <queries>
 
+    <!-- Example API endpoint returning JSON -->
     <hello_world>
       <query>
         <![CDATA[
@@ -13,27 +14,108 @@
             set @name = 'world';
         end
         select 
-        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db,
-        null as test;
+        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
         
         
         ]]>
       </query>
+      <!--
+      This is just an example of how you can define an API end-point that returns a JSON object.
+      The query is a SQL query that returns a JSON object.
+      The end-point path to this query is `/hello_world` (e.g., `http://localhost:5000/hello_world`).
+      
+      The example above shows how you can use parameters in your query. 
+      The parameter `name` is passed in the query string or request body as JSON object.
 
+      Precident of parameters if the same parameter is passed in multiple places is as follows (from highest to lowest):
+      1. Request query string (if the parameter is passed in the query string, it will override any other parameter with the same name)
+      2. Request route (if the parameter is passed in the route, it will override any other parameter with the same name)
+      3. Request body (if the parameter is passed in the request body, it will override any other parameter with the same name)
+      4. HTTP headers (if the parameter is passed in the HTTP headers, it is the least priority and will be used only if the parameter is not passed in the query string, route, or request body)
+      
+      all parameters are case-insensitive, so `name`, `Name`, and `NAME` are considered the same parameter.
+      The default regex for parsing parameters (if not specified) is `(?<open_marker>\{\{)(?<param>.*?)?(?<close_marker>\}\})`
+      
+      Other examples in this sample sql.xml file should show you how to change the default regex for parsing each type of parameters.
+      -->
     </hello_world>
 
 
-    <add_contact>
-      <!--
+
+    <!-- Contact creation endpoint -->
+    <create_contact>
+      <mandatory_parameters>name,phone</mandatory_parameters>
+      <!-- 
       You can enforce mandatory parameters in your query by adding them in the `mandatory_parameters` node.
       Mandatory parameters are parameters that must be passed in the HTTP request.
       If any of the mandatory parameters are missing, the app will return an HTTP 400 error (bad request error).
+      
+
       -->
-      <mandatory_parameters>name,phone</mandatory_parameters>
+      
+      <!-- `<route>` node is optional, if you don't specify it, the query will be accessible by `create_contact` which is the name of the query node. -->
+      <route>contacts</route>
+      
+      <verb>POST</verb>
+      <!--  
+      `<verb>` node is optional, if you don't specify it and you have only one unique route, the query will be accessible by any HTTP verb.
+      if there are multiple routes with the same verb, the first one will be used.
+      -->
+
+      <!-- default value (if not specified) is `auto`, available options are `auto`, `single` and `array` -->
+      <response_structure>single</response_structure>
+      <!-- 
+      `response_structure` is optional, if you don't specify it, the app defaults to `auto`.
+       The possible values are:
+       
+      1- `array`: instructs the app to return an array of JSON objects for multiple rows response with the following rules:
+        a) if the query returned a single row, that row is set to be returned as a json object inside an array
+        b) if the query returned multiple rows, the app will return an array of JSON objects with the following structure:
+          [
+            {
+              "id": 1,
+              "name": "John",
+              "phone": "1234567890"
+            },
+            {
+              "id": 2,
+              "name": "Jane",
+              "phone": "0987654321"
+            }
+          ]
+        
+      2- `single`: instructs the app to return a single JSON object of the first row returned by the query and not iterate over the rest of the rows.
+        however, if `count_query` node is specified, the app then is set to return a count structure as per the below structured
+        response format but has only the first row returned by the query (i.e., not iterate over the rest of the rows)
+      
+      3- `auto`: for auto response format (single if single row, array if multiple rows)
+      
+      **Note**: if `count_query` is specified, the `response_structure` is then ignored as the app 
+      is expected to always return a count structure as per the below structured response format:
+          {
+            "count": 1,
+            "data": [
+              {
+                "id": 1,
+                "name": "John",
+                "phone": "1234567890"
+              }
+            ]
+          }
+
+
+      -->
+      
+      
+
+      <!-- success_status_code is optional, if you don't specify it, the app will return 200 OK -->
+      <success_status_code>201</success_status_code>
+
       <query>
       <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
+        declare @active bit = {{active}};
       
         -- check if the contact already exists
       
@@ -43,13 +125,13 @@
             name nvarchar(500),
             phone nvarchar(100)
         );
-        insert into @existing_contact select top 1 id, name, phone from [phone_book] where name = @name and phone = @phone;
+        insert into @existing_contact select top 1 id, name, phone from [contacts] where name = @name and phone = @phone;
       
         declare @error_msg nvarchar(500);
       
         -- return an http 409 error (conflict error) if the contact already exists
       
-        if ((select count(*) from [phone_book] where name = @name and phone = @phone) > 0)
+        if ((select count(*) from [contacts] where name = @name and phone = @phone) > 0)
         begin 
             set @error_msg = 'Contact with name ' + @name + ' and phone ' + @phone + ' already exists';
             -- to return http error code `409 Conflict` throw 50409 and the app will return 409.
@@ -57,33 +139,44 @@
             throw 50409, @error_msg, 1;
             return;
         end
+        if (@active is null)
+        begin
+            set @active = 1;
+        end
       
       -- insert new contact, and return it back to the http client
-      insert into [phone_book] (id, name, phone) 
-      output inserted.id, inserted.name, inserted.phone
-      values (newid(), @name, @phone)
-      
-
+      insert into [contacts] (id, name, phone, active) 
+      output inserted.id, inserted.name, inserted.phone, inserted.active
+      values (newid(), @name, @phone, @active)
     ]]>
       </query>
+
       
-    </add_contact>
+    </create_contact>
 
-    
 
+
+
+    <!-- Contact update endpoint -->
     <update_contact>
-      <!-- connection_string tag is optional, 
-      the app will pickup the connection string you defined in 
-      /config/settings.xml if you haven't set one here. 
-      Also, if you're only accessing one database server, 
-      it's encouraged to set a default one in /config/settings.xml instead  
-      of defining it in each query in sql.xml.
-      The below connection string is added here just to show you how you can
-      override the default connection string in /config/settings.xml
-      -->
-      <connection_string><![CDATA[Data Source=localhost\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></connection_string>
-
+      <route>contacts/{{id}}</route>
+      <verb>PUT</verb>
+      
       <mandatory_parameters>id,name,phone</mandatory_parameters>
+
+      <connection_string_name>server2</connection_string_name>
+      <!-- 
+      connection_string_name tag is optional, 
+      the app is designed to pickup the `default` connection string you define in 
+      /config/settings.xml under `ConnectionStrings` node if you haven't set one here.
+      However, if you need to access a different database for a specific query,
+      you can set a different connection string name here, given that you've defined it in /config/settings.xml
+      under `ConnectionStrings` node.
+      The below connection string name is added here just to show you how you can
+      choose a different connection string name.
+      -->
+
+
       <query>
       <![CDATA[
 
@@ -98,7 +191,7 @@
       
       -- return an http 404 error (not found error) if the contact does not exist
       
-      if ((select count(*) from [phone_book] where id = @id) < 1)
+      if ((select count(*) from [contacts] where id = @id) < 1)
       begin 
           set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
           -- to return http error code `404 Not found` throw 50404 and the app will return 404.
@@ -108,7 +201,7 @@
       
       -- update the contact, and return it back to the http client
 
-      update [phone_book] 
+      update [contacts] 
       set 
             [name] = @name, 
             phone = @phone 
@@ -124,49 +217,80 @@
     </update_contact>
 
 
-    <get_contacts>
+    <!-- Contact activation/deactivation endpoint -->
+    <activate_deactivate_contact>
+      <connection_string_name>server2</connection_string_name>
+      <route>contacts/{{id}}/{{status_action}}</route>
+      <verb>PUT</verb>
+      <mandatory_parameters>id</mandatory_parameters>
+      
       <query>
-        <![CDATA[
-        declare @name nvarchar(500) = {{name}};
-        declare @phone nvarchar(100) = {{phone}};
-        declare @take int = {{take}};
-        declare @skip int = {{skip}};
-        -- default take to 100 if not specified
-        if (@take is null or @take < 1)
-        begin
-            set @take = 100;
-        end
-        -- make sure max take doesn't exceed 1000
-        if (@take > 1000)
-        begin
-            set @take = 1000;
-        end
-        -- default skip to 0 if not specified
-        if (@skip is null or @skip < 0)
-        begin
-            set @skip = 0;
-        end
+      <![CDATA[
+
+      -- update contact
+      declare @id UNIQUEIDENTIFIER = {{id}};
+      -- status_action can be either `activate` or `deactivate`
+      declare @status_action nvarchar(50) = {{status_action}};
+
+      declare @error_msg nvarchar(500);
+
+      if (@status_action is null or @status_action = ''
+      or @status_action not in ('activate', 'deactivate'))
+      begin
+        set @error_msg = 'Invalid status action';
+        throw 50400, @error_msg, 1;
+        return;
+      end
         
-      select * from [phone_book] 
-        where 
-          (@name is null or [name] like '%' +  @name + '%')
-          or (@phone is null or [phone] like '%' +  @phone + '%')
-        order by [name]
-        offset @skip rows
-        fetch next @take rows only;        
-        
-        ]]>
+      -- check if contact exists
+      
+      -- return an http 404 error (not found error) if the contact does not exist
+      
+      if ((select count(*) from [contacts] where id = @id) < 1)
+      begin 
+          set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
+          -- to return http error code `404 Not found` throw 50404 and the app will return 404.
+          throw 50404, @error_msg, 1;
+          return;
+      end
+      
+      -- update the contact, and return it back to the http client
+
+      declare @status_bit bit = case when @status_action = 'activate' then 1 else 0 end;
+
+      update [contacts] 
+      set 
+            [active] = @status_bit
+      output 
+        inserted.id, 
+        inserted.name, 
+        inserted.phone,
+        case when inserted.active = 1 then 'active' else 'inactive' end as status
+      where 
+        id = @id;      
+      ]]>
       </query>
-    </get_contacts>
+    </activate_deactivate_contact>
 
 
-    <get_contacts_with_count>
+    <!-- Contact search endpoint -->
+    <search_contacts>
+      <route>contacts</route>
+      <verb>GET</verb>
       <query>
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
         declare @take int = {{take}};
         declare @skip int = {{skip}};
+        declare @sort_by nvarchar(50) = {{sort_by}};
+        declare @sort_order nvarchar(10) = {{sort_order}};
+
+        if (@sort_by is null or @sort_by = '')
+        begin
+            set @sort_by = 'name';
+        end
+
         -- default take to 100 if not specified
         if (@take is null or @take < 1)
         begin
@@ -183,11 +307,28 @@
             set @skip = 0;
         end
         
-      select * from [phone_book] 
+        -- validate and default sort parameters (no need for sort by `id` if `id` is GUID, unless your `id` is an incrumental number)
+        -- you can also add by create date, update date, etc. but for the purpose of this example, we'll only sort by `name` and `phone`
+        if (@sort_by is null or @sort_by not in ('name', 'phone'))
+        begin
+            set @sort_by = 'name';
+        end
+        
+        if (@sort_order is null or @sort_order not in ('asc', 'desc'))
+        begin
+            set @sort_order = 'asc';
+        end
+
+
+      select * from [contacts] 
         where 
           (@name is null or [name] like '%' +  @name + '%')
-          or (@phone is null or [phone] like '%' +  @phone + '%')
-        order by [name]
+          and (@phone is null or [phone] like '%' +  @phone + '%')
+        order by 
+          case when @sort_by = 'name' and @sort_order = 'asc' then [name] end asc,
+          case when @sort_by = 'name' and @sort_order = 'desc' then [name] end desc,
+          case when @sort_by = 'phone' and @sort_order = 'asc' then [phone] end asc,
+          case when @sort_by = 'phone' and @sort_order = 'desc' then [phone] end desc
         offset @skip rows
         fetch next @take rows only;        
         
@@ -197,28 +338,36 @@
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
-        select count(*) from [phone_book] 
+        select count(*) from [contacts] 
         where 
           (@name is null or [name] like '%' +  @name + '%')
-          or (@phone is null or [phone] like '%' +  @phone + '%');
+          and (@phone is null or [phone] like '%' +  @phone + '%');
         
         ]]>
       </count_query>
+      <!-- 
+      Count Query Configuration:
+      count query is optional, if you don't specify it, 
+      the app will not return the total count of the results 
+      (total as in without pagination applied) 
+      -->
+    </search_contacts>
 
-    </get_contacts_with_count>
 
-
-
-
+    <!-- Contact deletion endpoint -->
     <delete_contact>
+      <route>contacts/{{id}}</route>
+      <verb>DELETE</verb>
+      <success_status_code>204</success_status_code>
       <mandatory_parameters>id</mandatory_parameters>
       <query>
+
         <![CDATA[
         declare @id UNIQUEIDENTIFIER = {{id}};
         -- check if contact exists
         declare @error_msg nvarchar(500);
         -- return an http 404 error (not found error) if the contact does not exist
-        if ((select count(*) from [phone_book] where id = @id) < 1)
+        if ((select count(*) from [contacts] where id = @id) < 1)
         begin 
             set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
             -- to return http error code `404 Not found` throw 50404 and the app will return 404.
@@ -226,32 +375,150 @@
             return;
         end
         -- delete the contact
-        delete from [phone_book] 
-        OUTPUT DELETED.id, DELETED.name, DELETED.phone
+        delete from [contacts] 
+        OUTPUT DELETED.id, DELETED.name, DELETED.phone, DELETED.active
         where id = @id;
         
         ]]>
       </query>
     </delete_contact>
 
-    <generate_error>
+
+
+    <!-- Contact search without count endpoint -->
+    <search_contacts_without_count>
+      <route>contacts_without_count</route>
+      <verb>GET</verb>
+
+      <!-- default value (if not specified) is `auto`, available options are `auto`, `single` and `array` -->
+      <response_structure>array</response_structure>
+      <!-- 
+      `response_structure` is optional, if you don't specify it, the app defaults to `auto`.
+       The possible values are:
+       
+      1- `array`: instructs the app to return an array of JSON objects for multiple rows response with the following rules:
+        a) if the query returned a single row, that row is set to be returned as a json object inside an array
+        b) if the query returned multiple rows, the app will return an array of JSON objects with the following structure:
+          [
+            {
+              "id": 1,
+              "name": "John",
+              "phone": "1234567890",
+              "active": 1
+            },
+            {
+              "id": 2,
+              "name": "Jane",
+              "phone": "0987654321",
+              "active": 1
+            }
+          ]
+        
+      2- `single`: instructs the app to return a single JSON object of the first row returned by the query and not iterate over the rest of the rows.
+        however, if `count_query` node is specified, the app then is set to return a count structure smiliar to the ones we saw in `search_contacts`query
+      
+      3- `auto`: for auto response format (single if single row, array if multiple rows)
+      
+      **Note**: if `count_query` is specified, the `response_structure` is then ignored as the app 
+      is expected to always return a count structure as per the below structured response format:
+          {
+            "count": 2,
+            "data": [
+              {
+                "id": 1,
+                "name": "John",
+                "phone": "1234567890",
+                "active": 1
+              },
+              {
+                "id": 2,
+                "name": "Jane",
+                "phone": "0987654321",
+                "active": 1
+              }
+            ]
+          }
+
+
+      -->      
+      
+      
+      
       <query>
         <![CDATA[
-          -- deliberately generate an error
-          declare @error_msg nvarchar(500);
-          set @error_msg = 'This is a generated error';
-          throw 60000, @error_msg, 1;
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        declare @take int = {{take}};
+        declare @skip int = {{skip}};
+        declare @sort_by nvarchar(50) = {{sort_by}};
+        declare @sort_order nvarchar(10) = {{sort_order}};
+
+        if (@sort_by is null or @sort_by = '')
+        begin
+            set @sort_by = 'name';
+        end
+
+        -- default take to 100 if not specified
+        if (@take is null or @take < 1)
+        begin
+            set @take = 100;
+        end
+        -- make sure max take doesn't exceed 1000
+        if (@take > 1000)
+        begin
+            set @take = 1000;
+        end
+        -- default skip to 0 if not specified
+        if (@skip is null or @skip < 0)
+        begin
+            set @skip = 0;
+        end
+        
+        -- validate and default sort parameters (no need for sort by `id` if `id` is GUID, unless your `id` is an incrumental number)
+        -- you can also add by create date, update date, etc. but for the purpose of this example, we'll only sort by `name` and `phone`
+        if (@sort_by is null or @sort_by not in ('name', 'phone'))
+        begin
+            set @sort_by = 'name';
+        end
+        
+        if (@sort_order is null or @sort_order not in ('asc', 'desc'))
+        begin
+            set @sort_order = 'asc';
+        end
+
+
+      select * from [contacts] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          and (@phone is null or [phone] like '%' +  @phone + '%')
+        order by 
+          case when @sort_by = 'name' and @sort_order = 'asc' then [name] end asc,
+          case when @sort_by = 'name' and @sort_order = 'desc' then [name] end desc,
+          case when @sort_by = 'phone' and @sort_order = 'asc' then [phone] end asc,
+          case when @sort_by = 'phone' and @sort_order = 'desc' then [phone] end desc
+        offset @skip rows
+        fetch next @take rows only;        
+        
         ]]>
       </query>
-    </generate_error>
+
+    </search_contacts_without_count>    
+    
+    
+    
 
 
+    <!-- Protected endpoint with local API keys (for global keys, use global_api_keys.xml) -->
     <protected_hello_world>
-      
       <api_keys>
         <key>api key 1</key>
         <key>api key 2</key>
       </api_keys>
+      <!-- 
+      API Key Configuration:
+      you can define per query api keys, 
+      if you don't specify it, the query will be publically accessible unless you define global api keys in /config/global_api_keys.xml
+      -->
       <query>
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
@@ -266,11 +533,14 @@
     </protected_hello_world>
 
 
-    <!-- this is to showcase how you can override the default 
-    variable delimiters regex for each query
-    -->
+    <!-- Custom variable delimiters example -->
     <hello_world_using_pipes_as_var_delimiters>
       <variables_regex><![CDATA[(?<open_marker>\|\|)(?<param>.*?)?(?<close_marker>\|\|)]]></variables_regex>
+      <!-- 
+      Variable Delimiter Configuration:
+      this is to showcase how you can override the default 
+      variable delimiters regex for each query
+      -->
       <query>
         <![CDATA[
         declare @name nvarchar(500) = ||name||;
@@ -285,27 +555,12 @@
     </hello_world_using_pipes_as_var_delimiters>
 
 
-    <hello_world_with_headers>
-      <cache>
-        
-      </cache>
-      <query>
-        <![CDATA[
-        declare @name nvarchar(500) = {header{some-http-header}};
-        
-        if (@name is null or ltrim(rtrim(@name)) = '')
-        begin
-            set @name = 'world';
-        end
-        select 'hello ' + @name + '!' as message_from_db;
-        ]]>
-      </query>
-    </hello_world_with_headers>
 
+    <!-- Caching example -->
     <hello_world_with_cache>
       <cache>
         <memory>
-          <duration_in_miliseconds>20000</duration_in_miliseconds>
+          <duration_in_milliseconds>20000</duration_in_milliseconds>
           <invalidators>name</invalidators>
         </memory>
       </cache>
@@ -329,6 +584,7 @@
     </hello_world_with_cache>
 
 
+    <!-- Nested JSON example -->
     <nested_json>
       <query>
         <![CDATA[
@@ -341,7 +597,34 @@
         
         ]]>
       </query>
+      <!--
+      JSON Type Decorator:
+      The {type{json{field_name}}} decorator tells the engine to parse the returned JSON string 
+      and embed it as a proper nested JSON object instead of an escaped string.
+      
+      WITHOUT {type{json{phones}}}:
+      {
+        "id": 1,
+        "name": "John",
+        "phones": "[{\"phone\":55555,\"city\":\"Dubai\"},{\"phone\":44444,\"city\":\"Abu Dhabi\"}]"
+      }
+      
+      WITH {type{json{phones}}}:
+      {
+        "id": 1,
+        "name": "John",
+        "phones": [
+          {"phone": 55555, "city": "Dubai"},
+          {"phone": 44444, "city": "Abu Dhabi"}
+        ]
+      }
+      
+      This makes your API responses much cleaner and eliminates the need for 
+      additional JSON.parse() calls on the client side.
+      -->
     </nested_json>
+
+
 
 
   </queries>

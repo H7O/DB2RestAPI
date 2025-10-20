@@ -10,16 +10,17 @@ However, for public APIs or B2B APIs with API keys, you can use this solution as
 
 ## How to use
 
-1. Create a sample database and name it `test`, then run the SQL script below to create a sample `phonebook` table within the `test` database that you just created.
+1. Create a sample database and name it `test`, then run the SQL script below to create a sample `contacts` table within the `test` database that you just created.
 
 > **Note**: Download and install either SQL Server Developer Edition or SQL Server Express if you don't have SQL Server installed on your machine
 
 ```sql
-CREATE TABLE [dbo].[phonebook] (
-    [id]    UNIQUEIDENTIFIER CONSTRAINT [DEFAULT_phonebook_id] DEFAULT (newid()) NOT NULL,
+CREATE TABLE [dbo].[contacts] (
+    [id]    UNIQUEIDENTIFIER CONSTRAINT [DEFAULT_contacts_id] DEFAULT (newid()) NOT NULL,
     [name]  NVARCHAR (500)   NULL,
     [phone] NVARCHAR (100)   NULL,
-    CONSTRAINT [PK_phonebook] PRIMARY KEY CLUSTERED ([id] ASC)
+    [active] [bit] null DEFAULT 1,
+    CONSTRAINT [PK_contacts] PRIMARY KEY CLUSTERED ([id] ASC)
 );
 ```
 
@@ -30,46 +31,74 @@ CREATE TABLE [dbo].[phonebook] (
 6. Download and install [Postman](https://www.postman.com/downloads/).
 7. Open Postman and create a new request.
 8. Set the request method to `POST` (or `GET`).
-9. Set the request URL to `https://localhost:<your_custom_port>/hello_world`.
+9. Set the request URL to `https://localhost:<your_custom_port>/hello_world` (e.g., https://localhost:7054/hello_world)
 10. Fill `Content-Type` header with `application/json`.
 11. Fill the request body with the following JSON:
 
 ```json
 {
-	"name": "John",
+	"name": "John"
 }
 ```
 12. Send the request and you should see the following JSON respons: 
 ```json
 
-[
+
     {
         "message_from_db": "hello John!"
     }
-]
+
 ```
 13. To see how the API works, change the `name` property in the request body to `Jane` and send the request again. You should see a different response from the database.
 14. To see the SQL query that generated the response, open the `/config/sql.xml` file and look for the `hello_world` query. You can change the query to anything you want and the API will still work as long as the query is valid and returns at least a single row.
 15. If you examine the `hello_world` query in `/config/sql.xml`, you'll find the use of the `{{name}}` parameter. This parameter is passed from the request body to the query. You can add as many parameters as you want and use them in your queries.
 ```sql
-declare @name nvarchar(500) = {{name}};
-        
-if (@name is null or @name = '')
-begin
-    set @name = 'world';
-end
-select 'hello ' + @name + '!' as message_from_db;
+        declare @name nvarchar(500) = {{name}};
+
+
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 
+        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
 ```
+
+The full xml node in `sql.xml` that has the above query defined is as follows:
+```xml
+    <hello_world>
+      <query>
+        <![CDATA[
+        
+        declare @name nvarchar(500) = {{name}};
+
+
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 
+        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
+        
+        
+        ]]>
+      </query>
+
+    </hello_world>
+```
+
+> **Note**: Notice that then name of the node `hello_world` is the API endpoint route we're calling in Postman. Later in further examples, we'll see how we can define custom routes to precicely control the route naming conventions instead of just having the xml node name to be the route name as the case in this example.
+
 > **Note**: Passing parameters is safe and secure. The solution is designed to protect against SQL injection attacks by default via utilizing SQL Server's built-in parameterization feature. 
 > The SQL parameterization feature is offered by `Com.H.Data.Common` package (available on [Github](https://github.com/H7O/Com.H.Data.Common) / [Nuget](https://www.nuget.org/packages/Com.H.Data.Common/)).
 
 
 ## Phonebook API examples
 
-### Example 1 - Adding a phonebook record
+### Example 1 - Adding a contact record
 
-Now, let's try to create a new record in the `phonebook` table. 
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/add_contact` and change the request method to `POST`.
+Now, let's try to create a new record in the `contacts` table. 
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts` and change the request method to `POST`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
@@ -80,13 +109,13 @@ Now, let's try to create a new record in the `phonebook` table.
 ```
 4. Send the request and you should see the following JSON respons: 
 ```json
-[
-	{
-		"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
-		"name": "John",
-		"phone": "1234567890"
-	}
-]
+{
+  "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+  "name": "John",
+  "phone": "1234567890",
+  "active": 1
+}
+
 ```
 > **Note**: The `id` property is generated by the database and returned by the API. You can use this `id` to update or delete the record later.
 > The `id` property is a `GUID` and is generated by the database by default. You can change the `id` property to be an `int` or `bigint` and set it to `IDENTITY` to be auto-incremented by the database.
@@ -96,19 +125,19 @@ Now, let's try to create a new record in the `phonebook` table.
 8. Try also adding the same name and phone number multiple times. 
 You should get an error message from the database saying that the record already exists.
 How this error is thrown from the database is up to you. 
-The following XML tag in `/config/sql.xml` for `add_contact` illustrates how to throw an error from the database:
+The following XML tag in `/config/sql.xml` for `create_contact` illustrates how to throw an error from the database:
 ```xml
-    <add_contact>
-      <!--
-      You can enforce mandatory parameters in your query by adding them in the `mandatory_parameters` node.
-      Mandatory parameters are parameters that must be passed in the HTTP request.
-      If any of the mandatory parameters are missing, the app will return an HTTP 400 error (bad request error).
-      -->
+    <create_contact>
       <mandatory_parameters>name,phone</mandatory_parameters>
+      <route>contacts</route>
+      <verb>POST</verb>
+      <success_status_code>201</success_status_code>
+
       <query>
       <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
+        declare @active bit = {{active}};
       
         -- check if the contact already exists
       
@@ -118,13 +147,13 @@ The following XML tag in `/config/sql.xml` for `add_contact` illustrates how to 
             name nvarchar(500),
             phone nvarchar(100)
         );
-        insert into @existing_contact select top 1 id, name, phone from [phonebook] where name = @name and phone = @phone;
+        insert into @existing_contact select top 1 id, name, phone from [contacts] where name = @name and phone = @phone;
       
         declare @error_msg nvarchar(500);
       
         -- return an http 409 error (conflict error) if the contact already exists
       
-        if ((select count(*) from [phonebook] where name = @name and phone = @phone) > 0)
+        if ((select count(*) from [contacts] where name = @name and phone = @phone) > 0)
         begin 
             set @error_msg = 'Contact with name ' + @name + ' and phone ' + @phone + ' already exists';
             -- to return http error code `409 Conflict` throw 50409 and the app will return 409.
@@ -132,39 +161,79 @@ The following XML tag in `/config/sql.xml` for `add_contact` illustrates how to 
             throw 50409, @error_msg, 1;
             return;
         end
+        if (@active is null)
+        begin
+            set @active = 1;
+        end
       
       -- insert new contact, and return it back to the http client
-      insert into [phonebook] (id, name, phone) 
-      output inserted.id, inserted.name, inserted.phone
-      values (newid(), @name, @phone)
-      
-
+      insert into [contacts] (id, name, phone, active) 
+      output inserted.id, inserted.name, inserted.phone, inserted.active
+      values (newid(), @name, @phone, @active)
     ]]>
       </query>
+
       
-    </add_contact>
+    </create_contact>
 ```
-Notice how throwing any error with code number between 50000 and 51000 will be caught by the app and returned to the client as an HTTP error code between 0 and 1000.
+Let's breakdown the above XML tags in our `create_contact` node:
+- The `mandatory_parameters` tag is optional and used here to specify the mandatory parameters for the query.
+- The `route` tag is optional and used here to specify the route for the query (default is `create_contact` if not specified).
+- The `verb` tag is optional and used here to specify the HTTP verb for the query (default is any HTTP verb if not specified).
+- The `success_status_code` tag is optinal and used to specify the HTTP status code for the query (default is `200 OK` if not specified)
+- The `query` tag is mandatory and used here to specify the SQL query to be executed.
 
-For example, throwing error code 50409 will be returned to the client as HTTP error code 409 along with the message that you passed to the `throw` statement.
 
-So basically, the reserved error code range 50000-51000 is mapped to the HTTP error code range 0-1000.
+> **Mandatory parameters**
+You can enforce mandatory parameters in your query by adding them in the `mandatory_parameters` tag.
+Mandatory parameters are parameters that must be passed in the HTTP request.
+If any of the mandatory parameters are missing, the app will return an HTTP 400 error (bad request error).
+The above example shows how to enforce mandatory parameters in the `create_contact` query.
+The `name` and `phone` parameters are mandatory.
+If any of the mandatory parameters are missing, the app will return an HTTP 400 error (bad request error).
 
-Anything outside the reserved error code range 50000-51000 will be returned to the client as HTTP error code 500 with a generic error message of `An error occurred while processing your request.`.
+> **Route**
+The `route` tag is used to specify the route for the query.
+e.g., if you set the `route` tag to `contacts`, the query will be accessible by `https://localhost:<your_custom_port>/contacts`
 
-This is a safety measure to prevent exposing any sensitive information from the database to the client.
+> **Verb**
+The `verb` tag is used to specify the HTTP verb for the query.
+e.g., if you set the `verb` tag to `POST`, the query will be accessible by `POST` requests.
+If you don't specify it and you have only one unique route, the query will be accessible by any HTTP verb.
+If there are multiple routes with the same verb, the app is designed to return the first one.
 
-The default error message content can be changed in the `/config/settings.xml` file by changing the `default_generic_error_message` node.
+> **Success status code**
+The `success_status_code` tag is used to specify the HTTP status code for the query.
+e.g., if you set the `success_status_code` tag to `201`, the query will return an HTTP `201 Created` status code.
+If you don't specify it, the app will return `200 OK`.
 
-### Example 2 - Updating a phonebook record
+> **Query**
+The `query` tag is used to specify the SQL query to be executed and it's wrapped between `<![CDATA[` and `]]>` tags to prevent XML parsing errors.
 
-Now, let's try to update a record in the `phonebook` table.
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/update_contact` and change the request method to `POST`.
+> **Error handling**
+The app is designed to catch any error with code number between 50000 and 51000 and return it to the client as an HTTP error code between 0 and 1000.<br/>
+For example, throwing error code `50409` will be returned to the client as HTTP error code `409` along with the message that you passed to the `throw` statement.<br/>
+So basically, the reserved error code range `50000-51000` is mapped to the HTTP error code range `0-1000`.<br/>
+Anything outside the reserved error code range `50000-51000` will be returned to the client as HTTP error code `500` with a generic error message of `An error occurred while processing your request.`.<br/>
+This is a safety measure to prevent exposing any sensitive information from the database to the client.<br/>
+
+> **Default error message content**
+The default error message content can be changed in the `/config/settings.xml` file by changing the `default_generic_error_message` tag.
+
+> **Debugging SQL errors**<br/>
+To debug SQL errors, instead of receiving a generic error message with http error code `500` you can send your request with the `debug-mode` http header filled with a value matching that of the `debug_mode_header_value` tag in `/config/settings.xml` file.<br/>
+The `debug_mode_header_value` tag is used to specify the expected value of the `debug-mode` header.<br/>
+If the `debug-mode` header is not sent or the value is not matching the `debug_mode_header_value` tag, the app will return a generic error message with http error code `500`.<br/>
+If the `debug-mode` header is sent and the value matches the `debug_mode_header_value` tag, the app will return the SQL query that was executed along with the error message in the event of an error.<br/>
+
+### Example 2 - Updating a contact record
+
+Now, let's try to update a record in the `contacts` table.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts/{id}` and change the request method to `PUT`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
 {
-	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
 	"name": "John Update 1",
 	"phone": "1234567890"
 }
@@ -175,108 +244,140 @@ Now, let's try to update a record in the `phonebook` table.
 	{
 		"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
 		"name": "John Update 1",
-		"phone": "1234567890"
+		"phone": "1234567890",
+		"active": 1
 	}
 ]
 ```
 The response above shows the updated record.
 
-5. To see how the API works, change the `name` and/or `phone` properties in the request body and send the request again. You should see a different response from the database.
-6. Try updating the same record multiple times.
-7. Try also updating a record that doesn't exist.
+1. To see how the API works, change the `name` and/or `phone` properties in the request body and send the request again. You should see a different response from the database.
+2. Try updating the same record multiple times.
+3. Try also updating a record that doesn't exist.
 You should get an error message from the database saying that the record doesn't exist.
-The error will be returned to the client as HTTP error code 404 (not found error).
+The error should be returned to the client as HTTP error code 404 (not found error).
 
-### Example 3 - Retrieving phonebook records
+Check the `/config/sql.xml` file for the `update_contact` node to see how the `id` parameter is used in the query.
 
-Now, let's try to retrieve records from the `phonebook` table.
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contacts` and change the request method to `POST`.
-2. Fill `Content-Type` header with `application/json`.
-3. Fill the request body with the following JSON: 
-```json
-{
-	"name": "j"
-}
+Below is the `update_contact` node in the `/config/sql.xml` file:
+
+```xml
+<!-- Contact update endpoint -->
+<update_contact>
+  <route>contacts/{{id}}</route>
+  <verb>PUT</verb>
+  
+  <mandatory_parameters>id,name,phone</mandatory_parameters>
+
+  <connection_string_name>server2</connection_string_name>
+  
+  <query>
+  <![CDATA[
+
+  -- update contact
+  declare @id UNIQUEIDENTIFIER = {{id}};
+  declare @name nvarchar(500) = {{name}};
+  declare @phone nvarchar(100) = {{phone}};
+  
+  -- check if contact exists
+  
+  declare @error_msg nvarchar(500);
+  
+  -- return an http 404 error (not found error) if the contact does not exist
+  
+  if ((select count(*) from [contacts] where id = @id) < 1)
+  begin 
+      set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
+      -- to return http error code `404 Not found` throw 50404 and the app will return 404.
+      throw 50404, @error_msg, 1;
+      return;
+  end
+  
+  -- update the contact, and return it back to the http client
+
+  update [contacts] 
+  set 
+        [name] = @name, 
+        phone = @phone 
+  output 
+    inserted.id, 
+    inserted.name, 
+    inserted.phone
+  where 
+    id = @id;      
+      
+      ]]>
+      </query>
+    </update_contact>
 ```
-The `name` property is a search parameter. The API will return all records that contain the `name` value in the `name` column. The search is case-insensitive.
 
-You can also use the `phone` property as a search parameter. The API will return all records that contain the `phone` value in the `phone` column. The search is case-insensitive.
+> **connection_string_name**
+The `connection_string_name` tag is optional and used to specify the connection string name for the query.
+The app is designed to pickup the `default` connection string you define in 
+`/config/settings.xml` under `ConnectionStrings` node if you haven't set one here.
+However, if you need to access a different database for a specific query,
+you can set a different connection string name here, given that you've defined it in `/config/settings.xml` under `ConnectionStrings` node.
 
-You can also use both `name` and `phone` properties as search parameters. The API will return all records that contain the `name` value in the `name` column and the `phone` value in the `phone` column. The search is case-insensitive.
 
-Check the `/config/sql.xml` file for the `get_contact` query to see how the search parameters are used in the query.
+### Example 3 - Retrieving contact records along with the total number of records
 
-4. Try passing `take` and `skip` parameters in the request body to limit the number of records returned and to skip a number of records.
-```json
-{
-	"name": "j",
-	"take": 10,
-	"skip": 0
-}
-```
-
-This helps in implementing pagination in your API. Check the `/config/sql.xml` file for the `get_contacts` query to see how the `take` and `skip` parameters are used in the query.
-
-Also, to implement predictable pagination, check out the next example that demonstrates how to retrive records along with the total number of the returned records.
-
-### Example 4 - Retrieving phonebook records along with the total number of records
-
-Now, let's try to retrieve records from the `phonebook` table along with the total number of records.
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/get_contacts_with_count` and change the request method to `POST`.
+Now, let's try to retrieve records from the `contacts` table along with the total number of records.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts` and change the request method to `GET`.
 1. Fill `Content-Type` header with `application/json`.
-1. Fill the request body with the following JSON: 
-```json
-{
-	"name": "j",
-	"take": 3,
-	"skip": 0
-}
-```
-The `name` property is a search parameter. The API will return all records that contain the `name` value in the `name` column. The search is case-insensitive.
-
-The difference this time compared to the previous example is that the API will return the total number of records that match the search criteria along with the records.
-
-The total number of records is returned in the `count` property in the response.
-
-The records are returned in the `data` property in the response.
+1. Send the request and you should see the following JSON respons: 
 
 ```json
 {
-	"count": 20,
+	"count": 3,
 	"data": [
 		{
 			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
 			"name": "John Update 1",
-			"phone": "1234567890"
+			"phone": "1234567890",
+			"active": 1
 		},
         {
 			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b1",
 			"name": "John Update 2",
-			"phone": "1234567890"
+			"phone": "1234567890",
+			"active": 1
 		},
 		{
 			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b2",
 			"name": "John Update 3",
-			"phone": "1234567890"
+			"phone": "1234567890",
+			"active": 1
 		}
 	]
 }
 ```
 
-The above response shows the first 3 records that match the search criteria along with the total number of records that match the search criteria.
+The total number of records is returned in the `count` property in the response.
 
-To paginate through the records, you can change the `skip` parameter in the request body to skip a number of records.
+The records are returned in the `data` property in the response.
 
-Check the `/config/sql.xml` file for the `get_contact_with_count` node to see how the search parameters are used in the query.
+
+Check the `/config/sql.xml` file for the `search_contacts` node to see how the search parameters are used in the query.
 
 ```xml
-    <get_contacts_with_count>
+    <!-- Contact search endpoint -->
+    <search_contacts>
+      <route>contacts</route>
+      <verb>GET</verb>
       <query>
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
         declare @take int = {{take}};
         declare @skip int = {{skip}};
+        declare @sort_by nvarchar(50) = {{sort_by}};
+        declare @sort_order nvarchar(10) = {{sort_order}};
+
+        if (@sort_by is null or @sort_by = '')
+        begin
+            set @sort_by = 'name';
+        end
+
         -- default take to 100 if not specified
         if (@take is null or @take < 1)
         begin
@@ -293,11 +394,27 @@ Check the `/config/sql.xml` file for the `get_contact_with_count` node to see ho
             set @skip = 0;
         end
         
-      select * from [phonebook] 
+        
+        if (@sort_by is null or @sort_by not in ('name', 'phone'))
+        begin
+            set @sort_by = 'name';
+        end
+        
+        if (@sort_order is null or @sort_order not in ('asc', 'desc'))
+        begin
+            set @sort_order = 'asc';
+        end
+
+
+      select * from [contacts] 
         where 
           (@name is null or [name] like '%' +  @name + '%')
-          or (@phone is null or [phone] like '%' +  @phone + '%')
-        order by [name]
+          and (@phone is null or [phone] like '%' +  @phone + '%')
+        order by 
+          case when @sort_by = 'name' and @sort_order = 'asc' then [name] end asc,
+          case when @sort_by = 'name' and @sort_order = 'desc' then [name] end desc,
+          case when @sort_by = 'phone' and @sort_order = 'asc' then [phone] end asc,
+          case when @sort_by = 'phone' and @sort_order = 'desc' then [phone] end desc
         offset @skip rows
         fetch next @take rows only;        
         
@@ -307,106 +424,511 @@ Check the `/config/sql.xml` file for the `get_contact_with_count` node to see ho
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
-        select count(*) from [phonebook] 
+        select count(*) from [contacts] 
         where 
           (@name is null or [name] like '%' +  @name + '%')
-          or (@phone is null or [phone] like '%' +  @phone + '%');
+          and (@phone is null or [phone] like '%' +  @phone + '%');
         
         ]]>
       </count_query>
 
-    </get_contacts_with_count>
+    </search_contacts>
 ```
+Notice how the above query has two nodes:
+- The `query` node is used to return the actual records.
+- The `count_query` node is used to return the total number of records that match the search criteria.
+- The `count_query` node is optional, if you don't specify it, the app will not return the total count of the results.
+- Both `query` and `count_query` nodes have much more functionality than what is shown in the above example. We'll cover them in the next examples.
 
-Notice how in the above query, the `take` and `skip` parameters are used to implement pagination.
+### Example 4 - Pagination while retrieving contact records
 
-Also, notice how the `count_query` node is used to return the total number of records that match the search criteria whereas the `query` node is used to return the actual records.
+In example 3, we saw how to retrieve records from the `contacts` table along with the total number of records.
 
+Now, let's try to retrieve records from the `contacts` table along with the total number of records while also implementing pagination.
 
-### Example 5 - Deleting a phonebook record
-
-Now, let's try to delete a record in the `phonebook` table.
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/delete_contact` and change the request method to `POST`.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts` and change the request method to `GET`.
 2. Fill `Content-Type` header with `application/json`.
 3. Fill the request body with the following JSON: 
 ```json
 {
-	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0"
+	"take": 3,
+	"skip": 0
 }
 ```
+4. Send the request and you should see the following JSON respons: 
+```json
+{
+	"count": 20,
+	"data": [
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+			"name": "John",
+			"phone": "1234567890",
+			"active": 1
+		},
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b1",
+			"name": "Jane",
+			"phone": "3432345567",
+			"active": 1
+		},
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b2",
+			"name": "John Doe",
+			"phone": "3425167890",
+			"active": 1
+		}
+	]
+}
+```
+
+The above response shows the first 3 records along with the total number of records that match the search criteria (i.e., our page size is 3 and we're on the first page).
+
+To paginate through the records, you can change the `skip` parameter in the request body to skip a number of records.
+
+
+Check the `/config/sql.xml` file for the `search_contacts` node to see how the `take` and `skip` parameters are used in the query.
+
+### Example 5 - Searching while retrieving contact records
+
+In example 4, we saw how to retrieve records from the `contacts` table along with the total number of records while also implementing pagination.
+
+Now, let's try to retrieve records from the `contacts` table while also implementing searching.
+
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts` and change the request method to `GET`.
+2. Fill `Content-Type` header with `application/json`.
+3. Fill the request body with the following JSON: 
+```json
+{
+	"name": "j",
+	"take": 3,
+	"skip": 0
+}
+```
+4. Send the request and you should see the following JSON respons:
+```json
+{
+	"count": 20,
+	"data": [
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+			"name": "John",
+			"phone": "1234567890",
+			"active": 1
+		},
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b1",
+			"name": "Jane",
+			"phone": "3432345567", 
+			"active": 1
+		},
+		{
+			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b2",
+			"name": "John Doe",
+			"phone": "3425167890",
+			"active": 1
+		}
+	]
+}
+```
+
+The above response shows the first 3 records that match the search criteria (i.e., our page size is 3 and we're on the first page).
+
+To paginate through the records, you can change the `skip` parameter in the request body to skip a number of records.
+
+Check the `/config/sql.xml` file for the `search_contacts` node to see how the `name` parameter is used in the query.
+
+You can also use the `phone` property as a search parameter. The API will return all records that contain the `phone` value in the `phone` column. The search is case-insensitive.
+
+You can also use both `name` and `phone` properties as search parameters. The API will return all records that contain the `name` value in the `name` column and the `phone` value in the `phone` column. The search is case-insensitive.
+
+### Example 6 - Deleting a contact record
+
+Now, let's try to delete a record in the `contacts` table.
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts/b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0` and change the request method to `DELETE`.
+2. Fill `Content-Type` header with `application/json`.
+
 > **Note**: The above is an example `id` value. You can use any `id` value that you get from the API when you add a new record or retrieve records.
 
-4. Send the request and you should see the following JSON respons: 
+3. Send the request and you should see the following JSON respons: 
 ```json
 [
 	{
 		"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
 		"name": "John Update 1",
-		"phone": "1234567890"
+		"phone": "1234567890",
+		"active": 1
 	}
 ]
 ```
-> **Note**: The above is an example response. You'll get the same response when you update a record but with different values. The response is just to show you the record that was deleted.
-
-If the record doesn't exist, you'll get an error message from the database saying that the record doesn't exist.
+> **Note**: If the record doesn't exist, you'll get an error message from the database saying that the record doesn't exist.
 The error will be returned to the client as HTTP error code 404 (not found error).
 
+Successfully deleted records are returned to the client as HTTP status code 204 (no content).
 
-### Example 5 - Acting as an API gateway
+Check the `/config/sql.xml` file for the `delete_contact` node to see how the `id` parameter is used in the query.
 
-The solution also offers the feature of acting as an API gateway to seamlessly route requests to various other APIs.
+Below is the `delete_contact` node in the `/config/sql.xml` file:
 
-This capability is helpful for consolidating a multitude of APIs under a single, unified base URL. Consumers benefit without needing to delve into the intricacies of where the data originates&mdash;be it from direct database calls or external APIs routed through the solution.
+```xml
+    <!-- Contact deletion endpoint -->
+    <delete_contact>
+      <route>contacts/{{id}}</route>
+      <verb>DELETE</verb>
+      <success_status_code>204</success_status_code>
+      <mandatory_parameters>id</mandatory_parameters>
+      <query>
 
-Moreover, in this setup, uniform API key enforcement becomes easy to manage. Whether interfacing with local resources or external services, the solution can enforce consistent API key usage, even if the external APIs don't inherently require such authentication.
+        <![CDATA[
+        declare @id UNIQUEIDENTIFIER = {{id}};
+        -- check if contact exists
+        declare @error_msg nvarchar(500);
+        -- return an http 404 error (not found error) if the contact does not exist
+        if ((select count(*) from [contacts] where id = @id) < 1)
+        begin 
+            set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
+            -- to return http error code `404 Not found` throw 50404 and the app will return 404.
+            throw 50404, @error_msg, 1;
+            return;
+        end
+        -- delete the contact
+        delete from [contacts] 
+        OUTPUT DELETED.id, DELETED.name, DELETED.phone, DELETED.active
+        where id = @id;
+        
+        ]]>
+      </query>
+    </delete_contact>
 
-To implement this functionality, we can utilize a setup file, `api_gateway.xml`, located within the config folder, to configure route mappings to different APIs.
+```
 
-Here's the structure of the `api_gateway.xml` file:
+> **Note**: The `id` parameter is a mandatory parameter. If you don't specify it, the app will return an HTTP 400 error (bad request error).
+
+The `verb` tag is set to `DELETE` to indicate that the request is a DELETE request. If the caller's http request is not a DELETE request, the app will return an HTTP 404 error (API endpoint not found error).
+
+The `success_status_code` tag is set to `204` to indicate that the request was successful. If the request was successful, the app will return an HTTP 204 status code (no content).
+
+### Example 8 - Activating / deactivating a contact record
+
+Now, let's try to activate / deactivate a record in the `contacts` table.
+
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts/b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0/deactivate` and change the request method to `PUT`.
+2. Fill `Content-Type` header with `application/json`.
+3. Send the request and you should see the following JSON respons: 
+```json
+{
+	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+	"name": "John Update 1",
+	"phone": "1234567890",
+	"active": 0
+}
+```
+
+The above response shows the record that was deactivated.
+
+Check the `/config/sql.xml` file for the `activate_deactivate_contact` node to see how the `id` and `status_action` parameters are used in the query.
+
+Below is the `activate_deactivate_contact` node in the `/config/sql.xml` file:
+
+```xml
+    <!-- Contact activation/deactivation endpoint -->
+    <activate_deactivate_contact>
+      <connection_string_name>server2</connection_string_name>
+      <route>contacts/{{id}}/{{status_action}}</route>
+      <verb>PUT</verb>
+      <mandatory_parameters>id</mandatory_parameters>
+      <query>
+      <![CDATA[
+
+      -- update contact
+      declare @id UNIQUEIDENTIFIER = {{id}};
+      -- status_action can be either `activate` or `deactivate`
+      declare @status_action nvarchar(50) = {{status_action}};
+
+      declare @error_msg nvarchar(500);
+
+      if (@status_action is null or @status_action = ''
+      or @status_action not in ('activate', 'deactivate'))
+      begin
+        set @error_msg = 'Invalid status action';
+        throw 50400, @error_msg, 1;
+        return;
+      end
+        
+      -- check if contact exists
+      
+      -- return an http 404 error (not found error) if the contact does not exist
+      
+      if ((select count(*) from [contacts] where id = @id) < 1)
+      begin 
+          set @error_msg = 'Contact with id ' + cast(@id as nvarchar(50)) + ' does not exist';
+          -- to return http error code `404 Not found` throw 50404 and the app will return 404.
+          throw 50404, @error_msg, 1;
+          return;
+      end
+      
+      -- update the contact, and return it back to the http client
+
+      declare @status_bit bit = case when @status_action = 'activate' then 1 else 0 end;
+
+      update [contacts] 
+      set 
+            [active] = @status_bit
+      output 
+        inserted.id, 
+        inserted.name, 
+        inserted.phone,
+        case when inserted.active = 1 then 'active' else 'inactive' end as status
+      where 
+        id = @id;      
+      ]]>
+      </query>
+    </activate_deactivate_contact>
+```
+Notice the `{{action_status}}` parameter in the `route` tag.
+
+The `{{action_status}}` parameter is used to specify the action status.
+
+The `{{action_status}}` parameter can be either `activate` or `deactivate`.
+
+This example showcase how you can create custom rountes that have multiple parameters. And how to use specific parameters for actions (like activate / deactivate in our case) that aren't limited by just the `verb` tag.
+
+
+### Example 9 - Returning records without count
+
+In example 3, we saw how to retrieve records from the `contacts` table along with the total number of records.
+
+Now, let's try to retrieve records from the `contacts` table without the total number of records.
+
+1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts_without_count` and change the request method to `GET`.
+2. Fill `Content-Type` header with `application/json`.
+3. Send the request and you should see the following JSON respons: 
+```json
+[
+  {
+    "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+    "name": "John Update 1",
+    "phone": "1234567890",
+    "active": 1
+  },
+  {
+    "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b1",
+    "name": "Jane",
+    "phone": "3432345567",
+    "active": 1
+  },
+  {
+    "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b2",
+    "name": "John Doe",
+    "phone": "3425167890",
+    "active": 1
+  }
+]
+```
+
+Notice how the response is an array of JSON objects.
+
+Check the `/config/sql.xml` file for the `search_contacts_without_count` node to see how the `response_structure` along with the absense of `count_query` tag is used to return the records without the total number of records.
+
+Below is the `search_contacts_without_count` node in the `/config/sql.xml` file:
+
+```xml
+<!-- Contact search without count endpoint -->
+    <search_contacts_without_count>
+      <route>contacts_without_count</route>
+      <verb>GET</verb>
+
+      <!-- default value (if not specified) is `auto`, available options are `auto`, `single` and `array` -->
+      <response_structure>array</response_structure>
+      <!-- 
+      `response_structure` is optional, if you don't specify it, the app defaults to `auto`.
+       The possible values are:
+       
+      1- `array`: instructs the app to return an array of JSON objects for multiple rows response with the following rules:
+        a) if the query returned a single row, that row is set to be returned as a json object inside an array
+        b) if the query returned multiple rows, the app will return an array of JSON objects with the following structure:
+          [
+            {
+              "id": 1,
+              "name": "John",
+              "phone": "1234567890"
+            },
+            {
+              "id": 2,
+              "name": "Jane",
+              "phone": "0987654321"
+            }
+          ]
+        
+      2- `single`: instructs the app to return a single JSON object of the first row returned by the query and not iterate over the rest of the rows.
+        however, if `count_query` node is specified, the app then is set to return a count structure as per the below structured
+        response format but has only the first row returned by the query (i.e., not iterate over the rest of the rows)
+      
+      3- `auto`: for auto response format (single if single row, array if multiple rows)
+      
+      **Note**: if `count_query` is specified, the `response_structure` is then ignored as the app 
+      is expected to always return a count structure as per the below structured response format:
+          {
+            "count": 1,
+            "data": [
+              {
+                "id": 1,
+                "name": "John",
+                "phone": "1234567890"
+              }
+            ]
+          }
+      -->      
+
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        declare @phone nvarchar(100) = {{phone}};
+        declare @take int = {{take}};
+        declare @skip int = {{skip}};
+        declare @sort_by nvarchar(50) = {{sort_by}};
+        declare @sort_order nvarchar(10) = {{sort_order}};
+
+        if (@sort_by is null or @sort_by = '')
+        begin
+            set @sort_by = 'name';
+        end
+
+        -- default take to 100 if not specified
+        if (@take is null or @take < 1)
+        begin
+            set @take = 100;
+        end
+        -- make sure max take doesn't exceed 1000
+        if (@take > 1000)
+        begin
+            set @take = 1000;
+        end
+        -- default skip to 0 if not specified
+        if (@skip is null or @skip < 0)
+        begin
+            set @skip = 0;
+        end
+        
+        -- validate and default sort parameters (no need for sort by `id` if `id` is GUID, unless your `id` is an incrumental number)
+        -- you can also add by create date, update date, etc. but for the purpose of this example, we'll only sort by `name` and `phone`
+        if (@sort_by is null or @sort_by not in ('name', 'phone'))
+        begin
+            set @sort_by = 'name';
+        end
+        
+        if (@sort_order is null or @sort_order not in ('asc', 'desc'))
+        begin
+            set @sort_order = 'asc';
+        end
+
+
+      select * from [contacts] 
+        where 
+          (@name is null or [name] like '%' +  @name + '%')
+          and (@phone is null or [phone] like '%' +  @phone + '%')
+        order by 
+          case when @sort_by = 'name' and @sort_order = 'asc' then [name] end asc,
+          case when @sort_by = 'name' and @sort_order = 'desc' then [name] end desc,
+          case when @sort_by = 'phone' and @sort_order = 'asc' then [phone] end asc,
+          case when @sort_by = 'phone' and @sort_order = 'desc' then [phone] end desc
+        offset @skip rows
+        fetch next @take rows only;        
+        
+        ]]>
+      </query>
+
+    </search_contacts_without_count>    
+```
+
+**response_structure**
+The `response_structure` tag is optional and used to specify the response structure as being an array or a single object.
+
+The possible values are:<br/>
+**1-** `array`: instructs the app to return an array of JSON objects for multiple rows response with the following rules:<br/>
+  - **a)** if the query returned a single row, that row is set to be returned as a json object inside an array<br/>
+  - **b)** if the query returned multiple rows, the app will return an array of JSON objects with the following structure:<br/>
+  ```json
+  [
+    {
+      "id": 1,
+      "name": "John",
+      "phone": "1234567890",
+      "active": 1
+    },
+    {
+      "id": 2,
+      "name": "Jane",
+      "phone": "0987654321",
+      "active": 1
+    }
+  ]
+  ```        
+**2-** `single`: instructs the app to return a single JSON object of the first row returned by the query and not iterate over the rest of the rows.<br/>
+However, if `count_query` node is specified, the app then is set to return a count structure smiliar to the ones we saw in example 3, 4 and 5.
+
+**3-** `auto`: for auto response format (single if single row, array if multiple rows)
+
+> **Note**: if `count_query` is specified, the `response_structure` is then ignored as the app 
+is expected to always return a count structure.
+
+> **Note**: It's preferable to make use of the `response_structure` tag when you don't intend to use the `count_query` but expect to return multiple rows.<br/>
+The reason for that is predictability. If you don't specify the `response_structure` tag, the app will default to `auto` which means that if the query returns a single row, the app will return a single object, and if the query returns multiple rows, the app will return an array of objects.<br/>
+Callers of your API will have to handle both cases (single row and multiple rows) whereas if you specify the `response_structure` as `array` tag, the app will return an array of objects regardless of the number of rows returned by the query.<br/>
+
+### Example 10 - Protecting your API from unauthorized access
+
+There are two ways to protect your API from unauthorized access:</br>
+**1-** Using local API keys (per endpoint)<br/>
+**2-** Using global API keys (for all endpoints)<br/>
+
+For global API keys, you can set your API key in `/config/global_api_keys.xml` file.
+
+The `global_api_keys.xml` file structure is as follows:
 
 ```xml
 <settings>
-	<routes>
-        <cat_facts>
-            <url>https://catfact.ninja/fact</url>
-            <headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
-        </cat_facts>
-        <hello_world_routed>
-			<url>https://localhost:7054/hello_world</url>
-			<headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
-            <ignore_certificate_errors>true</ignore_certificate_errors>
-        </hello_world_routed>
-        <!-- Additional examples -->
-	</routes>
+	<global_api_keys>
+		<key>api key 1</key>
+		<key>api key 2</key>
+	</global_api_keys>
 </settings>
 ```
 
-The <routes> node contains a collection of customizable route configurations.
+For local API keys, you can set your API key in the `api_keys` tag in your API node in `/config/sql.xml` file.
 
-Consider the `cat_facts` route as an illustration:
+The below is an example of a local API key in the `/config/sql.xml` file:
 
 ```xml
-<cat_facts>
-	<url>https://catfact.ninja/fact</url>
-	<headers_to_exclude_from_routing>x-api-key,host</headers_to_exclude_from_routing>
-</cat_facts>
+    <!-- Protected endpoint with local API keys (for global keys, use global_api_keys.xml) -->
+    <protected_hello_world>
+      <api_keys>
+        <key>api key 1</key>
+        <key>api key 2</key>
+      </api_keys>
+      <query>
+        <![CDATA[
+        declare @name nvarchar(500) = {{name}};
+        
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 'hello ' + @name + '!' as message_from_db;
+        ]]>
+      </query>
+    </protected_hello_world>
 ```
 
-In this example:
+Callers of your API will have to send the API key in the `x-api-key` http header.
 
-* The `<cat_facts>` node denotes the route's name, which can be tailored as needed.
-* The `<url>` node specifies the destination URL for routing the request.
-* Optionally, the `<headers_to_exclude_from_routing>` node allows exclusion of specific headers from the request before routing.
+> **Note**: 
+- If you don't specify the `api_keys` tag in your API node, the query will be publically accessible unless you define global api keys in `/config/global_api_keys.xml` file.
+- Local API keys take precedence over global API keys if both (global and local) are defined.
 
->**Usage Note:** To leverage the API gateway functionality, adjust your request URL to https://localhost:<your_custom_port>/cat_facts or similar, depending on the configured routes in api_gateway.xml, and initiate the request.
 
-The solution automatically directs requests to the designated external or local APIs based on the specified routes in `api_gateway.xml` and/or SQL queries outlined in `sql.xml`. Additionally, it automatically filters out the designated headers from the request before routing, optimizing compatibility and security.
 
-By offering to exclude headers selectively, the solution safeguards against exposing sensitive data to external APIs while circumventing potential routing issues caused by extraneous headers. For instance, preemptively removing the `host` header prevents TLS handshake errors during routing, while omitting the `x-api-key` header shields our solution's API key from exposure to external services.
-
-Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
-
-### Example 5 - Cached API responses
+### Example 11 - Cached API responses
 
 The solution offers the ability to cache API responses for a specified duration, enhancing performance and reducing latency for frequently accessed data.
 
@@ -416,7 +938,7 @@ To enable this feature, add `cache` node to any of your SQL queries in `sql.xml`
     <hello_world_with_cache>
       <cache>
         <memory>
-          <duration_in_miliseconds>20000</duration_in_miliseconds>
+          <duration_in_milliseconds>20000</duration_in_milliseconds>
           <invalidators>name</invalidators>
         </memory>
       </cache>
@@ -447,9 +969,307 @@ The response will be cached in memory for the specified duration, enhancing perf
 
 The `Time now is` part of the response is added to demonstrate that the response is indeed cached and not re-executed for subsequent requests within the cache's timeframe.
 
->**Usage Note:** To leverage the cached API response, simply call the API as usual. The solution will automatically cache the response based on the specified duration and invalidators.
-
+>**Usage Note:** To leverage the cached API response, simply call the API as usual. The solution will automatically cache the response based on the specified duration and invalidators.<br/>
 Try changing the `name` parameter in the request body and sending the request multiple times within the cache's timeframe. You should see the same response with the same timestamp, indicating that the response is cached and not re-executed.
+
+>**Note**: The `invalidators` node is optional and can be used to invalidate the cache when the specified parameters change.
+
+
+### Example 12 - Acting as an API gateway
+
+The solution also offers the feature of acting as an API gateway to seamlessly route requests to various other APIs.
+
+This capability is helpful for consolidating a multitude of APIs under a single, unified base URL. 
+
+Consumers benefit without needing to delve into the intricacies of where the data originates&mdash;be it from direct database calls or external APIs routed through the solution.
+
+Moreover, in this setup, uniform API key enforcement becomes easy to manage. Whether interfacing with local resources or external services, the solution can enforce consistent API key usage, even if the external APIs don't inherently require such authentication.
+
+To implement this functionality, we can utilize a setup file, `api_gateway.xml`, located within the config folder, to configure route mappings to different APIs.
+
+Here's the structure of the `api_gateway.xml` file:
+
+```xml
+<settings>
+  <routes>
+    <cat_facts>
+      <url>https://catfact.ninja/fact</url>
+      <excluded_headers>x-api-key,host</excluded_headers>
+    </cat_facts>
+  </routes>
+</settings>
+```
+
+The <routes> node contains a collection of customizable route configurations.
+
+Consider the `cat_facts` route as an illustration:
+
+```xml
+<cat_facts>
+	<url>https://catfact.ninja/fact</url>
+	<excluded_headers>x-api-key,host</excluded_headers>
+</cat_facts>
+```
+
+In this example:
+
+* The `<cat_facts>` node denotes the route's name, which can be tailored as needed, this is the name you'll use to call the API (e.g., `https://localhost:<your_custom_port>/cat_facts`).
+* The `<url>` node specifies the destination URL for routing the request.
+* Optionally, the `<excluded_headers>` node allows exclusion of specific headers from the request before routing (i.e., `x-api-key,host` in this example won't be passed to the destination URL).
+
+The app automatically directs requests to the designated external or local APIs based on the specified routes in `api_gateway.xml` and/or SQL queries outlined in `sql.xml`. Additionally, it automatically filters out the designated headers from the request before routing, optimizing compatibility and security.
+
+By offering to exclude headers selectively, the solution safeguards against exposing sensitive data to external APIs while circumventing potential routing issues caused by extraneous headers. For instance, preemptively removing the `host` header prevents TLS handshake errors during routing, while omitting the `x-api-key` header shields our solution's API key from exposure to external services.
+
+Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
+
+### Example 13 - Protecting your API routes from unauthorized access
+
+You can protect your API routes from unauthorized access by adding the `api_keys` tag to your API node in `api_gateway.xml` file just as we did in example 10 with the `api_keys` tag in `sql.xml` file.
+
+Here is a sample of a protected route in `api_gateway.xml` file:
+
+```xml
+    <!-- 
+    adds API Keys protection to to the unprotected `catfact.ninja/fact` API
+    before routing
+    -->
+    <locally_protected_cat_facts>
+      <api_keys>
+        <key>local api key 1</key>
+        <key>local api key 2</key>
+      </api_keys>
+
+      <url>https://catfact.ninja/fact</url>
+      <excluded_headers>x-api-key,host</excluded_headers>
+    </locally_protected_cat_facts>
+```
+With the above configuration, callers to the `https://localhost:7054/locally_protected_cat_facts` API will have to send the API key in the `x-api-key` http header.
+
+> **Note**: If you don't specify the `api_keys` tag in your API node, the route will be publically accessible unless you define global api keys in `/config/global_api_keys.xml` file.
+
+### Example 14 - Custom endpoint path
+
+You can customize the endpoint path by adding the `route` tag to your API node in `api_gateway.xml` file just as we did with the `route` tag in `sql.xml` file.
+
+Here is a sample of a custom endpoint path in `api_gateway.xml` file:
+
+```xml
+    <!-- 
+    Callers to this API will use the path `cat/facts` (e.g., https://localhost:7054/cat/facts)
+    will get routed to the `https://catfact.ninja/fact` API.
+    -->
+    <cat_facts_custom_path_example>
+      <route>cat/facts/list</route>
+      <url>https://catfact.ninja/fact</url>
+      <excluded_headers>x-api-key,host</excluded_headers>
+    </cat_facts_custom_path_example>
+```
+
+The above endpoint path will be accessible at `https://localhost:7054/cat/facts/list` and will be routed to the `https://catfact.ninja/fact` API.
+
+### Example 15 - Wildcard route matching
+
+You can use wildcard route matching to route multiple endpoints to single base URL by using the `*` wildcard character.
+
+Here is a sample of a wildcard route matching in `api_gateway.xml` file:
+
+```xml
+    <cat_facts_wildcard_path_example>
+      <route>cat/*</route>
+      <url>https://catfact.ninja/</url>
+      <excluded_headers>x-api-key,host</excluded_headers>
+    </cat_facts_wildcard_path_example>
+```
+
+Any API call that starts with `cat/` will be routed to the `https://catfact.ninja/` API.
+
+The remaining part of the path will be appended to the base URL.
+
+For example, if you call `https://localhost:7054/cat/facts/list`, it will be routed to the `https://catfact.ninja/facts/list` API.
+
+This is helpful when you have multiple endpoints that share the same base URL but have different paths. Instead of creating multiple routes, you can use a single route with a wildcard character to match the different paths.
+
+> **Note**: The `*` wildcard character can be used to match any number of characters.
+
+### Example 16 - Caching API gateway responses
+
+Just like database queries, API gateway routes can also benefit from caching to improve performance and reduce load on target APIs.
+
+The caching feature for API gateway routes works by storing the complete HTTP response (including status code, headers, and body) in memory for a specified duration. This is particularly useful for:
+- Reducing latency for frequently accessed external APIs
+- Protecting downstream services from high traffic
+- Continuing to serve responses during temporary outages of target APIs
+- Reducing costs when using metered external APIs
+
+#### How it works
+
+The cache key is automatically generated from:
+- HTTP method (GET, POST, PUT, DELETE, etc.)
+- Resolved route path (after wildcard matching)
+- Query string parameters (from the caller)
+- Request headers
+- Configured invalidators
+
+This means that different HTTP methods, different query parameters, or different header values will create separate cache entries, giving you granular control over what gets cached.
+
+#### Configuration example
+
+Add a `cache` section to your route in `/config/api_gateway.xml`:
+
+```xml
+<cat_facts_with_cache>
+  <route>cat/facts</route>
+  <url>https://catfact.ninja/fact</url>
+  <excluded_headers>x-api-key,host</excluded_headers>
+
+  <cache>
+    <memory>
+      <!-- Cache duration in milliseconds (20 seconds in this example) -->
+      <duration_in_milliseconds>20000</duration_in_milliseconds>
+      
+      <!-- Parameters that invalidate cache (comma-separated) -->
+      <!-- The system looks for these in both query parameters and headers -->
+      <invalidators>category,limit</invalidators>
+      
+      <!-- Optional: Don't cache these HTTP status codes (comma-separated) -->
+      <!-- By default, ALL status codes are cached (including errors) -->
+      <!-- This protects your target API during outages or high traffic -->
+      <exclude_status_codes_from_cache>401,403,429</exclude_status_codes_from_cache>
+      
+      <!-- Optional: Max size per invalidator value in characters (default: 1000) -->
+      <max_per_value_cache_size>1000</max_per_value_cache_size>
+    </memory>
+  </cache>
+</cat_facts_with_cache>
+```
+
+#### Testing the cache
+
+1. Call the API endpoint twice with the same parameters:
+```bash
+# First call - response is fetched from target API and cached
+curl https://localhost:7054/cat/facts
+
+# Second call within 20 seconds - response served from cache (much faster!)
+curl https://localhost:7054/cat/facts
+```
+
+2. Change the invalidator parameter to create a different cache entry:
+```bash
+# This creates a new cache entry because 'category' is different
+curl https://localhost:7054/cat/facts?category=funny
+```
+
+3. Try different HTTP methods:
+```bash
+# GET and POST create separate cache entries even with same parameters
+curl -X GET https://localhost:7054/cat/facts
+curl -X POST https://localhost:7054/cat/facts
+```
+
+#### Cache invalidators
+
+The `invalidators` configuration specifies which parameters should be included in the cache key. The system will look for these parameters in:
+- **Query string parameters**: `?category=funny&limit=10`
+- **Request headers**: `X-Tenant-Id`, `Authorization`, etc.
+
+If a parameter specified in `invalidators` changes, a new cache entry is created.
+
+**Example**: With `<invalidators>category,tenant_id</invalidators>`:
+- `/cat/facts?category=funny` → Cache entry A
+- `/cat/facts?category=sad` → Cache entry B (different category)
+- `/cat/facts?category=funny` with header `X-Tenant-Id: 123` → Cache entry C (different tenant)
+
+Parameters **not** listed in `invalidators` are ignored for caching purposes but still passed to the target API.
+
+#### Status code filtering
+
+By default, **all HTTP status codes are cached**, including errors like 404, 500, 502, etc. This design decision protects your target APIs during:
+- High traffic periods
+- Temporary outages
+- Rate limiting scenarios
+
+However, you can exclude specific status codes from being cached:
+
+```xml
+<!-- Don't cache authentication/authorization errors and rate limits -->
+<exclude_status_codes_from_cache>401,403,429</exclude_status_codes_from_cache>
+```
+
+**Why cache error responses?**
+- A 404 error during high traffic might indicate the target API is overwhelmed
+- A 500 error might be temporary, and caching it reduces load on the failing service
+- It gives the target API time to recover while still serving responses
+
+**When to exclude status codes:**
+- 401/403: Authentication errors that should be re-evaluated on each request
+- 429: Rate limiting errors where you want to retry immediately
+- Any status code where you need real-time verification
+
+#### Performance considerations
+
+**Without caching:**
+- Every request is proxied to the target API
+- Response is streamed directly to the client
+- Optimal for single requests, but no protection during high traffic
+
+**With caching:**
+- First request: Response is buffered in memory and cached
+- Subsequent requests (within cache duration): Served instantly from memory
+- Expired/invalidated requests: Fall back to buffering and caching again
+
+**Routes without cache configuration continue to stream responses directly** (backward compatible).
+
+#### Complete example
+
+Here's a practical example using a weather API:
+
+```xml
+<weather_with_cache>
+  <route>weather/current</route>
+  <url>https://api.weather.com/v1/current</url>
+  <excluded_headers>x-api-key,host</excluded_headers>
+  
+  <!-- Override the API key header for the target API -->
+  <applied_headers>
+    <header>
+      <name>X-API-Key</name>
+      <value>your-weather-api-key-here</value>
+    </header>
+  </applied_headers>
+
+  <cache>
+    <memory>
+      <!-- Cache for 5 minutes (weather doesn't change that often) -->
+      <duration_in_milliseconds>300000</duration_in_milliseconds>
+      
+      <!-- Different cities and units create different cache entries -->
+      <invalidators>city,units</invalidators>
+      
+      <!-- Don't cache authentication errors or service unavailable -->
+      <exclude_status_codes_from_cache>401,403,503</exclude_status_codes_from_cache>
+    </memory>
+  </cache>
+</weather_with_cache>
+```
+
+Usage:
+```bash
+# First call for London - hits the API, caches for 5 minutes
+curl "https://localhost:7054/weather/current?city=London&units=metric"
+
+# Subsequent calls for London within 5 minutes - served from cache
+curl "https://localhost:7054/weather/current?city=London&units=metric"
+
+# Different city - creates new cache entry
+curl "https://localhost:7054/weather/current?city=Paris&units=metric"
+```
+
+> **Note**: The cache is stored in memory using ASP.NET Core's `HybridCache` feature, which provides high-performance caching with minimal overhead. All cached objects are automatically serialized and deserialized, allowing for efficient storage and retrieval.
+
+> **Important**: Cache durations should be chosen based on how frequently the data changes and your performance requirements. Shorter durations mean more up-to-date data but more requests to the target API. Longer durations mean better performance but potentially stale data.
+
 
 
 **documentation in progress - more examples to be added soon**

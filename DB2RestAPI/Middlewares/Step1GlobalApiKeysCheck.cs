@@ -4,9 +4,21 @@ using DB2RestAPI.Settings.Extensinos;
 namespace DB2RestAPI.Middlewares
 {
     /// <summary>
-    /// This middleware checks if the request contains a global API key if the global API keys are enabled.
-    /// If the API key is not provided, it returns a 401 Unauthorized response.
+    /// First middleware in the pipeline that validates global API keys for incoming requests.
     /// 
+    /// This middleware enforces global API key authentication when enabled in configuration.
+    /// It checks for the presence of the 'x-api-key' header and validates it against the 
+    /// configured list of authorized API keys.
+    /// 
+    /// Configuration:
+    /// - Controlled by the 'enable_global_api_keys' setting (default: false)
+    /// - When disabled, all requests pass through without API key validation
+    /// - When enabled, requires 'x-api-key' header with a valid key from 'api_keys:key' configuration
+    /// 
+    /// Responses:
+    /// - 401 Unauthorized: API key missing or invalid
+    /// - 500 Internal Server Error: API keys configuration section not properly defined
+    /// - Passes to next middleware: API key validation successful or global API keys disabled
     /// </summary>
     public class Step1GlobalApiKeysCheck(
         RequestDelegate next,
