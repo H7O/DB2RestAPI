@@ -588,13 +588,18 @@
     <nested_json>
       <query>
         <![CDATA[
-        SELECT 
-            1 as id,
-            'John' as [name],
-            (select * from (values 
-		        (55555, 'Dubai'), 
-		        (44444, 'Abu Dhabi')) as t (phone, city) for json path) AS {type{json{phones}}}
-        
+              SELECT
+                  name,
+                  (
+                      SELECT phone
+                      FROM contacts c2
+                      WHERE c2.name = c1.name AND c2.active = 1
+                      FOR JSON PATH
+                  ) AS phones,
+                  1 AS active
+              FROM contacts c1
+              WHERE c1.active = 1
+              GROUP BY name;        
         ]]>
       </query>
       <!--
@@ -602,22 +607,70 @@
       The {type{json{field_name}}} decorator tells the engine to parse the returned JSON string 
       and embed it as a proper nested JSON object instead of an escaped string.
       
-      WITHOUT {type{json{phones}}}:
-      {
-        "id": 1,
-        "name": "John",
-        "phones": "[{\"phone\":55555,\"city\":\"Dubai\"},{\"phone\":44444,\"city\":\"Abu Dhabi\"}]"
-      }
+      WITHOUT {type{json{phones}}} decorater, the returned result would look like this:
       
-      WITH {type{json{phones}}}:
-      {
-        "id": 1,
-        "name": "John",
-        "phones": [
-          {"phone": 55555, "city": "Dubai"},
-          {"phone": 44444, "city": "Abu Dhabi"}
-        ]
-      }
+      ```json
+      [
+          {
+              "name": "Bob Johnson",
+              "phones": "[{\"phone\":\"+1-555-0103\"},{\"phone\":\"+1-555-0103\"}]",
+              "active": 1
+          },
+          {
+              "name": "Jane Smith",
+              "phones": "[{\"phone\":\"+1-555-0102\"},{\"phone\":\"+1-555-0102\"}]",
+              "active": 1
+          },
+          {
+              "name": "John Doe",
+              "phones": "[{\"phone\":\"+1-555-0101\"},{\"phone\":\"+1-555-0101\"}]",
+              "active": 1
+          }
+      ]      
+      ```
+      
+      WITH {type{json{phones}}} decorater, the returned result would look like this:
+      
+      ```json
+      [
+          {
+              "name": "Bob Johnson",
+              "phones": [
+                  {
+                      "phone": "+1-555-0103"
+                  },
+                  {
+                      "phone": "+1-555-0103"
+                  }
+              ],
+              "active": 1
+          },
+          {
+              "name": "Jane Smith",
+              "phones": [
+                  {
+                      "phone": "+1-555-0102"
+                  },
+                  {
+                      "phone": "+1-555-0102"
+                  }
+              ],
+              "active": 1
+          },
+          {
+              "name": "John Doe",
+              "phones": [
+                  {
+                      "phone": "+1-555-0101"
+                  },
+                  {
+                      "phone": "+1-555-0101"
+                  }
+              ],
+              "active": 1
+          }
+      ]      
+      ```
       
       This makes your API responses much cleaner and eliminates the need for 
       additional JSON.parse() calls on the client side.
