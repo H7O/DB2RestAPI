@@ -145,7 +145,7 @@ namespace DB2RestAPI.Controllers
             // If the parameters are not available, then there is a misconfiguration in the middleware chain
             // as even if the request does not have any parameters, the middleware chain should
             // have provided a default set of parameters for each parameter category (i.e., route, query string, body, headers)
-            if (qParams == null || 
+            if (qParams == null ||
                 qParams.Count < 1)
             {
                 return StatusCode(500,
@@ -184,7 +184,7 @@ namespace DB2RestAPI.Controllers
                     // i.e., if it is a SQL Server connection string, then use SqlConnection
                     // if it is a MySQL connection string, then use MySqlConnection, etc.
                     connection = new SqlConnection(connectionString);
-                
+
             }
             #endregion
 
@@ -194,7 +194,7 @@ namespace DB2RestAPI.Controllers
             {
                 var response = await _settings.CacheService
                     .Get<ObjectResult>(
-                    section, 
+                    section,
                     qParams,
                     disableDiffered => GetResultFromDbAsync(section, connection, query, qParams, disableDiffered),
                     HttpContext.RequestAborted
@@ -202,7 +202,7 @@ namespace DB2RestAPI.Controllers
                 return response;
 
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 if (ex.InnerException != null
                     &&
@@ -276,9 +276,18 @@ namespace DB2RestAPI.Controllers
             // check if count query is defined
             var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
 
-            var customSuccessStatusCode = serviceQuerySection.GetValue<int?>("success_status_code")??
+            var customSuccessStatusCode = serviceQuerySection.GetValue<int?>("success_status_code") ??
                 this._configuration.GetValue<int?>("default_success_status_code") ?? 200;
 
+            // root node name for wrapping the result (if configured - helps with legacy APIs that wraps results within an object)
+            // this is experimential and may be removed in future releases in favor of 
+            // giving users more control over response structure by defining custom json templates
+            // and identifying where the results should be placed within the template
+            // for now we just support a single root node name for wrapping the result set
+            // This feature will be left undocumented in readme.md for now until the template feature is implemented
+            // to be used right now for only specific legacy use cases
+            string? rootNodeName = serviceQuerySection.GetValue<string?>("root_node")
+                ?? this._configuration.GetValue<string?>("default_root_node") ?? null;
 
 
             if (string.IsNullOrWhiteSpace(countQuery))
@@ -301,11 +310,18 @@ namespace DB2RestAPI.Controllers
 
                 if (responseStructure == "array")
                 {
-                    
+
                     if (disableDifferredExecution)
                     {
                         return StatusCode(customSuccessStatusCode,
                             resultWithNoCount.AsEnumerable().ToArray());
+                    }
+                    if (!string.IsNullOrWhiteSpace(rootNodeName))
+                    {
+                        // wrap the result in an object with the root node name
+                        var wrappedResult = new ExpandoObject();
+                        wrappedResult.TryAdd(rootNodeName, resultWithNoCount);
+                        return StatusCode(customSuccessStatusCode, resultWithNoCount);
                     }
                     return StatusCode(customSuccessStatusCode, resultWithNoCount);
 
@@ -314,10 +330,17 @@ namespace DB2RestAPI.Controllers
                 {
                     // if response structure is single, then return the first record
 
-                    
+
                     var singleResult = resultWithNoCount.AsEnumerable().FirstOrDefault();
                     // close the reader
                     await resultWithNoCount.CloseReaderAsync();
+                    if (!string.IsNullOrWhiteSpace(rootNodeName))
+                    {
+                        // wrap the result in an object with the root node name
+                        var wrappedResult = new ExpandoObject();
+                        wrappedResult.TryAdd(rootNodeName, (object?) singleResult);
+                        return StatusCode(customSuccessStatusCode, wrappedResult);
+                    }
                     return StatusCode(customSuccessStatusCode, singleResult);
 
 
@@ -335,7 +358,7 @@ namespace DB2RestAPI.Controllers
                     // available in the enumerable (i.e., the enumerable is exhausted, in other words ran out of items to iterate through
                     // before it got to our `ChamberedCount` limit).
                     // In this case, we return the first record if it exists, or an empty resultWithNoCount.
-                    
+
                     var chamberedResult = await resultWithNoCount.ToChamberedEnumerableAsync(2, HttpContext.RequestAborted);
 
                     HttpContext.RequestAborted.ThrowIfCancellationRequested();
@@ -345,10 +368,30 @@ namespace DB2RestAPI.Controllers
                         var singleResult = chamberedResult.AsEnumerable().FirstOrDefault();
                         // close the reader
                         await resultWithNoCount.CloseReaderAsync();
+                        if (!string.IsNullOrWhiteSpace(rootNodeName))
+                        {
+                            // wrap the result in an object with the root node name
+                            var wrappedResult = new ExpandoObject();
+                            wrappedResult.TryAdd(rootNodeName, (object?)singleResult);
+                            return StatusCode(customSuccessStatusCode, wrappedResult);
+                        }
+
                         return StatusCode(customSuccessStatusCode, singleResult);
                     }
                     else
                     {
+                        if (!string.IsNullOrWhiteSpace(rootNodeName))
+                        {
+                            // wrap the result in an object with the root node name
+                            var wrappedResult = new ExpandoObject();
+                            wrappedResult.TryAdd(rootNodeName,
+                                disableDifferredExecution ?
+                                chamberedResult.AsEnumerable().ToArray()
+                                :
+                                chamberedResult);
+                            return StatusCode(customSuccessStatusCode, wrappedResult);
+                        }
+
                         return StatusCode(customSuccessStatusCode,
                             disableDifferredExecution ?
                             chamberedResult.AsEnumerable().ToArray()
@@ -384,6 +427,22 @@ namespace DB2RestAPI.Controllers
 
             if (disableDifferredExecution)
             {
+
+                if (!string.IsNullOrWhiteSpace(rootNodeName))
+                {
+                    // wrap the result in an object with the root node name
+                    var wrappedResult = new ExpandoObject();
+                    wrappedResult.TryAdd(rootNodeName,
+                        new
+                        {
+                            success = true,
+                            count = rowCount,
+                            data = result.AsEnumerable().ToArray()
+                        }
+                        );
+                    return StatusCode(customSuccessStatusCode, wrappedResult);
+                }
+
                 // if disableDifferredExecution is true, then we want to read all records into memory
                 // so that we can cache them
                 return StatusCode(customSuccessStatusCode,
@@ -395,12 +454,28 @@ namespace DB2RestAPI.Controllers
                     });
             }
 
+            if (!string.IsNullOrWhiteSpace(rootNodeName))
+            {
+                // wrap the result in an object with the root node name
+                var wrappedResult = new ExpandoObject();
+                wrappedResult.TryAdd(rootNodeName,
+                    new
+                    {
+                        success = true,
+                        count = rowCount,
+                        data = await result.ToChamberedEnumerableAsync()
+                    }
+                    );
+                return StatusCode(customSuccessStatusCode, wrappedResult);
+            }
+
+
             return StatusCode(customSuccessStatusCode,
                 new
                 {
                     success = true,
                     count = rowCount,
-                    data =  await result.ToChamberedEnumerableAsync()
+                    data = await result.ToChamberedEnumerableAsync()
                 });
         }
 
