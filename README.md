@@ -45,7 +45,7 @@ CREATE TABLE [dbo].[contacts] (
 
 
     {
-        "message_from_db": "hello John!"
+        "message_from_db": "hello John! Time now is 2025-10-21 04:47:18.373"
     }
 
 ```
@@ -240,14 +240,14 @@ Now, let's try to update a record in the `contacts` table.
 ```
 4. Send the request and you should see the following JSON respons: 
 ```json
-[
-	{
-		"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
-		"name": "John Update 1",
-		"phone": "1234567890",
-		"active": 1
-	}
-]
+
+{
+  "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+  "name": "John Update 1",
+  "phone": "1234567890",
+  "active": 1
+}
+
 ```
 The response above shows the updated record.
 
