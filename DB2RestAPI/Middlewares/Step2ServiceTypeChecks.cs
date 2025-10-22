@@ -85,14 +85,19 @@ public class Step2ServiceTypeChecks(
         #endregion
 
         #region check content-type
-        // check if user either set Content-Type header of the request to application/json
-        // or set the route starts with `json/`, if not, return a message stating that
-        // caller should set the Content-Type header to application/json 
+        // check if user set Content-Type header of the request to `application/json` or `multipart/form-data`,
+        // or set the route starts with `json/`. If NOT, return a message stating that
+        // caller should set the Content-Type header to either `application/json` or `multipart/form-data`
         // with error code 400
 
-        if (!context.Request.ContentType?.Contains("application/json") == true
-            &&
-            !route?.StartsWith("json/") == true
+        var contentType = context.Request.ContentType;
+
+        if (
+            !(
+            contentType?.Contains("application/json") == true
+            || contentType?.Contains("multipart/form-data") == true
+            || route?.StartsWith("json/") == true
+            )
         )
         {
 
@@ -101,7 +106,7 @@ public class Step2ServiceTypeChecks(
                     new
                     {
                         success = false,
-                        message = "`Content-Type` header must be set to `application/json`"
+                        message = "`Content-Type` header must be set to `application/json` or `multipart/form-data, or endpoint should start with `json/`"
                     })
                 {
                     StatusCode = 400
@@ -111,7 +116,10 @@ public class Step2ServiceTypeChecks(
 
         // if the route starts with `json/`, remove the `json/` prefix
         if (route?.StartsWith("json/") == true)
+        {
             route = DefaultRegex.DefaultRemoveJsonPrefixFromRouteCompiledRegex.Replace(route, string.Empty);
+            contentType = "application/json";
+        }
 
         if (string.IsNullOrWhiteSpace(route))
         {
@@ -162,6 +170,7 @@ public class Step2ServiceTypeChecks(
             context.Items["section"] = routeConfig;
             context.Items["service_type"] = "api_gateway";
             context.Items["remaining_path"] = this._routeConfigResolver.GetRemainingPath(route, routeConfig);
+            context.Items["content_type"] = contentType;
             // Call the next middleware in the pipeline
             await _next(context);
             return;

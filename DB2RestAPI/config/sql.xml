@@ -677,7 +677,106 @@
       -->
     </nested_json>
 
+    <file_upload_example>
+      <route>upload_file</route>
+      <verb>POST</verb>
+      <document_management>
+        <!-- file stores could be a local store or an sftp remote store, their individual
+        settings correspondes to the ones defined in your settings.xml file under 
+        `document_management` -> `file_stores` node
+         -->
+        <file_stores>location1, myfiles, site2</file_stores>
 
+
+        <!-- `permitted_file_extensions` is optional, if not defined, 
+        if will first check if there is a `permitted_file_extensions` tag defined
+        for each of the `file_stores` defined in your settings.xml, 
+        if not it will allow all file types -->
+        <permitted_file_extensions>.txt,.pdf,.docx,.xlsx,.png,.jpg,.jpeg</permitted_file_extensions>
+
+        <!-- `max_file_size_in_bytes` is optional, if not defined,
+        it will first check if there is a `max_file_size_in_bytes` tag defined
+        for each of the `file_stores` defined in your settings.xml,
+        if not it will default to 10 MB -->
+        <max_file_size_in_bytes>10485760</max_file_size_in_bytes> <!-- 10 MB -->
+
+        <!-- `pass_files_content_to_query` is optional, if not defined,
+        it will default to false. When set to true, the files content will be passed
+        to the sql query alongside their metadata as json or xml data structure.
+        The data structure will be as follows for json:
+        
+        ```json
+        [
+            {
+              "id": "generated GUID for the file by the engine, unless passed by the caller",
+              "name": "example.txt",
+              "relative_path": "2025/Oct/22/<some-guid-goes-here>/example.txt",
+              "extension": ".txt",
+              "size": 1234,
+              "content_base64": "SGVsbG8gd29ybGQh...",
+              "description": "optional description if provided during upload"
+            },
+            ...
+        ]
+        ```
+        And for xml:
+        
+        ```xml
+        <files>
+          <file>
+            <id>generated GUID for the file by the engine, unless passed by the caller</id>
+            <name>example.txt</name>
+            <relative_path><![CDATA[2025/Oct/22/<some-guid-goes-here>/example.txt]]></relative_path>
+            <extension>.txt</extension>
+            <size>1234</size>
+            <content_base64>SGVsbG8gd29ybGQh...</content_base64>
+            <description>optional description if provided during upload</description>
+          </file>
+        </files>
+        ```
+        -->
+
+        <pass_files_content_to_query>false</pass_files_content_to_query>
+        <!-- `pass_files_content_to_query` controls whether the uploaded files content is passed to the SQL query
+        when set to true, the files content will be included in the query.
+        when set to false, only the files metadata will be passed to the query.
+        if not defined, the app will check if it's defined in the file store settings,
+        if not, it will default to false.
+        -->
+        <max_number_of_files>5</max_number_of_files>
+        <!-- max_number_of_files is optional, if not defined, it will check if it's defined in the file store settings,
+        if not, it will default to 10 files per request
+          -->
+        <files_json_field_or_form_field_name>files</files_json_field_or_form_field_name>
+        <!-- files_json_field_or_form_field_name is optional, 
+        if not defined, the app will check if it's defined in the file store settings,
+        if not, it will default to `files`
+        callers can send the files metadata and content in a json field named `files`
+        or as a form field named `files` depending on the content type of the request
+        - for `application/json` content type, the files should be sent in a json field named `files`
+        - for `multipart/form-data` content type, the files should be sent in a form field named `files`
+        -->
+        <json_payload_form_field_name>json</json_payload_form_field_name>
+        <!-- json_payload_form_field_name is optional, if not defined, the app will check if it's defined in the file store settings,
+        if not, it will default to `json`
+        This is only applicable when the request content type is `multipart/form-data`
+        In this case, the caller can send additional json payload in a form field named `json`
+        -->
+      </document_management>
+      <query>
+        <![CDATA[
+          -- you can use either `{files{json}}` or `{files{xml}}` to access the uploaded files metadata and content
+          -- depending on the `document_management` -> `pass_files_content_to_query`
+          -- the file content will be included or not
+
+          declare @files_json nvarchar(max) = {files{json}};
+          -- you can parse the json and insert the file metadata into your database as needed
+          -- and if `pass_files_content_to_query` is true, you can also decode the base64 content and save the file to your file store
+
+        ]]>
+      </query>
+
+    </file_upload_example>
 
 
   </queries>
