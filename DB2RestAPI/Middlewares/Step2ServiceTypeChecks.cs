@@ -21,6 +21,7 @@ namespace DB2RestAPI.Middlewares;
 /// - `service_type`: A string representing the type of service (`api_gateway` or `db_query`)
 /// - `remaining_path` (for api_gateway only): The remaining path after the route match
 /// - `route_parameters` (for db_query only): Dictionary of route parameters if any exist
+/// - `content_type`: The content type of the request
 /// </summary>
 public class Step2ServiceTypeChecks(
     RequestDelegate next,
@@ -223,6 +224,7 @@ public class Step2ServiceTypeChecks(
         context.Items["route"] = route;
         context.Items["section"] = serviceQuerySection;
         context.Items["service_type"] = "db_query";
+        context.Items["content_type"] = contentType;
 
         if (routeParameters != null && routeParameters.Count > 0)
             context.Items["route_parameters"] = routeParameters;
