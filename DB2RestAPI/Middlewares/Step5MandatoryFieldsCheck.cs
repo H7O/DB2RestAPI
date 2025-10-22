@@ -81,6 +81,13 @@ namespace DB2RestAPI.Middlewares
 
             #endregion
 
+            // I think here where I should check content type, it should
+            // be already in context.Items from Step2ServiceTypeChecks middleware
+            // the reason to check it here is that
+            // we need to parse the body only if the content type is application/json
+            // otherwise, we can skip the body parsing and instead look for the json payload
+            // if it exists in the form data (if the content type is multipart/form-data)
+
             #region parse the request body
             var cToken = context.RequestAborted;
 
