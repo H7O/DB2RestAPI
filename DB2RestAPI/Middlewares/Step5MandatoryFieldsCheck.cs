@@ -1,5 +1,6 @@
 ﻿using DB2RestAPI.Settings;
 using DB2RestAPI.Settings.Extensinos;
+using DB2RestAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
@@ -37,11 +38,13 @@ namespace DB2RestAPI.Middlewares
     public class Step5MandatoryFieldsCheck(
         RequestDelegate next,
         SettingsService settings,
+        IConfiguration configuration,
         ILogger<Step5MandatoryFieldsCheck> logger
             )
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
+        private readonly IConfiguration _configuration = configuration;
         private readonly ILogger<Step5MandatoryFieldsCheck> _logger = logger;
         // private static int count = 0;
         private static readonly string _errorCode = "Step 5 - Mandatory Fields Check Error";
@@ -81,14 +84,32 @@ namespace DB2RestAPI.Middlewares
 
             #endregion
 
-            // I think here where I should check content type, it should
-            // be already in context.Items from Step2ServiceTypeChecks middleware
-            // the reason to check it here is that
-            // we need to parse the body only if the content type is application/json
-            // otherwise, we can skip the body parsing and instead look for the json payload
-            // if it exists in the form data (if the content type is multipart/form-data)
+            #region Get content type from context
+            // Content type was validated and stored in context.Items by Step2ServiceTypeChecks
+            var contentType = context.Items.ContainsKey("content_type")
+                ? context.Items["content_type"] as string
+                : null;
 
-            #region parse the request body
+            if (string.IsNullOrWhiteSpace(contentType))
+            {
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = $"Content type not found in context. (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        }
+                    )
+                    {
+                        StatusCode = 500
+                    }
+                );
+
+                return;
+            }
+            #endregion
+
+            #region Extract and validate JSON payload
             var cToken = context.RequestAborted;
 
             if (cToken.IsCancellationRequested)
@@ -109,73 +130,24 @@ namespace DB2RestAPI.Middlewares
                 return;
             }
 
-            // enable buffering for the request body
-            // this is necessary because the request body is read multiple times
-            // and we need to reset the stream position for the next middleware
-            context.Request.EnableBuffering();
+            // Extract JSON payload based on content type (application/json or multipart/form-data)
+            var (jsonPayloadString, errorResponse) = await PayloadExtractor.ExtractJsonPayloadAsync(
+                context,
+                contentType,
+                section,
+                this._configuration,
+                cToken);
 
-            string? jsonPayloadString = null;
-
-            // Read the request body as a string
-            // why leaveOpen is true?
-            // because we need to reset the stream position for the next middleware
-            // and we need to keep the stream open for the next middleware
-            using (var reader = new StreamReader(context.Request.Body, leaveOpen: true))
+            if (errorResponse != null)
             {
-                var body = await reader.ReadToEndAsync(cToken);
-
-                context.Request.Body.Position = 0; // Reset the stream position for the next middleware
-
-                if (cToken.IsCancellationRequested)
-                {
-
-                    await context.Response.DeferredWriteAsJsonAsync(
-                        new ObjectResult(
-                            new
-                            {
-                                success = false,
-                                message = "Request was cancelled"
-                            }
-                        )
-                        {
-                            StatusCode = 400
-                        }
-                    );
-
-                    return;
-                }
-
-                
-                if (!string.IsNullOrWhiteSpace(body))
-                {
-                    try
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(errorResponse)
                     {
-                        // Parse the string into a JsonDocument
-                        using (JsonDocument document = JsonDocument.Parse(body))
-                        {
-                            jsonPayloadString = document.RootElement.ToString();
-                        }
+                        StatusCode = 400
                     }
-                    catch (JsonException)
-                    {
-                        // Handle the case where the body is not valid JSON
+                );
 
-                        await context.Response.DeferredWriteAsJsonAsync(
-                            new ObjectResult(
-                                new
-                                {
-                                    success = false,
-                                    message = "Invalid JSON format"
-                                }
-                            )
-                            {
-                                StatusCode = 400
-                            }
-                        );
-
-                        return; // Stop further processing
-                    }
-                }
+                return;
             }
 
             #endregion
