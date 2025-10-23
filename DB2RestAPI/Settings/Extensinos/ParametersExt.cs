@@ -147,6 +147,7 @@ namespace DB2RestAPI.Settings.Extensinos
                 // in the event that no payload variables were passed
                 // and the user has payload variables in the SQL query
                 // which if left unset will cause an error
+                // see explanation of `custom headers` above for more details on why this is needed.
                 qParams.Add(new DbQueryParams()
                 {
                     DataModel = new Dictionary<string, string> { { "unlikely_payload_to_be_passed", "123" } },
@@ -180,6 +181,7 @@ namespace DB2RestAPI.Settings.Extensinos
                 // in the event that no URL query string variables were passed
                 // and the user has URL query string variables in the SQL query
                 // which if left unset will cause an error
+                // see explanation of `custom headers` above for more details on why this is needed.
                 qParams.Add(new DbQueryParams()
                 {
                     DataModel = new Dictionary<string, string> { { "unlikely_query_string_to_be_passed", "123" } },
@@ -214,6 +216,7 @@ namespace DB2RestAPI.Settings.Extensinos
                 // in the event that no route variables were passed
                 // and the user has route variables in the SQL query
                 // which if left unset will cause an error
+                // see explanation of `custom headers` above for more details on why this is needed.
                 qParams.Add(new DbQueryParams()
                 {
                     DataModel = new Dictionary<string, string> { { "unlikely_route_to_be_passed", "123" } },
