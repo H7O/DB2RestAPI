@@ -124,11 +124,11 @@ namespace DB2RestAPI.Settings.Extensinos
             #endregion
 
             #region get payload variables
-            var varRegex = serviceQuerySection?.GetSection("variables_regex")?.Value;
+            var varRegex = serviceQuerySection?.GetSection("json_variables_regex")?.Value;
             if (string.IsNullOrWhiteSpace(varRegex))
-                varRegex = configuration.GetSection("default_variables_regex")?.Value;
+                varRegex = configuration.GetSection("default_json_variables_regex")?.Value;
             if (string.IsNullOrWhiteSpace(varRegex))
-                varRegex = DefaultRegex.DefaultVariablesPattern;
+                varRegex = DefaultRegex.DefaultJsonVariablesPattern;
 
             if (
                 !string.IsNullOrWhiteSpace(jsonPayloadString)

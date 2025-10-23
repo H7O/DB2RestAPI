@@ -535,7 +535,7 @@
 
     <!-- Custom variable delimiters example -->
     <hello_world_using_pipes_as_var_delimiters>
-      <variables_regex><![CDATA[(?<open_marker>\|\|)(?<param>.*?)?(?<close_marker>\|\|)]]></variables_regex>
+      <json_variables_regex><![CDATA[(?<open_marker>\|\|)(?<param>.*?)?(?<close_marker>\|\|)]]></json_variables_regex>
       <!-- 
       Variable Delimiter Configuration:
       this is to showcase how you can override the default 
