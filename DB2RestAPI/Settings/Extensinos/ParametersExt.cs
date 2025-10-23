@@ -96,6 +96,23 @@ namespace DB2RestAPI.Settings.Extensinos
                 // in the event that headers are not passed
                 // and the user has header variables in the query
                 // which if left unset will cause an error
+                // the reason for that is the Com.H.Data.Common library
+                // when executing a query it'll use the DbQueryParams not only
+                // to replace variables in the query (e.g., {{name}})
+                // with SQL parameterization version (to protect against sql injections)
+                // but it also replaces the variables in the query that aren't passed via the API
+                // in the payload with DbNull.
+                // e.g., if the sql query had a line like:
+                // `declare @some_http_header = {header{x-api-key}}`
+                // and the API call never passed `x-api-key`
+                // without the regex in the below `headersVarPattern` variable
+                // Com.H.Data.Common library won't know which variables left empty to replace them with DbNull
+                // when it does it's parameterized version of the line `declare @some_http_header = {header{x-api-key}}`
+                // leaving it as is which causes sql exception when running the query.
+                // however, if the qParams we're building had an entry with the regex in `headersVarPattern`
+                // the Com.H.Data.Common library would do convert that line to a parameterized version of it.
+                // which would look like `declare @some_http_header = @x_api_key` then pass DbNull to that `@x_api_key`
+                // parameter when running the query.
                 qParams.Add(new DbQueryParams()
                 {
                     DataModel = new Dictionary<string, string> { { "unlikely_header_to_be_passed", "123" } },
