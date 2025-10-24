@@ -73,9 +73,18 @@ public class ParametersBuilder
     public async Task<List<DbQueryParams>?> GetParamsAsync()
     {
         
-        var qParams = new List<DbQueryParams>();
+        
         var section = Section!;
         var context = Context;
+        context.Items.TryGetValue("parameters", out var parameters);
+
+        var qParams = parameters as List<DbQueryParams>;
+
+        if (qParams != null)
+            return qParams;
+
+        qParams = new List<DbQueryParams>();
+
         // order of adding to qParams matters
         // as the later added items have higher priority
 
@@ -134,6 +143,7 @@ public class ParametersBuilder
 
         #endregion
 
+        context.Items["parameters"] = qParams;
         return qParams;
 
     }

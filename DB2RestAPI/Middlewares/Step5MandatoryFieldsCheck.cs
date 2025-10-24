@@ -159,10 +159,6 @@ namespace DB2RestAPI.Middlewares
             }
             #endregion
 
-            // Add the parameters and the payload to the context.Items
-            context.Items["parameters"] = qParams;
-            //if (!string.IsNullOrWhiteSpace(jsonPayloadString))
-            //    context.Items["payload"] = jsonPayloadString;
 
             await _next(context);
 

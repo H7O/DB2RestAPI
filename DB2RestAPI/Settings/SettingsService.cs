@@ -68,19 +68,6 @@ namespace DB2RestAPI.Settings
 
         #endregion
 
-        #region parameters
-
-        public List<DbQueryParams> GetParamsDepricated(
-            IConfigurationSection serviceQuerySection,
-            HttpContext context,
-            string? jsonPayloadString = null
-            )
-        {
-            return serviceQuerySection.GetParamsDepricated(_configuration, context, jsonPayloadString);
-        }
-
-
-        #endregion
 
         #region debug check
 
