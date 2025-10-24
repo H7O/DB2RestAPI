@@ -9,12 +9,12 @@ namespace DB2RestAPI.Services;
 /// Service responsible for extracting and validating JSON payloads from HTTP requests.
 /// Supports both application/json and multipart/form-data content types.
 /// </summary>
-public class PayloadExtractor
+public class ParametersBuilder
 {
 
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IConfiguration _config;
-    private readonly ILogger<PayloadExtractor> _logger;
+    private readonly ILogger<ParametersBuilder> _logger;
     private readonly string _errorCode = "Payload Extractor Error";
     private static readonly JsonWriterOptions _jsonWriterOptions = new() { Indented = false };
     private static readonly JsonDocumentOptions _jsonDocumentOptions = new()
@@ -24,10 +24,10 @@ public class PayloadExtractor
     };
 
 
-    public PayloadExtractor(
+    public ParametersBuilder(
         IHttpContextAccessor httpContextAccessor,
         IConfiguration configuration,
-        ILogger<PayloadExtractor> logger
+        ILogger<ParametersBuilder> logger
         )
     {
 

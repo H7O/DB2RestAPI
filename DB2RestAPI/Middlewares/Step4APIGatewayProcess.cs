@@ -2,6 +2,7 @@
 using Azure.Core;
 using Com.H.Data;
 using DB2RestAPI.Cache;
+using DB2RestAPI.Services;
 using DB2RestAPI.Settings;
 using DB2RestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
@@ -49,7 +50,8 @@ namespace DB2RestAPI.Middlewares
         IConfiguration configuration,
         SettingsService settings,
         IHttpClientFactory httpClientFactory,
-        ILogger<Step4APIGatewayProcess> logger
+        ILogger<Step4APIGatewayProcess> logger,
+        ParametersBuilder paramsBuilder
             )
     {
         private readonly RequestDelegate _next = next;
@@ -57,6 +59,7 @@ namespace DB2RestAPI.Middlewares
         private readonly IConfiguration _configuration = configuration;
         private readonly IHttpClientFactory httpClientFactory = httpClientFactory;
         private readonly ILogger<Step4APIGatewayProcess> _logger = logger;
+        private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         /// <summary>
         /// Headers that should not be copied from the target response to the client response.
         /// These headers are managed by ASP.NET Core and manually setting them could cause issues.
@@ -162,7 +165,25 @@ namespace DB2RestAPI.Middlewares
 
             #region get parameters
             // retrieve the parameters (which consists of query string parameters and headers)
-            var qParams = this._settings.GetParams(section, context);
+            var qParams = await this._paramsBuilder.GetParamsAsync();
+
+            if (qParams == null)
+                {
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = $"Improper parameters setup. (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        }
+                    )
+                    {
+                        StatusCode = 500
+                    }
+                );
+                return;
+            }
+
 
             #endregion
 

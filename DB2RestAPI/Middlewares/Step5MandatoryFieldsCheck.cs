@@ -40,13 +40,13 @@ namespace DB2RestAPI.Middlewares
         SettingsService settings,
         IConfiguration configuration,
         ILogger<Step5MandatoryFieldsCheck> logger,
-        PayloadExtractor payloadExtractor)
+        ParametersBuilder paramsBuilder)
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
         private readonly ILogger<Step5MandatoryFieldsCheck> _logger = logger;
-        private readonly PayloadExtractor _payloadExtractor = payloadExtractor;
+        private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         // private static int count = 0;
         private static readonly string _errorCode = "Step 5 - Mandatory Fields Check Error";
         public async Task InvokeAsync(HttpContext context)
@@ -130,7 +130,7 @@ namespace DB2RestAPI.Middlewares
             }
 
             // retrieve the parameters (which consists of route, query string, form data, json body, and headers parameters)
-            var qParams = await this._payloadExtractor.GetParamsAsync();
+            var qParams = await this._paramsBuilder.GetParamsAsync();
 
             if (qParams == null)
             {

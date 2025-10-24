@@ -65,10 +65,10 @@ namespace DB2RestAPI.Settings.Extensinos
         // todo: 
         // 1- remove the jsonPayloadString parameter and instead
         // have the method read the payload from the HttpContext.Request.Body here instead of outside
-        // 2- process `multipart/form-data` payloads here too instead of outside in PayloadExtractor
+        // 2- process `multipart/form-data` payloads here too instead of outside in ParametersBuilder
         // 3- add support for `application/x-www-form-urlencoded` processing here too
         
-        public static List<DbQueryParams> GetParams(
+        public static List<DbQueryParams> GetParamsDepricated(
             this IConfigurationSection serviceQuerySection,
             IConfiguration configuration,
             HttpContext context,

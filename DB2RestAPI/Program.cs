@@ -36,7 +36,7 @@ builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<RouteConfigResolver>();
 
 builder.Services.AddSingleton<QueryRouteResolver>();
-builder.Services.AddSingleton<PayloadExtractor>();
+builder.Services.AddSingleton<ParametersBuilder>();
 
 // Monitor configuration path changes
 builder.Services.AddHostedService<ConfigurationPathMonitor>();

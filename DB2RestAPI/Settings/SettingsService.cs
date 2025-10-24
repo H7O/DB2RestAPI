@@ -1,17 +1,23 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using DB2RestAPI.Settings.Extensinos;
+
 using Com.H.Data.Common;
 using System.Text.Json;
 using DB2RestAPI.Cache;
+using DB2RestAPI.Services;
 namespace DB2RestAPI.Settings
 {
     public class SettingsService(
         IConfiguration configuration,
-        CacheService cacheService)
+        CacheService cacheService,
+        ParametersBuilder paramsBuilder
+        )
     {
         private readonly IConfiguration _configuration = configuration;
         private readonly CacheService _cacheService = cacheService;
+        private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         public CacheService CacheService => _cacheService;
+        
 
 
         #region api keys
@@ -64,13 +70,13 @@ namespace DB2RestAPI.Settings
 
         #region parameters
 
-        public List<DbQueryParams> GetParams(
+        public List<DbQueryParams> GetParamsDepricated(
             IConfigurationSection serviceQuerySection,
             HttpContext context,
             string? jsonPayloadString = null
             )
         {
-            return serviceQuerySection.GetParams(_configuration, context, jsonPayloadString);
+            return serviceQuerySection.GetParamsDepricated(_configuration, context, jsonPayloadString);
         }
 
 
