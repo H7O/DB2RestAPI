@@ -11,9 +11,12 @@ namespace DB2RestAPI.Settings
         public static readonly string DefaultQueryStringPattern = @"(?<open_marker>\{\{|\{qs\{)(?<param>.*?)?(?<close_marker>\}\})";
         public static readonly string DefaultRouteVariablesPattern = @"(?<open_marker>\{\{|\{r\{)(?<param>.*?)?(?<close_marker>\}\})";
         public static readonly string DefaultFormDataVariablesPattern = @"(?<open_marker>\{\{|\{f\{)(?<param>.*?)?(?<close_marker>\}\})";
+        public static readonly string DefaultFilesVariablePattern = @"(?<open_marker>\{\{|\{files\{)(?<param>.*?)?(?<close_marker>\}\})";
 
 
         public static readonly Regex DefaultRouteVariablesCompiledRegex = new Regex(DefaultRouteVariablesPattern, RegexOptions.Compiled);
+        public static readonly Regex DefaultFilesVariablesCompiledRegex = new Regex(DefaultFilesVariablePattern, RegexOptions.Compiled);
+
 
 
         /// <summary>

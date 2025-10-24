@@ -62,6 +62,12 @@ namespace DB2RestAPI.Settings.Extensinos
 
         #endregion
 
+        // todo: 
+        // 1- remove the jsonPayloadString parameter and instead
+        // have the method read the payload from the HttpContext.Request.Body here instead of outside
+        // 2- process `multipart/form-data` payloads here too instead of outside in PayloadExtractor
+        // 3- add support for `application/x-www-form-urlencoded` processing here too
+        
         public static List<DbQueryParams> GetParams(
             this IConfigurationSection serviceQuerySection,
             IConfiguration configuration,
@@ -71,6 +77,9 @@ namespace DB2RestAPI.Settings.Extensinos
         {
             #region prepare query parameters
             var qParams = new List<DbQueryParams>();
+
+            // order of adding to qParams matters
+            // as the later added items have higher priority
 
             #region get headers variables
             // add headers to qParams
@@ -229,6 +238,9 @@ namespace DB2RestAPI.Settings.Extensinos
             return qParams;
             #endregion
         }
+
+
+
 
 
     }

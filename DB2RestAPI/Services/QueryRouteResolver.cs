@@ -50,36 +50,6 @@ public class QueryRouteResolver
             LoadRoutes);
     }
 
-    //
-    // the below cache cannot be used as the query resolver does not rely on a single route parameter pattern
-    // to add a proper cache, we need to store the regex for each route config section
-    // so ignore the below code for now
-    //private Regex _routeParameterRegex = DefaultRegex.DefaultRouteVariablesCompiledRegex;
-
-    //private string _previousRouteParameterPattern = string.Empty;
-
-    //private Regex GetRouteParametersRegex(IConfigurationSection querySection)
-    //{
-    //    var routeParameterPattern = querySection.GetValue<string>("route_variable_pattern")
-    //        ?? _configuration.GetValue<string>("default_route_variable_pattern");
-    //    if ((string.IsNullOrWhiteSpace(routeParameterPattern) &&
-    //        string.IsNullOrWhiteSpace(_previousRouteParameterPattern))
-    //        ||
-    //        routeParameterPattern == _previousRouteParameterPattern
-    //        )
-    //    {
-    //        return _routeParameterRegex;
-    //    }
-
-    //    if (string.IsNullOrWhiteSpace(routeParameterPattern))
-    //    {
-    //        _previousRouteParameterPattern = string.Empty;
-    //        return _routeParameterRegex = DefaultRegex.DefaultRouteVariablesCompiledRegex;
-    //    }
-    //    // If the pattern is different, compile a new regex
-    //    return _routeParameterRegex = 
-    //        new Regex(_previousRouteParameterPattern = routeParameterPattern, RegexOptions.Compiled);
-    //}
 
     private void LoadRoutes()
     {

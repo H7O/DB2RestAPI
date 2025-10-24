@@ -37,6 +37,13 @@ public class Step2ServiceTypeChecks(
     private readonly ILogger<Step2ServiceTypeChecks> _logger = logger;
     private readonly RouteConfigResolver _routeConfigResolver = routeConfigResolver;
     private readonly QueryRouteResolver _queryRouteResolver = queryRouteResolver;
+    private readonly HashSet<string> _acceptableContentTypes = new HashSet<string>
+    {
+        "application/json",
+        "multipart/form-data",
+        "application/x-www-form-urlencoded"
+    };
+    
     // private static int count = 0;
     private static readonly string _errorCode = "Step 2 - Service Type Check Error";
 
@@ -94,9 +101,7 @@ public class Step2ServiceTypeChecks(
         var contentType = context.Request.ContentType;
 
         if (
-            !(
-            contentType?.Contains("application/json") == true
-            || contentType?.Contains("multipart/form-data") == true
+            !(_acceptableContentTypes.Contains(contentType)
             || route?.StartsWith("json/") == true
             )
         )

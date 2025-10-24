@@ -26,6 +26,9 @@ builder.Services.AddScoped<DbConnection, DbConnection>(
     );
 
 builder.Services.AddHybridCache();
+
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddSingleton<CacheService>();
 
 builder.Services.AddSingleton<SettingsService>();
@@ -33,6 +36,7 @@ builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<RouteConfigResolver>();
 
 builder.Services.AddSingleton<QueryRouteResolver>();
+builder.Services.AddSingleton<PayloadExtractor>();
 
 // Monitor configuration path changes
 builder.Services.AddHostedService<ConfigurationPathMonitor>();

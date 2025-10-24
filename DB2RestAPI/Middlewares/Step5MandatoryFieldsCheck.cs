@@ -1,6 +1,6 @@
-﻿using DB2RestAPI.Settings;
+﻿using DB2RestAPI.Services;
+using DB2RestAPI.Settings;
 using DB2RestAPI.Settings.Extensinos;
-using DB2RestAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
@@ -39,13 +39,14 @@ namespace DB2RestAPI.Middlewares
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
-        ILogger<Step5MandatoryFieldsCheck> logger
-            )
+        ILogger<Step5MandatoryFieldsCheck> logger,
+        PayloadExtractor payloadExtractor)
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
         private readonly ILogger<Step5MandatoryFieldsCheck> _logger = logger;
+        private readonly PayloadExtractor _payloadExtractor = payloadExtractor;
         // private static int count = 0;
         private static readonly string _errorCode = "Step 5 - Mandatory Fields Check Error";
         public async Task InvokeAsync(HttpContext context)
@@ -109,10 +110,8 @@ namespace DB2RestAPI.Middlewares
             }
             #endregion
 
-            #region Extract and validate JSON payload
-            var cToken = context.RequestAborted;
 
-            if (cToken.IsCancellationRequested)
+            if (context.RequestAborted.IsCancellationRequested)
             {
                 await context.Response.DeferredWriteAsJsonAsync(
                     new ObjectResult(
@@ -130,30 +129,25 @@ namespace DB2RestAPI.Middlewares
                 return;
             }
 
-            // Extract JSON payload based on content type (application/json or multipart/form-data)
-            var (jsonPayloadString, errorResponse) = await PayloadExtractor.ExtractJsonPayloadAsync(
-                context,
-                contentType,
-                section,
-                this._configuration,
-                cToken);
+            // retrieve the parameters (which consists of route, query string, form data, json body, and headers parameters)
+            var qParams = await this._payloadExtractor.GetParamsAsync();
 
-            if (errorResponse != null)
+            if (qParams == null)
             {
                 await context.Response.DeferredWriteAsJsonAsync(
-                    new ObjectResult(errorResponse)
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = "Failed to extract parameters from the request"
+                        }
+                    )
                     {
                         StatusCode = 400
                     }
                 );
-
                 return;
             }
-
-            #endregion
-
-            // retrieve the parameters (which consists of query string parameters, body parameters and headers)
-            var qParams = this._settings.GetParams(section, context, jsonPayloadString);
 
             #region check if there are any mandatory parameters missing
             var failedMandatoryCheckResponse = this._settings
@@ -167,9 +161,8 @@ namespace DB2RestAPI.Middlewares
 
             // Add the parameters and the payload to the context.Items
             context.Items["parameters"] = qParams;
-            if (!string.IsNullOrWhiteSpace(jsonPayloadString))
-                context.Items["payload"] = jsonPayloadString;
-
+            //if (!string.IsNullOrWhiteSpace(jsonPayloadString))
+            //    context.Items["payload"] = jsonPayloadString;
 
             await _next(context);
 
