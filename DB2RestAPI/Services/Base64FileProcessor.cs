@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
+// this class is suggested by AI but I haven't used it yet
+// it's a utility to process base64-encoded files in JSON payloads
 public class Base64FileProcessor
 {
     private readonly string _tempFileDirectory;
