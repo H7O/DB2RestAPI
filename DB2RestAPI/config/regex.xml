@@ -1,0 +1,126 @@
+﻿<settings>
+  <regex>
+
+    <!-- the default regex that detects json payload variable delimiters in sql queries
+    is `(?<open_marker>\{\{|\{j\{)(?<param>.*?)?(?<close_marker>\}\})` 
+    even if you delete the `default_json_variables_regex` node, 
+    the system will use the default regex above.
+    You can also change it to something else if you want to, 
+    for example, if you want to have the variable delimiters to be
+    double pipes `||`, you can use the following regex
+    `(?<open_marker>\|\|)(?<param>.*?)?(?<close_marker>\|\|)`.
+    Also, you can override the default regex for each query in sql.xml
+    by just simply adding the `variables_regex` attribute to the `query` node
+    and adding your preferred regex there. The precidence order is: sql.xml query node override > global setting here -> default regex in code.
+    -->
+    <default_json_variables_regex><![CDATA[(?<open_marker>\{\{|\{j\{)(?<param>.*?)?(?<close_marker>\}\})]]></default_json_variables_regex>
+    
+    
+
+
+    <!-- the default regex that detects query string variables (e.g., the `?name=John&phone=123` in `https://example.com/your_api_call?name=John&phone=123` ) in sql queries
+    is `(?<open_marker>\{\{|\{qs\{)(?<param>.*?)?(?<close_marker>\}\})`
+    even if you delete the `default_query_string_variables_regex` node,
+    the system will use the default regex above.
+    You can override the default regex for each query in sql.xml
+    by just simply adding the `query_string_variables_regex` attribute to the `query` node
+    and adding your preferred regex there. The precidence order is: sql.xml query node override > global setting here -> default regex in code.
+    -->
+    <default_query_string_variables_regex>
+      <![CDATA[(?<open_marker>\{\{|\{qs\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+    </default_query_string_variables_regex>
+    
+    
+
+    <!-- the default regex that detects header variables (e.g., the `x-api-key` in HTTP headers) in sql queries
+    is `(?<open_marker>\{\{|\{h\{)(?<param>.*?)?(?<close_marker>\}\})`
+    even if you delete the `default_headers_variables_regex` node,
+    the system will use the default regex above.
+    You can override the default regex for each query in sql.xml
+    by just simply adding the `headers_variables_regex` attribute to the `query` node
+    -->
+    <default_headers_variables_regex>
+      <![CDATA[(?<open_marker>\{\{|\{h\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+    </default_headers_variables_regex>
+
+    
+    
+    
+    <!-- 
+    `default_route_variables_regex` with default regex of `(?<open_marker>\{\{|\{r\{)(?<param>.*?)?(?<close_marker>\}\})` 
+    even if you delete the `default_route_variables_regex` node,
+    with the same logic as the headers regex above but for route variables 
+    (e.g., found in route endpoint string `/api/{userId}/details`, `userId` is a route variable)
+    and also can be overridden per query in sql.xml using `route_variables_regex` attribute
+    -->
+    <default_route_variables_regex>
+      <![CDATA[(?<open_marker>\{\{|\{r\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+    </default_route_variables_regex>
+    
+    
+    
+    
+    
+    <!--
+    `default_form_variables_regex` with default regex of `(?<open_marker>\{\{|\{f\{)(?<param>.*?)?(?<close_marker>\}\})`
+    even if you delete the `default_form_variables_regex` node,
+    with the same logic as above headers and route regexes but for form variables (e.g., in form field `username`, `phone`, `address`, etc..)
+    and also can be overridden per query in sql.xml using `form_variables_regex` attribute
+    -->
+    <default_form_variables_regex>
+      <![CDATA[(?<open_marker>\{\{|\{f\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+    </default_form_variables_regex>
+  
+    
+    
+    
+    
+    <!--
+    `default_files_variables_regex` with default regex of `(?<open_marker>\{\{|\{files\{)(?<param>.*?)?(?<close_marker>\}\})`
+    even if you delete the `default_files_variables_regex` node,
+    with same logic as above for files variable to look for in queries, if found, the variable name mentioned in
+    it (e.g., having the variable `{files{files_data}}` be found in your API query) the app would use that name (e.g., `files_data`)
+    to look for files meta data and their base 64 content in json payload field having the same name.
+    This is for `application/json` post requests.
+  
+    And for `multipart/form-data` post requests, the app would look for files meta data only in a form field having that name
+    without looking for base64 content as files are sent as binary content in multipart/form-data posts.
+  
+    And since files meta data in `multipart/form-data` posts are sent seperately from their binary content,
+    -->
+    <default_files_variables_regex>
+      <![CDATA[(?<open_marker>\{\{|\{files\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+    </default_files_variables_regex>
+
+    
+    
+    
+    
+    <!--
+    NOTE: the variable pattern in default regex strings allows for using 
+    variable names in your query in a generic decorator
+    {{var_name}} or specific decorator {h{var_name}} for http header variable, 
+    {j{var_name}} for json payload variable, {qs{var_name}} for query string variable,
+    {r{var_name}} for route variable, {f{var_name}} for form variable.
+    However, using the generic decorator {{var_name}} may lead to variable name conflicts
+    if the same variable name is used in different variable types,
+  
+  
+    So if you pass `name` in the query string and in json payload, without using their alternative
+    specific decorators, i.e., you use `{{name}}` in your query,
+    the system will prioritize (take precedence) the variable to use in the following order:
+    1. files variables
+    2. route variables
+    3. query string variables
+    4. form data variables
+    5. json payload variables
+    6. header variables
+  
+    So based on the above order, if you pass `name` in both payload and query string variables 
+    (e.g., in query string you have `?name=John2` and in json payload you have `{ "name" : "John1" }`),
+    and you use `{{name}}` in your query,
+    the system will use the value of `name` in query variables, i.e., `John2`.
+  
+    -->
+  </regex>
+</settings>

@@ -1,8 +1,10 @@
 using Com.H.Cache;
 using DB2RestAPI.Cache;
 using DB2RestAPI.Middlewares;
-using DB2RestAPI.Settings;
 using DB2RestAPI.Services;
+using DB2RestAPI.Settings;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Data.Common;
 
 
@@ -17,7 +19,13 @@ builder.Configuration
     .AddDynamicConfigurationFiles(builder.Configuration)
     ;
 
+// Load additional configuration files specified in "additional_configurations:path"
+builder.Configuration.AddDynamicConfigurationFiles(builder.Configuration);
+
+
 // Add services to the container.
+
+
 
 builder.Services.AddScoped<DbConnection, DbConnection>(
     provider => new Microsoft.Data.SqlClient.SqlConnection(
@@ -38,8 +46,6 @@ builder.Services.AddSingleton<RouteConfigResolver>();
 builder.Services.AddSingleton<QueryRouteResolver>();
 builder.Services.AddSingleton<ParametersBuilder>();
 
-// Monitor configuration path changes
-builder.Services.AddHostedService<ConfigurationPathMonitor>();
 
 
 // builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
@@ -63,6 +69,25 @@ builder.Services.AddHttpClient("ignoreCertificateErrors", c =>
 
 builder.Services.AddControllers();
 
+
+var maxFileSize = builder.Configuration.GetValue<long?>("max_payload_size_in_bytes")
+    ?? (300 * 1024 * 1024); // Default to 300MB if not found
+
+
+// In Program.cs
+builder.Services.Configure<KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = maxFileSize;
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = maxFileSize;
+});
+
+
+// Monitor configuration path changes
+builder.Services.AddHostedService<ConfigurationPathMonitor>();
 
 var app = builder.Build();
 

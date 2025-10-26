@@ -135,14 +135,14 @@ namespace DB2RestAPI.Cache
 
             // Retrieve cache invalidators
             var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
-            var invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
+            var invalidators = invalidatorsCsv.Split([',', ' ', '\n', '\r', ';'],
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             // Construct the cache key
-            SortedDictionary<string, string> invalidatorsValues = new();
+            SortedDictionary<string, string> invalidatorsValues = [];
             foreach (var qParam in qParams)
             {
-                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters() as IDictionary<string, object>;
+                IDictionary<string, object>? model = qParam.DataModel?.GetDataModelParameters();
                 if (model == null) continue;
                 foreach (var key in invalidators.Where(x => model.ContainsKey(x)))
                 {
@@ -205,11 +205,11 @@ namespace DB2RestAPI.Cache
 
             // Retrieve cache invalidators
             var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
-            var invalidators = invalidatorsCsv.Split(new char[] { ',', ' ', '\n', '\r', ';' },
+            var invalidators = invalidatorsCsv.Split([',', ' ', '\n', '\r', ';'],
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             // Build cache key components: method + route + query params + headers
-            SortedDictionary<string, string> invalidatorsValues = new();
+            SortedDictionary<string, string> invalidatorsValues = [];
             
             // Check query string parameters
             foreach (var queryParam in context.Request.Query)
@@ -283,34 +283,14 @@ namespace DB2RestAPI.Cache
     internal static class StringExtensions
     {
 
-        //internal static string GenerateCacheKey(
-        //    string endpoint,
-        //    IDictionary<string, object> invalidatingParams)
-        //{
-        //    var sb = new StringBuilder(endpoint);
-
-        //    foreach (var param in invalidatingParams.OrderBy(p => p.Key))
-        //    {
-        //        sb.Append(':');
-        //        sb.Append(param.Key);
-        //        sb.Append('=');
-        //        sb.Append(param.Value);
-        //    }
-
-        //    return sb.ToString().ToXxHash3().ToString();
-        //}
-
         internal static ulong ToXxHash3(this string text)
         {
             Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetMaxByteCount(text.Length)];
             int bytesWritten = Encoding.UTF8.GetBytes(text, buffer);
-            return System.IO.Hashing.XxHash3.HashToUInt64(buffer.Slice(0, bytesWritten));
+            return System.IO.Hashing.XxHash3.HashToUInt64(buffer[..bytesWritten]);
+            // the above is equivalent to:
+            // return System.IO.Hashing.XxHash3.HashToUInt64(buffer.Slice(0, bytesWritten));
         }
-        //internal static string ToMD5Hash(this string text)
-        //{
-        //    using var md5 = System.Security.Cryptography.MD5.Create();
-        //    return BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "");
-        //}
 
     }
 }

@@ -700,6 +700,10 @@
         if not it will default to 10 MB -->
         <max_file_size_in_bytes>10485760</max_file_size_in_bytes> <!-- 10 MB -->
 
+        <!-- the below two field would fallback on `file_store` settings if not defined here -->
+        <filename_field_in_payload>name</filename_field_in_payload>
+        <base64_content_field_in_payload>content_base64</base64_content_field_in_payload>
+
 
         <pass_files_content_to_query>false</pass_files_content_to_query>
         <!-- `pass_files_content_to_query` controls whether the uploaded files content is passed to the SQL query

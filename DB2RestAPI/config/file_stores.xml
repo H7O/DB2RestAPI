@@ -1,0 +1,120 @@
+﻿<settings>
+  <file_stores>
+    <relative_file_path_structure>{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}</relative_file_path_structure>
+    <!--
+      The variables you can use in the relative file path structure are:
+        {date{yyyy}} - year in 4 digits
+        {date{MMM}} - month in 3 letters
+        {date{dd}} - day in 2 digits
+        Note: you can change the date formats as you want by using standard .NET date format patterns
+        {guid} - a new GUID
+        {file{name}} - the original file name uploaded by the client
+
+        The file structure above to be appended to the local path defined in each local file store node below
+        or the remote path defined in each sftp file store node below
+    -->
+
+    <permitted_file_extensions>.txt,.pdf,.docx,.xlsx,.png,.jpg,.jpeg</permitted_file_extensions>
+    <!-- this is the default permitted file extensions, and can be overriden 
+          per API node in sql.xml
+          if not defined, all file extensions will be permitted
+          override precedence is: API node > global setting here
+          NOTE: permittedFileExtensions should contain extensions WITH the dot (e.g., .txt, .pdf")
+
+          -->
+
+    <max_number_of_files>5</max_number_of_files>
+    <!-- max_number_of_files is optional, if not defined, 
+    it will default to 10 files per request, can be overridden 
+    per API node in sql.xml
+    override precedence is: API node > global setting here
+      -->
+    <files_json_field_or_form_field_name>files</files_json_field_or_form_field_name>
+    <!-- files_json_field_or_form_field_name is optional, if not defined, 
+    it will default to `files`, can be overridden
+    per API node in sql.xml
+    override precedence is: API node > global setting here
+    -->
+    <json_payload_form_field_name>json</json_payload_form_field_name>
+    <!-- json_payload_form_field_name is optional, if not defined, 
+    it will default to `json`, can be overridden
+    per API node in sql.xml
+    override precedence is: API node > global setting here > unlimited (bound by server settings max payload size)
+    Note: server settings can be adjusted in `settings.xml` under `<max_payload_size_in_bytes>` node
+    and it works for both json payloads and multipart/form-data posts
+
+-->
+
+    <max_file_size_in_bytes>314572800</max_file_size_in_bytes>
+    <!-- 10 MB -->
+    <!-- this is the default max file size in bytes, and can be overriden 
+          per API node in sql.xml
+          if not defined, default is 10 MB
+          override precedence is: API node > global setting here
+          -->
+
+
+    <!-- 
+        the below two field can be overriden by the individual query in `queries` settings
+        and if not defined there, these global settings will be used here.
+        And if not defined here, the default values in code will be used: 
+        `name` for filename field and `content_base64` for base64 content field.
+        
+        precidence order is: API node in sql.xml > global setting here -> default in code.
+    -->
+    <filename_field_in_payload>name</filename_field_in_payload>
+    <base64_content_field_in_payload>content_base64</base64_content_field_in_payload>
+
+
+    <!-- you can define as much as you want local file stores or sftp stores and just reference their names 
+      in your API node in sql.xml under `<file_stores>location1, myfiles, site4, etc..</file_stores>`
+      You can give these locations any names you want (e.g., location1, siteA, myFiles, etc..)
+    -->
+    <local_file_store>
+      <location1>
+        <local_path><![CDATA[c:\location1\]]></local_path>
+      </location1>
+      <myfiles>
+        <local_path><![CDATA[c:\myfiles\]]></local_path>
+      </myfiles>
+      <site4>
+        <local_path><![CDATA[c:\site4\]]></local_path>
+        <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
+        it will be ignored and the process will continue without failing the entire request.
+        default is `false` if tag is not present
+        -->
+        <optional>true</optional>
+
+      </site4>
+    </local_file_store>
+
+    <sftp_file_store>
+      <site1>
+        <host><![CDATA[192.168.1.100]]></host>
+        <port>22</port>
+        <username><![CDATA[test]]></username>
+        <password><![CDATA[password123]]></password>
+        <remote_path><![CDATA[/site1/]]></remote_path>
+        <enabled><![CDATA[true]]></enabled>
+      </site1>
+      <site2>
+        <host><![CDATA[192.168.2.200]]></host>
+        <port>22</port>
+        <username><![CDATA[test]]></username>
+        <password><![CDATA[password123]]></password>
+        <remote_path><![CDATA[/site2/]]></remote_path>
+        <enabled><![CDATA[true]]></enabled>
+        <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
+        it will be ignored and the process will continue without failing the entire request
+        default is `false` if tag is not present
+        -->
+        <optional>true</optional>
+
+
+      </site2>
+
+    </sftp_file_store>
+
+  </file_stores>
+
+</settings>
