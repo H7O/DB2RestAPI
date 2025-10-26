@@ -297,40 +297,31 @@ public class ParametersBuilder
 
                 foreach (JsonProperty property in root.EnumerateObject())
                 {
-                    if (!property.NameEquals(filesField)) // Skip the files property
+                    if (!property.NameEquals(filesField))
                     {
                         property.WriteTo(writer);
                     }
-                    /* todo: perhaps you can create the files structure here (in the else clause) to be used by the step 6 of the middlewares (files processor)
-                       the structure to be as described in the sql.xml example:
-                        ```json
-                        [
+                    else
+                    {
+                        // call PrepareFilesJson and pass it the json array property
+                        // it should return something (perhaps json string) that we can write
+                        // back to the writer to replace the original property that we skipped
+                        // in the above `if` condition
+                        // the method should return a json that has `content_base64` field value empty (or not included)
+                        // of the original json array elements within the filesField property
+                        // adds extra fields like id, relative_path, extension, size, mime_type,
+                        // also writes the content to a temp file and adds `backend_base64_temp_file_path` field
+                        var newFilesJson = await PrepareFilesJson(property);
+                        if (newFilesJson != null)
+                        {
+                            writer.WritePropertyName(property.Name);
+                            using (JsonDocument filesDoc = JsonDocument.Parse(newFilesJson, _jsonDocumentOptions))
                             {
-                              "id": "generated GUID for the file by the engine, unless passed by the caller",
-                              "name": "example.txt",
-                              "relative_path": "2025/Oct/22/<some-guid-goes-here>/example.txt",
-                              "extension": ".txt",
-                              "size": 1234,
-                              "content_base64": "SGVsbG8gd29ybGQh..."
-                            },
-                            ...
-                        ]
-                        ```
-                      better to do that in the files processor middleware though
-                      I think we need to have a consistent place where we create that structure
-                      perhaps a helper method in the files processor service that can be called from the middleware
-                      however, since at the end the meta data of the files needs to be passed to the sql query
-                      and they are considered parameters, perhaps it's better to create that structure here.
-                      let's create a method here in the ParametersBuilder service that can be called from anywhere.
-                      It should take the user's json payload.
-                      the user json structure should have at least the `name` field for each uploaded file.
-                      and `content_base64` field if the user wants to pass the content.
-                      from our side, we can generate the `id`, `relative_path`, `extension`, and `size` fields.
-                      then return that structure to be added to the DbQueryParams.
-                      Also, any extra fields passed by the user should be preserved.
-                      And the user should have the ability to decide the name of the fields `name` and `content_base64`
-                      So add configuration options for that too.
-                    */
+                                filesDoc.RootElement.WriteTo(writer);
+                            }
+                        }
+
+                    }
 
                 }
 
@@ -358,24 +349,7 @@ public class ParametersBuilder
     }
 
 
-
-
-    private string GetMimeTypeFromFileName(string fileName)
-    {
-        if (_mimeTypeProvider.TryGetContentType(fileName, out var contentType))
-        {
-            return contentType;
-        }
-        return "application/octet-stream"; // default mime type
-    }
-
-
-
-    /// <summary>
-    /// Takes the json array string of files meta data (and optionally files content) and builds DbQueryParams for it.
-    /// </summary>
-
-    public async Task<JsonProperty?> PrepareFilesJsonProperty(
+    public async Task<string?> PrepareFilesJson(
         JsonProperty jsonArray)
     {
         // check if jsonArray is indeed an array, if not throw exception
@@ -428,6 +402,7 @@ public class ParametersBuilder
 
         // iterate over each file in the array and build the new array with extra fields namely:
         // id, relative_path, extension, size, mime_type, local_temp_path (if content_base64 is passed)
+        string json = "[";
         foreach (var fileElement in jsonArray.Value.EnumerateArray())
         {
             if (fileElement.ValueKind != JsonValueKind.Object)
@@ -473,6 +448,8 @@ public class ParametersBuilder
                 relativeFilePathStructure,
                 fileName);
 
+            // now let's build a replacement json property to return instead of the original one
+
             if (!passFilesContentToQuery)
             {
                 // async write the content to a temp file and get the size and temp path
@@ -501,18 +478,17 @@ public class ParametersBuilder
                     }
                     await fs.WriteAsync(fileBytes, context.RequestAborted);
                 }
-                // yield return the new file object without content_base64
-                yield return new JsonProperty(
-                    jsonArray.Name,
-                    JsonDocument.Parse($@"
+
+                json += $@"
                     {{
                         ""id"": ""{fileId}"",
-                        ""name"": ""{fileName}"",
+                        ""{fileNameField}"": ""{fileName}"",
                         ""relative_path"": ""{relativePath}"",
                         ""extension"": ""{Path.GetExtension(fileName)}"",
                         ""size"": 0,
-                        ""mime_type"": ""{mimeType}""
-                    }}").RootElement);
+                        ""mime_type"": ""{mimeType}"",
+                        ""backend_base64_temp_file_path"": ""{tempPath}""
+                    }},";
             }
             else
             {
@@ -535,23 +511,42 @@ public class ParametersBuilder
                     throw new ArgumentException($"Invalid base64 content in property `{fileContentField}` for file `{fileName}`");
                 }
                 var fileSize = fileBytes.Length;
-                // yield return the new file object with content_base64
-                yield return new JsonProperty(
-                    jsonArray.Name,
-                    JsonDocument.Parse($@"
+
+                if (maxFileSizeInBytes != null && fileSize > maxFileSizeInBytes)
+                {
+                    throw new ArgumentException($"File `{fileName}` exceeds the maximum allowed size of {maxFileSizeInBytes} bytes");
+                }
+
+                json+= $@"
                     {{
                         ""id"": ""{fileId}"",
-                        ""name"": ""{fileName}"",
+                        ""{fileNameField}"": ""{fileName}"",
                         ""relative_path"": ""{relativePath}"",
                         ""extension"": ""{Path.GetExtension(fileName)}"",
                         ""size"": {fileSize},
                         ""mime_type"": ""{mimeType}"",
                         ""{fileContentField}"": ""{base64Content}""
-                    }}").RootElement);
-
+                    }},";
             }
-
+        }
+        // remove last comma and close the array
+        json = json.TrimEnd(',') + "]";
+        return json;
     }
+
+
+    private string GetMimeTypeFromFileName(string fileName)
+    {
+        if (_mimeTypeProvider.TryGetContentType(fileName, out var contentType))
+        {
+            return contentType;
+        }
+        return "application/octet-stream"; // default mime type
+    }
+
+
+
+
 
     public string BuildRelativeFilePath(
         string structure,
