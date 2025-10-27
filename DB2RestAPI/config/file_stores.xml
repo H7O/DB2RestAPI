@@ -65,6 +65,12 @@
     <filename_field_in_payload>name</filename_field_in_payload>
     <base64_content_field_in_payload>content_base64</base64_content_field_in_payload>
 
+    <!-- 
+      if set to `true`, the system accepts API caller's Guid if sent alongside files.
+      otherwise system generates its own Guid for each file.
+    -->
+    <accept_caller_defined_file_ids>false</accept_caller_defined_file_ids>
+
 
     <!-- you can define as much as you want local file stores or sftp stores and just reference their names 
       in your API node in sql.xml under `<file_stores>location1, myfiles, site4, etc..</file_stores>`

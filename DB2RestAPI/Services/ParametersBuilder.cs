@@ -298,24 +298,7 @@ public class ParametersBuilder
                     }
                     else
                     {
-                        // call PrepareFilesJson and pass it the json array property
-                        // it should return something (perhaps json string) that we can write
-                        // back to the writer to replace the original property that we skipped
-                        // in the above `if` condition
-                        // the method should return a json that has `content_base64` field value empty (or not included)
-                        // of the original json array elements within the filesField property
-                        // adds extra fields like id, relative_path, extension, size, mime_type,
-                        // also writes the content to a temp file and adds `backend_base64_temp_file_path` field
                         await PrepareFilesJson(property, writer);
-                        //if (newFilesJson != null)
-                        //{
-                        //    writer.WritePropertyName(property.Name);
-                        //    using (JsonDocument filesDoc = JsonDocument.Parse(newFilesJson, _jsonDocumentOptions))
-                        //    {
-                        //        filesDoc.RootElement.WriteTo(writer);
-                        //    }
-                        //}
-
                     }
 
                 }
@@ -413,6 +396,10 @@ public class ParametersBuilder
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet();
 
+        // get `accept_caller_defined_file_ids` from section or config or use default (which is false)
+        var acceptCallerDefinedFileIds = section.GetValue<bool?>("file_store:accept_caller_defined_file_ids") ??
+            _config.GetValue<bool?>("file_store:default_accept_caller_defined_file_ids") ?? false;
+
         // Write array directly to the provided writer
         writer.WriteStartArray();
 
@@ -434,6 +421,7 @@ public class ParametersBuilder
                 relativeFilePathStructure,
                 maxFileSizeInBytes,
                 passFilesContentToQuery,
+                acceptCallerDefinedFileIds,
                 permittedExtensionsHashSet,
                 context.RequestAborted);
 
@@ -455,6 +443,7 @@ public class ParametersBuilder
         string relativeFilePathStructure,
         long? maxFileSizeInBytes,
         bool passFilesContentToQuery,
+        bool acceptCallerDefinedFileIds,
         HashSet<string>? permittedExtensionsHashSet,
         CancellationToken cancellationToken)
     {
@@ -471,7 +460,8 @@ public class ParametersBuilder
 
         // Get or generate file ID
         Guid fileId;
-        if (fileElement.TryGetProperty("id", out var idProperty)
+        if (acceptCallerDefinedFileIds
+            && fileElement.TryGetProperty("id", out var idProperty)
             && idProperty.ValueKind == JsonValueKind.String
             && Guid.TryParse(idProperty.GetString(), out var parsedGuid))
         {
