@@ -101,7 +101,7 @@ public class Step2ServiceTypeChecks(
         var contentType = context.Request.ContentType;
 
         if (
-            !(_acceptableContentTypes.Contains(contentType)
+            !(contentType!=null && _acceptableContentTypes.Contains(contentType.ToLower())
             || route?.StartsWith("json/") == true
             )
         )
