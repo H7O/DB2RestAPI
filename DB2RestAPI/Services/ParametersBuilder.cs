@@ -3,8 +3,10 @@ using Com.H.IO;
 using DB2RestAPI.Settings;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Identity.Client;
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -272,13 +274,6 @@ public class ParametersBuilder
                 // check if there is a files field to extract
                 // if not then return DbQueryParams with the whole JSON payload as is
 
-                // the below should be checked at the next middleware not here, left here as a reminder
-                // to do it in the next middleware (remove it once you do that)
-                //var passFilesContentToQuery =
-                //    section?.GetValue<bool?>("file_stores:pass_files_content_to_query")
-                //    ?? _config.GetValue<bool?>("file_stores:pass_files_content_to_query")
-                //    ?? false;
-
                 if (string.IsNullOrWhiteSpace(filesField))
                 {
                     return new DbQueryParams()
@@ -311,15 +306,15 @@ public class ParametersBuilder
                         // of the original json array elements within the filesField property
                         // adds extra fields like id, relative_path, extension, size, mime_type,
                         // also writes the content to a temp file and adds `backend_base64_temp_file_path` field
-                        var newFilesJson = await PrepareFilesJson(property);
-                        if (newFilesJson != null)
-                        {
-                            writer.WritePropertyName(property.Name);
-                            using (JsonDocument filesDoc = JsonDocument.Parse(newFilesJson, _jsonDocumentOptions))
-                            {
-                                filesDoc.RootElement.WriteTo(writer);
-                            }
-                        }
+                        await PrepareFilesJson(property, writer);
+                        //if (newFilesJson != null)
+                        //{
+                        //    writer.WritePropertyName(property.Name);
+                        //    using (JsonDocument filesDoc = JsonDocument.Parse(newFilesJson, _jsonDocumentOptions))
+                        //    {
+                        //        filesDoc.RootElement.WriteTo(writer);
+                        //    }
+                        //}
 
                     }
 
@@ -349,16 +344,25 @@ public class ParametersBuilder
     }
 
 
-    public async Task<string?> PrepareFilesJson(
-        JsonProperty jsonArray)
+    #region processing files in JSON array
+
+    /// <summary>
+    /// Optimized version - writes directly to the provided Utf8JsonWriter
+    /// </summary>
+    public async Task PrepareFilesJson(
+        JsonProperty jsonArray, Utf8JsonWriter writer)
     {
         // check if jsonArray is indeed an array, if not throw exception
         if (jsonArray.Value.ValueKind != JsonValueKind.Array)
             throw new ArgumentException($"Invalid JSON format: Property `{jsonArray.Name}` must be an array");
 
-        // check if array is empty, if so return null
+        // Check if array is empty, if so just write empty array
         if (jsonArray.Value.GetArrayLength() == 0)
-            return null;
+        {
+            writer.WriteStartArray();
+            writer.WriteEndArray();
+            return;
+        }
 
         var context = this.Context;
         var section = this.Section;
@@ -400,140 +404,270 @@ public class ParametersBuilder
         var passFilesContentToQuery = section.GetValue<bool?>("file_store:pass_files_content_to_query")??
             _config.GetValue<bool?>("file_store:default_pass_files_content_to_query") ?? false;
 
+        // get `permitted_file_extensions` from section or config or use default (which is all files, i.e., null)
+        var permittedFileExtensions = section.GetValue<string>("file_stores:permitted_file_extensions");
+        if (string.IsNullOrWhiteSpace(permittedFileExtensions))
+            permittedFileExtensions = _config.GetValue<string>("file_stores:default_permitted_file_extensions") ?? null;
+
+        var permittedExtensionsHashSet = permittedFileExtensions?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet();
+
+        // Write array directly to the provided writer
+        writer.WriteStartArray();
+
+        int fileCount = 0;
         // iterate over each file in the array and build the new array with extra fields namely:
         // id, relative_path, extension, size, mime_type, local_temp_path (if content_base64 is passed)
-        string json = "[";
         foreach (var fileElement in jsonArray.Value.EnumerateArray())
         {
+            if (maxNumberOfFiles.HasValue && fileCount >= maxNumberOfFiles.Value)
+                throw new ArgumentException($"Number of files exceeds the maximum allowed limit of {maxNumberOfFiles.Value}");
+
             if (fileElement.ValueKind != JsonValueKind.Object)
                 throw new ArgumentException("Invalid JSON format: Each file entry must be a JSON object");
-            var fileObject = fileElement;
-            // get the file name
-            if (!fileObject.TryGetProperty(fileNameField, out var fileNameProperty)
-                || fileNameProperty.ValueKind != JsonValueKind.String
-                || string.IsNullOrWhiteSpace(fileNameProperty.GetString()))
-            {
-                throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileNameField}` representing the file name");
-            }
-            var fileName = fileNameProperty.GetString()!;
-
-            // get `permitted_file_extensions` from section or config or use default (which is all files, i.e., null)
-            var permittedFileExtensions = section.GetValue<string>("file_stores:permitted_file_extensions");
-            if (string.IsNullOrWhiteSpace(permittedFileExtensions))
-                permittedFileExtensions = _config.GetValue<string>("file_stores:default_permitted_file_extensions") ?? null;
-
-            var permittedExtensionsHashSet = permittedFileExtensions?
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToHashSet();
-
-            fileName = ValidateAndGetNormalizeFileName(fileName, permittedExtensionsHashSet);
-
-
-            // get mime type
-            var mimeType = GetMimeTypeFromFileName(fileName);
-            // see if user passed ID and check if it's a valid GUID
-            Guid fileId;
-            if (fileObject.TryGetProperty("id", out var idProperty)
-                && idProperty.ValueKind == JsonValueKind.String
-                && Guid.TryParse(idProperty.GetString(), out var parsedGuid))
-            {
-                fileId = parsedGuid;
-            }
-            else
-            {
-                fileId = Guid.NewGuid();
-            }
-
-            var relativePath = BuildRelativeFilePath(
+            await ProcessSingleFileEntry(
+                fileElement,
+                writer,
+                fileNameField,
+                fileContentField,
                 relativeFilePathStructure,
-                fileName);
+                maxFileSizeInBytes,
+                passFilesContentToQuery,
+                permittedExtensionsHashSet,
+                context.RequestAborted);
 
-            // now let's build a replacement json property to return instead of the original one
+            fileCount++;
 
-            if (!passFilesContentToQuery)
-            {
-                // async write the content to a temp file and get the size and temp path
-                var tempPath = Path.GetTempFileName();
-                await using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    if (!fileObject.TryGetProperty(fileContentField, out var contentProperty)
-                        || contentProperty.ValueKind != JsonValueKind.String
-                        || string.IsNullOrWhiteSpace(contentProperty.GetString()))
-                    {
-                        throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileContentField}` representing the base64 content of the file when `pass_files_content_to_query` is false");
-                    }
-                    var base64Content = contentProperty.GetString()!;
-                    byte[] fileBytes;
-                    try
-                    {
-                        fileBytes = Convert.FromBase64String(base64Content);
-                    }
-                    catch (FormatException)
-                    {
-                        throw new ArgumentException($"Invalid base64 content in property `{fileContentField}` for file `{fileName}`");
-                    }
-                    if (maxFileSizeInBytes != null && fileBytes.Length > maxFileSizeInBytes)
-                    {
-                        throw new ArgumentException($"File `{fileName}` exceeds the maximum allowed size of {maxFileSizeInBytes} bytes");
-                    }
-                    await fs.WriteAsync(fileBytes, context.RequestAborted);
-                }
-
-                json += $@"
-                    {{
-                        ""id"": ""{fileId}"",
-                        ""{fileNameField}"": ""{fileName}"",
-                        ""relative_path"": ""{relativePath}"",
-                        ""extension"": ""{Path.GetExtension(fileName)}"",
-                        ""size"": 0,
-                        ""mime_type"": ""{mimeType}"",
-                        ""backend_base64_temp_file_path"": ""{tempPath}""
-                    }},";
-            }
-            else
-            {
-                // get content_base64
-                if (!fileObject.TryGetProperty(fileContentField, out var contentProperty)
-                    || contentProperty.ValueKind != JsonValueKind.String
-                    || string.IsNullOrWhiteSpace(contentProperty.GetString()))
-                {
-                    throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileContentField}` representing the base64 content of the file when `pass_files_content_to_query` is true");
-                }
-                var base64Content = contentProperty.GetString()!;
-                // decode base64 to get size
-                byte[] fileBytes;
-                try
-                {
-                    fileBytes = Convert.FromBase64String(base64Content);
-                }
-                catch (FormatException)
-                {
-                    throw new ArgumentException($"Invalid base64 content in property `{fileContentField}` for file `{fileName}`");
-                }
-                var fileSize = fileBytes.Length;
-
-                if (maxFileSizeInBytes != null && fileSize > maxFileSizeInBytes)
-                {
-                    throw new ArgumentException($"File `{fileName}` exceeds the maximum allowed size of {maxFileSizeInBytes} bytes");
-                }
-
-                json+= $@"
-                    {{
-                        ""id"": ""{fileId}"",
-                        ""{fileNameField}"": ""{fileName}"",
-                        ""relative_path"": ""{relativePath}"",
-                        ""extension"": ""{Path.GetExtension(fileName)}"",
-                        ""size"": {fileSize},
-                        ""mime_type"": ""{mimeType}"",
-                        ""{fileContentField}"": ""{base64Content}""
-                    }},";
-            }
         }
-        // remove last comma and close the array
-        json = json.TrimEnd(',') + "]";
-        return json;
+        writer.WriteEndArray();
+
     }
 
+    /// <summary>
+    /// Process a single file entry with memory-efficient base64 decoding
+    /// </summary>
+    private async Task ProcessSingleFileEntry(
+        JsonElement fileElement,
+        Utf8JsonWriter writer,
+        string fileNameField,
+        string fileContentField,
+        string relativeFilePathStructure,
+        long? maxFileSizeInBytes,
+        bool passFilesContentToQuery,
+        HashSet<string>? permittedExtensionsHashSet,
+        CancellationToken cancellationToken)
+    {
+        // Get file name
+        if (!fileElement.TryGetProperty(fileNameField, out var fileNameProperty)
+            || fileNameProperty.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(fileNameProperty.GetString()))
+        {
+            throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileNameField}` representing the file name");
+        }
+
+        var fileName = fileNameProperty.GetString()!;
+        fileName = ValidateAndGetNormalizeFileName(fileName, permittedExtensionsHashSet);
+
+        // Get or generate file ID
+        Guid fileId;
+        if (fileElement.TryGetProperty("id", out var idProperty)
+            && idProperty.ValueKind == JsonValueKind.String
+            && Guid.TryParse(idProperty.GetString(), out var parsedGuid))
+        {
+            fileId = parsedGuid;
+        }
+        else
+        {
+            fileId = Guid.NewGuid();
+        }
+
+        var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName);
+        var mimeType = GetMimeTypeFromFileName(fileName);
+
+        // Get base64 content
+        if (!fileElement.TryGetProperty(fileContentField, out var contentProperty)
+            || contentProperty.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(contentProperty.GetString()))
+        {
+            throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileContentField}` representing the base64 content of the file");
+        }
+
+        var base64Content = contentProperty.GetString()!;
+
+        // Write file object directly to writer
+        writer.WriteStartObject();
+        writer.WriteString("id", fileId);
+        writer.WriteString(fileNameField, fileName);
+        writer.WriteString("relative_path", relativePath);
+        writer.WriteString("extension", Path.GetExtension(fileName));
+        writer.WriteString("mime_type", mimeType);
+
+        if (!passFilesContentToQuery)
+        {
+            // Write base64 content to temp file with streaming decode
+            var (tempPath, fileSize) = await WriteBase64ToTempFileStreaming(
+                base64Content,
+                maxFileSizeInBytes,
+                fileName,
+                cancellationToken);
+
+            writer.WriteNumber("size", fileSize);
+            writer.WriteString("backend_base64_temp_file_path", tempPath);
+            // Don't write the base64 content
+        }
+        else
+        {
+            // Decode to get size but keep content in JSON
+            var fileSize = GetBase64DecodedSize(base64Content);
+
+            if (maxFileSizeInBytes.HasValue && fileSize > maxFileSizeInBytes.Value)
+            {
+                throw new ArgumentException($"File `{fileName}` exceeds the maximum allowed size of {maxFileSizeInBytes.Value} bytes");
+            }
+
+            writer.WriteNumber("size", fileSize);
+            writer.WriteString(fileContentField, base64Content);
+        }
+
+        // Copy any additional properties from original file object
+        foreach (var prop in fileElement.EnumerateObject())
+        {
+            // Skip properties we've already written
+            if (prop.Name == fileNameField ||
+                prop.Name == fileContentField ||
+                prop.Name == "id")
+                continue;
+
+            writer.WritePropertyName(prop.Name);
+            prop.Value.WriteTo(writer);
+        }
+
+        writer.WriteEndObject();
+    }
+
+
+
+    /// <summary>
+    /// Memory-efficient streaming base64 decode and write to temp file
+    /// Uses ArrayPool for buffer management and FromBase64Transform for chunked decoding
+    /// </summary>
+    private async Task<(string tempPath, long fileSize)> WriteBase64ToTempFileStreaming(
+        string base64Content,
+        long? maxFileSizeInBytes,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        var tempPath = Path.GetTempFileName();
+        long totalBytesWritten = 0;
+
+        try
+        {
+            await using var fileStream = new FileStream(
+                tempPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 81920,
+                useAsync: true);
+
+            using var transform = new FromBase64Transform();
+
+            const int chunkSize = 4096; // Must be multiple of 4 for base64
+            int offset = 0;
+
+            while (offset < base64Content.Length)
+            {
+                int length = Math.Min(chunkSize, base64Content.Length - offset);
+
+                // Ensure we're at a valid base64 boundary
+                if (offset + length < base64Content.Length && length % 4 != 0)
+                {
+                    length = (length / 4) * 4;
+                }
+
+                if (length == 0)
+                    break;
+
+                // Rent buffers from ArrayPool for zero-allocation processing
+                byte[] inputBuffer = ArrayPool<byte>.Shared.Rent(length);
+                byte[] outputBuffer = ArrayPool<byte>.Shared.Rent(length);
+
+                try
+                {
+                    int bytesEncoded = Encoding.ASCII.GetBytes(
+                        base64Content.AsSpan(offset, length),
+                        inputBuffer);
+
+                    bool isFinalBlock = (offset + length >= base64Content.Length);
+
+                    if (isFinalBlock)
+                    {
+                        byte[] finalOutput = transform.TransformFinalBlock(inputBuffer, 0, bytesEncoded);
+                        await fileStream.WriteAsync(finalOutput, cancellationToken);
+                        totalBytesWritten += finalOutput.Length;
+                    }
+                    else
+                    {
+                        int outputBytes = transform.TransformBlock(
+                            inputBuffer, 0, bytesEncoded,
+                            outputBuffer, 0);
+
+                        await fileStream.WriteAsync(
+                            outputBuffer.AsMemory(0, outputBytes),
+                            cancellationToken);
+
+                        totalBytesWritten += outputBytes;
+                    }
+
+                    // Check size limit during processing
+                    if (maxFileSizeInBytes.HasValue && totalBytesWritten > maxFileSizeInBytes.Value)
+                    {
+                        throw new ArgumentException($"File `{fileName}` exceeds the maximum allowed size of {maxFileSizeInBytes.Value} bytes");
+                    }
+
+                    offset += length;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(inputBuffer);
+                    ArrayPool<byte>.Shared.Return(outputBuffer);
+                }
+            }
+
+            return (tempPath, totalBytesWritten);
+        }
+        catch
+        {
+            // Clean up temp file if something goes wrong
+            try { File.Delete(tempPath); } catch { }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Calculate decoded size without fully decoding (for when content stays in JSON)
+    /// </summary>
+    private long GetBase64DecodedSize(string base64Content)
+    {
+        if (string.IsNullOrEmpty(base64Content))
+            return 0;
+
+        int padding = 0;
+        if (base64Content.EndsWith("=="))
+            padding = 2;
+        else if (base64Content.EndsWith("="))
+            padding = 1;
+
+        return (base64Content.Length * 3L / 4L) - padding;
+    }
+
+
+    #endregion
+
+
+
+    #region helpers for processing files in JSON array
 
     private string GetMimeTypeFromFileName(string fileName)
     {
@@ -543,8 +677,6 @@ public class ParametersBuilder
         }
         return "application/octet-stream"; // default mime type
     }
-
-
 
 
 
@@ -741,6 +873,8 @@ public class ParametersBuilder
         }
         return fileName;
     }
+
+    #endregion
 
     #endregion
 
