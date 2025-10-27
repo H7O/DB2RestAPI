@@ -1,8 +1,6 @@
-﻿using Azure;
+using Azure;
 using Azure.Core;
 using Com.H.Data;
-using DB2RestAPI.Cache;
-using DB2RestAPI.Services;
 using DB2RestAPI.Settings;
 using DB2RestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
@@ -50,8 +48,7 @@ namespace DB2RestAPI.Middlewares
         IConfiguration configuration,
         SettingsService settings,
         IHttpClientFactory httpClientFactory,
-        ILogger<Step4APIGatewayProcess> logger,
-        ParametersBuilder paramsBuilder
+        ILogger<Step4APIGatewayProcess> logger
             )
     {
         private readonly RequestDelegate _next = next;
@@ -59,7 +56,6 @@ namespace DB2RestAPI.Middlewares
         private readonly IConfiguration _configuration = configuration;
         private readonly IHttpClientFactory httpClientFactory = httpClientFactory;
         private readonly ILogger<Step4APIGatewayProcess> _logger = logger;
-        private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         /// <summary>
         /// Headers that should not be copied from the target response to the client response.
         /// These headers are managed by ASP.NET Core and manually setting them could cause issues.
@@ -165,25 +161,7 @@ namespace DB2RestAPI.Middlewares
 
             #region get parameters
             // retrieve the parameters (which consists of query string parameters and headers)
-            var qParams = await this._paramsBuilder.GetParamsAsync();
-
-            if (qParams == null)
-                {
-                await context.Response.DeferredWriteAsJsonAsync(
-                    new ObjectResult(
-                        new
-                        {
-                            success = false,
-                            message = $"Improper parameters setup. (Contact your service provider support and provide them with error code `{_errorCode}`)"
-                        }
-                    )
-                    {
-                        StatusCode = 500
-                    }
-                );
-                return;
-            }
-
+            var qParams = this._settings.GetParams(section, context);
 
             #endregion
 
@@ -196,6 +174,7 @@ namespace DB2RestAPI.Middlewares
                 return;
             }
             #endregion
+
 
 
             #region get remaining path and apply it to the url
@@ -227,50 +206,31 @@ namespace DB2RestAPI.Middlewares
 
             #endregion
 
-            #region get resolved route for cache key
-            var resolvedRoute = context.Items["route"] as string ?? string.Empty;
-            #endregion
 
-            #region cache implementation
-            try
-            {
-                var cachedResponse = await _settings.CacheService.GetForGateway<CachableHttpResponseContainer>(
-                    section,
-                    context,
-                    resolvedRoute,
-                    disableStreaming => ProcessApiGatewayRequestAsync(section, context, url, disableStreaming),
-                    context.RequestAborted
-                );
+            /* todo: cache implementation should be here
+             1- first you need to refactor (starting from prepare target request msg region onward) into a separate method
+                let's call the method `ProcessApiGatewayRequest`
 
-                // If response is null, it means streaming mode was used and response already written
-                if (cachedResponse == null)
-                    return;
+             2- then just like in ApiController.cs, have something like this:
+                var response = await _settings.CacheService
+                    .Get<ObjectResult>(
+                    section, 
+                    qParams,
+                    disableStreaming => ProcessApiGatewayRequest(section, qParams, disableStreaming),
+                    HttpContext.RequestAborted
+                    );
+               but unlike ApiController.cs, the `ProcessApiGatewayRequest` method should stream 
+               the response directly to the HttpContext.Response.BodyWriter if `disableStreaming` is false
+               and return a null ObjectResult as it will have already written the response directly to the response body.
+               and if `disableStreaming` is true, it should read all the response into memory and return it as an ObjectResult.
+             3- then after the above call, check if response is not null, and if so, write it to the context.Response
+                with your DeferredWriteAsJsonAsync extension method.
 
-                // Response came from cache or was buffered - write it to the client
-                await WriteHttpResponseFromCache(context, cachedResponse);
-            }
-            catch (Exception ex)
-            {
-                await context.Response.DeferredWriteAsJsonAsync(_settings.GetExceptionResponse(context.Request, ex));
-            }
-            #endregion
+            */
 
-        }
 
-        /// <summary>
-        /// Processes the API gateway request by forwarding it to the target URL.
-        /// </summary>
-        /// <param name="section">Configuration section for the route.</param>
-        /// <param name="context">The HTTP context.</param>
-        /// <param name="url">The target URL to forward the request to.</param>
-        /// <param name="disableStreaming">If true, buffers the entire response for caching. If false, streams directly to client.</param>
-        /// <returns>CachableHttpResponseContainer if buffered, null if streamed.</returns>
-        private async Task<CachableHttpResponseContainer?> ProcessApiGatewayRequestAsync(
-            IConfigurationSection section,
-            HttpContext context,
-            string url,
-            bool disableStreaming)
-        {
+
+            // route the current request (with headers and action to url)
             #region prepare target request msg
             var targetRequestMsg = new HttpRequestMessage(new HttpMethod(context.Request.Method), url);
 
@@ -279,6 +239,8 @@ namespace DB2RestAPI.Middlewares
                 targetRequestMsg.Content = new StreamContent(context.Request.Body);
 
             #endregion
+
+
 
             #region see if there are headers that should not be passed to the server for this particular route
             var excludeHeaders = section.GetValue<string>("excluded_headers")?
@@ -310,6 +272,7 @@ namespace DB2RestAPI.Middlewares
 
             #endregion
 
+
             #region get headers from the caller request and add them to the target request
             foreach (var header in context.Request.Headers)
             {
@@ -320,61 +283,41 @@ namespace DB2RestAPI.Middlewares
                     || appliedHeaders?.Select(x => x.Key).Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
                     )
                     continue;
-                bool success = targetRequestMsg.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
-                if (!success)
-                    this._logger.LogWarning("Failed to add header `{headerKey}` to target request",
-                        header.Key);
+                _ = targetRequestMsg.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
             #endregion
 
-            #region check if the target route certificate errors should be ignored
-            var ignoreCertificateErrors = section.GetValue<bool?>("ignore_target_route_certificate_errors");
-            // if no ignore certificate errors for this route, check if there are default ignore certificate errors for all routes
-            ignoreCertificateErrors ??= _configuration.GetValue<bool?>("default_ignore_target_route_certificate_errors");
-            #endregion
 
-            using (var client = ignoreCertificateErrors == true
-                ? httpClientFactory.CreateClient("ignoreCertificateErrors")
-                : httpClientFactory.CreateClient()
-                )
+            try
             {
-                var targetRouteResponse = await client.SendAsync(targetRequestMsg, context.RequestAborted);
-
-                #region check if we should cache this status code
-                var memorySection = section.GetSection("cache:memory");
-                if (memorySection.Exists())
-                {
-                    var excludeStatusCodesCsv = memorySection.GetValue<string?>("exclude_status_codes_from_cache") ?? string.Empty;
-                    if (!string.IsNullOrWhiteSpace(excludeStatusCodesCsv))
-                    {
-                        var excludedStatusCodes = excludeStatusCodesCsv
-                            .Split(new char[] { ',', ' ', '\n', '\r', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                            .Select(x => int.TryParse(x, out var code) ? code : -1)
-                            .Where(x => x >= 0)
-                            .ToHashSet();
-
-                        if (excludedStatusCodes.Contains((int)targetRouteResponse.StatusCode))
-                        {
-                            // This status code should not be cached - stream directly
-                            disableStreaming = false;
-                        }
-                    }
-                }
+                #region check if the target route certificate errors should be ignored
+                var ignoreCertificateErrors = section.GetValue<bool?>("ignore_target_route_certificate_errors");
+                // if no ignore certificate errors for this route, check if there are default ignore certificate errors for all routes
+                ignoreCertificateErrors ??= _configuration.GetValue<bool?>("default_ignore_target_route_certificate_errors");
                 #endregion
 
-                if (disableStreaming)
+                using (var client = ignoreCertificateErrors == true
+                    ? httpClientFactory.CreateClient("ignoreCertificateErrors")
+                    : httpClientFactory.CreateClient()
+                    )
+
                 {
-                    // Buffer the entire response for caching
-                    return await CachableHttpResponseContainer.Parse(targetRouteResponse);
-                }
-                else
-                {
-                    // Stream directly to client (no caching or status code excluded from cache)
+
+                    var targetRouteResponse = await client.SendAsync(targetRequestMsg); // , HttpCompletionOption.ResponseHeadersRead);
+
                     context.Response.StatusCode = (int)targetRouteResponse.StatusCode;
+
+
 
                     #region setup the response headers back to the caller
                     // Copy response headers (general headers)
                     foreach (var header in targetRouteResponse.Headers
+                        // Exclude Transfer-Encoding and Content-Length headers from being copied
+                        // These headers must be managed by ASP.NET Core automatically:
+                        // - Content-Length: Must reflect the actual response body size
+                        // - Transfer-Encoding: Must align with how ASP.NET Core chunks the response
+                        // Manually setting these headers would conflict with ASP.NET Core's 
+                        // handling of the response stream and could cause corruption or errors
                         .Where(x => !excludedResponseHeaders.Contains(x.Key))
                         )
                     {
@@ -382,50 +325,40 @@ namespace DB2RestAPI.Middlewares
                     }
 
                     // Copy content headers (Content-Type, Content-Encoding, etc.)
+                    // These are essential for proper content interpretation by the client
                     foreach (var header in targetRouteResponse.Content.Headers
                         .Where(x => !excludedResponseHeaders.Contains(x.Key))
                         )
                     {
                         context.Response.Headers[header.Key] = header.Value.ToArray();
                     }
+
                     #endregion
 
-                    // Stream the response body
+
+                    // copy the proxy call stream to the response stream
                     await targetRouteResponse.Content.CopyToAsync(
                         context.Response.BodyWriter.AsStream(),
+                        // cancel the request if the client disconnects
+                        // this is to prevent the server from sending the response body to the client
+                        // after the client has disconnected
                         context.RequestAborted
                         );
 
+                    // Complete the response stream.
+                    // although this is not strictly necessary, 
+                    // as the asp.net core is expected to close the stream when the response is disposed of,
+                    // keeping this explicit call is a defensive programming approach that ensures proper
+                    // completion regardless of how the framework's internals 
+                    // might change in future versions.
                     context.Response.BodyWriter.Complete();
-                    return null; // Indicates response already written
                 }
             }
-        }
-
-        /// <summary>
-        /// Writes a cached HTTP response to the client.
-        /// </summary>
-        /// <param name="context">The HTTP context.</param>
-        /// <param name="cachedResponse">The cached response container.</param>
-        private async Task WriteHttpResponseFromCache(HttpContext context, CachableHttpResponseContainer cachedResponse)
-        {
-            context.Response.StatusCode = cachedResponse.StatusCode;
-
-            // Copy headers from cache
-            foreach (var header in cachedResponse.Headers)
+            catch (Exception ex)
             {
-                context.Response.Headers[header.Key] = header.Value;
+                await context.Response.DeferredWriteAsJsonAsync(_settings.GetExceptionResponse(context.Request, ex));
             }
 
-            // Copy content headers from cache
-            foreach (var header in cachedResponse.ContentHeaders)
-            {
-                context.Response.Headers[header.Key] = header.Value;
-            }
-
-            // Write the cached content
-            await context.Response.BodyWriter.WriteAsync(cachedResponse.Content, context.RequestAborted);
-            context.Response.BodyWriter.Complete();
         }
     }
 }
