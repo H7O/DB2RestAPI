@@ -64,8 +64,17 @@ namespace DB2RestAPI.Middlewares
         /// Headers that should not be copied from the target response to the client response.
         /// These headers are managed by ASP.NET Core and manually setting them could cause issues.
         /// </summary>
-        private static readonly string[] excludedResponseHeaders = new string[] { "Transfer-Encoding", "Content-Length" };
+        private static readonly string[] _excludedResponseHeaders = new string[] { "Transfer-Encoding", "Content-Length" };
         private static readonly string _errorCode = "Step 4 - Gateway Process Error";
+
+        // List of headers that belong to Content, not to the request itself
+        private static readonly HashSet<string> _contentHeaderNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Content-Type", "Content-Length", "Content-Encoding", "Content-Language",
+            "Content-Location", "Content-MD5", "Content-Range", "Content-Disposition"
+        };
+
+
 
         public async Task InvokeAsync(HttpContext context)
         {
@@ -304,7 +313,26 @@ namespace DB2RestAPI.Middlewares
             {
                 foreach (var header in appliedHeaders)
                 {
-                    _ = targetRequestMsg.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    bool success;
+                    // Content headers must be added to Content.Headers, not to request Headers
+                    if (_contentHeaderNames.Contains(header.Key))
+                    {
+                        // Only add to Content.Headers if we have content
+                        if (targetRequestMsg.Content != null)
+                        {
+                            success = targetRequestMsg.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                            if (!success)
+                                this._logger.LogWarning("Failed to add `applied/overridden` content header `{headerKey}` to target request",
+                                    header.Key);
+                        }
+                    }
+                    else
+                    {
+                        success = targetRequestMsg.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                        if (!success)
+                            this._logger.LogWarning("Failed to add `applied/overridden` header `{headerKey}` to target request",
+                                header.Key);
+                    }
                 }
             }
 
@@ -320,10 +348,27 @@ namespace DB2RestAPI.Middlewares
                     || appliedHeaders?.Select(x => x.Key).Contains(header.Key, StringComparer.OrdinalIgnoreCase) == true
                     )
                     continue;
-                bool success = targetRequestMsg.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
-                if (!success)
-                    this._logger.LogWarning("Failed to add header `{headerKey}` to target request",
-                        header.Key);
+
+                bool success;
+                // Content headers must be added to Content.Headers, not to request Headers
+                if (_contentHeaderNames.Contains(header.Key))
+                {
+                    // Only add to Content.Headers if we have content
+                    if (targetRequestMsg.Content != null)
+                    {
+                        success = targetRequestMsg.Content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                        if (!success)
+                            this._logger.LogWarning("Failed to add content header `{headerKey}` to target request",
+                                header.Key);
+                    }
+                }
+                else
+                {
+                    success = targetRequestMsg.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                    if (!success)
+                        this._logger.LogWarning("Failed to add header `{headerKey}` to target request",
+                            header.Key);
+                }
             }
             #endregion
 
@@ -375,7 +420,7 @@ namespace DB2RestAPI.Middlewares
                     #region setup the response headers back to the caller
                     // Copy response headers (general headers)
                     foreach (var header in targetRouteResponse.Headers
-                        .Where(x => !excludedResponseHeaders.Contains(x.Key))
+                        .Where(x => !_excludedResponseHeaders.Contains(x.Key))
                         )
                     {
                         context.Response.Headers[header.Key] = header.Value.ToArray();
@@ -383,7 +428,7 @@ namespace DB2RestAPI.Middlewares
 
                     // Copy content headers (Content-Type, Content-Encoding, etc.)
                     foreach (var header in targetRouteResponse.Content.Headers
-                        .Where(x => !excludedResponseHeaders.Contains(x.Key))
+                        .Where(x => !_excludedResponseHeaders.Contains(x.Key))
                         )
                     {
                         context.Response.Headers[header.Key] = header.Value.ToArray();
