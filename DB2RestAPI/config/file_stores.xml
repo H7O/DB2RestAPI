@@ -68,6 +68,8 @@
     <!-- 
       if set to `true`, the system accepts API caller's Guid if sent alongside files.
       otherwise system generates its own Guid for each file.
+      Recommendation is to keep it `false` unless you have a specific reason to set it to `true`
+      (e.g., B2B system where the caller wants to define its own file IDs for tracking purposes)
     -->
     <accept_caller_defined_file_ids>false</accept_caller_defined_file_ids>
 
