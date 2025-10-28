@@ -1,0 +1,82 @@
+﻿<settings>
+
+  <ConnectionStrings>
+    <default><![CDATA[Data Source=.\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
+
+    <!--
+    This is just an example of how you can define a different connection string name for a different database server.
+    You can define as many connection string names as you want that points to different database servers.
+    -->
+    <server2><![CDATA[Data Source=.\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></server2>
+  </ConnectionStrings>
+
+  <additional_configurations>
+    <path>config/sql.xml</path>
+    <path>config/api_gateway.xml</path>
+    <path>config/global_api_keys.xml</path>
+    <path>config/file_stores.xml</path>
+    
+    <!-- 
+    Controls whether the application automatically restarts when configuration file paths are added or removed.
+    - true: Application will automatically stop (allowing IIS/hosting environment to restart it)
+    - false (default): Logs a warning, requires manual application pool recycle to apply path changes
+    Note: Content changes within existing configuration files always reload automatically.
+    -->
+    <restart_on_path_changes>false</restart_on_path_changes>
+  </additional_configurations>
+
+
+  <!-- 
+  if 'true', the system will look for HTTP header 'x-api-key' for the key and try to find if it's available in config/api_keys.xml 
+  alternatively, you can skip this process if either you don't need to use API keys, 
+  you'd like to use local API keys in `sql.xml` or `routes.xml`, 
+  or you'd prefer to pass the API key to your query in sql.xml and implement your own check in SQL instead
+  -->
+  <enable_global_api_keys>false</enable_global_api_keys>
+  
+
+  
+  <!-- passing the value in the below `debug_mode_header_value` 
+  as a value to header `debug-mode` in your HTTP request will enable debug mode
+  allowing you to see the SQL query errors returned by the database server
+  in your HTTP response.
+  -->
+  <debug_mode_header_value>54321</debug_mode_header_value>
+  
+  <default_generic_error_message><![CDATA[An error occurred while processing your request.]]></default_generic_error_message>
+
+  <!-- Default headers to ignore when routing API Gateway requests 
+  (e.g., when you have a route in `api_gateway.xml` that routes requests to another API)
+  This is important to strip headers like `Host` when routing requests to another API
+  as it may cause issues with the target API TLS certificate validation.
+  Or you may want to strip `x-api-key` header when routing requests to another API
+  when the `x-api-key` is processed locally by this application and not needed by the target API.
+  This value can be overridden in each route in `api_gateway.xml` by adding the `headers_to_exclude_from_routing` attribute to the `route` node
+  -->
+  <default_headers_to_exclude_from_routing>Host</default_headers_to_exclude_from_routing>
+
+  <!--
+  If 'true', the system will ignore certificate errors when routing requests to another API
+  (e.g., when you have a route in `api_gateway.xml` that routes requests to another API)
+  This is useful when the target API has a self-signed certificate or an expired certificate.
+  This value can be overridden in each route in `api_gateway.xml` by adding the `ignore_certificate_errors` attribute to the `route` node
+  -->
+  <ignore_certificate_errors_when_routing>false</ignore_certificate_errors_when_routing>
+
+  <!--
+  Allows for passing a timeout value in seconds for the DB command execution
+  -->
+  <default_db_command_timeout>30</default_db_command_timeout>
+  
+  <!-- 
+  `default_cache` can be specified here with similar structure to  `cache` structure on API nodes 
+  and it will be applied to all APIs unless overridden at the API level.
+  -->
+
+  <max_payload_size_in_bytes>367001600</max_payload_size_in_bytes>
+
+
+  
+
+
+</settings>
