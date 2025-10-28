@@ -810,6 +810,27 @@
 
     </file_upload_example>
 
+    <test_json>
+      <query>
+        <![CDATA[
+        declare @json_data nvarchar(max) = {{json_data}};
+          select 'john' as name,
+          @json_data as {type{json{received_json_data}}};
+        ]]>
+      </query>
+    </test_json>
+    <test_json2>
+      <query>
+        <![CDATA[
+          SELECT 
+            'John' as [name],
+            (select * from (values 
+		        ('55555', 'Mobile'), 
+		        ('44444', 'Work')) 
+          as t (number, [type]) for json path) AS {type{json{phones}}};
+        ]]>
+      </query>
+    </test_json2>
 
   </queries>
 

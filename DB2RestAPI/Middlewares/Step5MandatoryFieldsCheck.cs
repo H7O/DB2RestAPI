@@ -159,8 +159,14 @@ namespace DB2RestAPI.Middlewares
             }
             #endregion
 
-
-            await _next(context);
+            try
+            {
+                await _next(context);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+            }
 
         }
     }

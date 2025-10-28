@@ -13,7 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.17.0" />
     <PackageReference Include="Com.H" Version="9.0.0.5" />
-    <PackageReference Include="Com.H.Data.Common" Version="9.0.1.5" />
+    <PackageReference Include="Com.H.Data.Common" Version="9.0.1.6" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.10.0" />
