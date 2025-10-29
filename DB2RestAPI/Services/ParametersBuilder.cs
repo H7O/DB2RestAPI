@@ -33,7 +33,7 @@ public class ParametersBuilder
         CommentHandling = JsonCommentHandling.Skip
     };
 
-    private readonly FileExtensionContentTypeProvider _mimeTypeProvider;
+    private static readonly FileExtensionContentTypeProvider _mimeTypeProvider = new FileExtensionContentTypeProvider();
 
 
 
@@ -300,6 +300,8 @@ public class ParametersBuilder
                     }
                     else
                     {
+                        // Write the property name first, then the array value
+                        writer.WritePropertyName(property.Name);
                         await ProcessFiles(property, writer);
                     }
 
@@ -692,7 +694,8 @@ public class ParametersBuilder
 
         var relativePath = structure
             .Replace("{{guid}}", guid)
-            .Replace("{file{name}}", fileName).UnifyPathSeperator();
+            .Replace("{file{name}}", fileName).UnifyPathSeperator()
+            .Replace(comparisonType: StringComparison.OrdinalIgnoreCase, oldValue: "\\", newValue: "/");
         return relativePath;
     }
 
@@ -716,6 +719,12 @@ public class ParametersBuilder
         '\u200F', // Right-to-left mark
         '\uFEFF'  // Zero-width no-break space (BOM)
     ];
+
+
+    // Precompute invalid file name characters for performance
+    private static readonly SearchValues<char> InvalidFileNameChars =
+    SearchValues.Create(Path.GetInvalidFileNameChars());
+
 
 
     /// <summary>
@@ -777,13 +786,47 @@ public class ParametersBuilder
         }
 
         // validate if file name has invalid characters
-        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+
+        // this is a faster approach using SearchValues but won't give details about which character is invalid
+        //if (fileName.AsSpan().IndexOfAny(InvalidFileNameChars)>-1)
+        //{
+        //    throw new ArgumentException($"File name `{fileName}` contains invalid characters.");
+        //}
+
+
+
+        // Find all invalid characters, this is a compromise between performance and detailed error reporting
+        // it uses SearchValues for performance but collects all invalid characters found
+        var span = fileName.AsSpan();
+        var invalidChars = new HashSet<char>();
+        int index = 0;
+
+        while (index < span.Length)
         {
-            if (fileName.Contains(invalidChar))
-            {
-                throw new ArgumentException($"File name `{fileName}` contains invalid character `{invalidChar}`");
-            }
+            int foundIndex = span[index..].IndexOfAny(InvalidFileNameChars);
+            if (foundIndex == -1)
+                break;
+
+            invalidChars.Add(span[index + foundIndex]);
+            index += foundIndex + 1;
         }
+
+        if (invalidChars.Count > 0)
+        {
+            throw new ArgumentException(
+                $"File name `{fileName}` contains invalid characters: {string.Join(", ", invalidChars.Select(c => $"`{c}`"))}");
+        }
+
+
+
+        // the below is the original way of checking invalid characters but it's slower
+        //foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        //{
+        //    if (fileName.Contains(invalidChar))
+        //    {
+        //        throw new ArgumentException($"File name `{fileName}` contains invalid character `{invalidChar}`");
+        //    }
+        //}
 
 
         // validate if file name is too long
