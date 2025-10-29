@@ -271,13 +271,13 @@ namespace DB2RestAPI.Controllers
         {
             int? dbCommandTimeout =
                 serviceQuerySection.GetValue<int?>("db_command_timeout") ??
-                this._configuration.GetValue<int?>("default_db_command_timeout");
+                this._configuration.GetValue<int?>("db_command_timeout");
 
             // check if count query is defined
             var countQuery = serviceQuerySection.GetSection("count_query")?.Value;
 
             var customSuccessStatusCode = serviceQuerySection.GetValue<int?>("success_status_code") ??
-                this._configuration.GetValue<int?>("default_success_status_code") ?? 200;
+                this._configuration.GetValue<int?>("success_status_code") ?? 200;
 
             // root node name for wrapping the result (if configured - helps with legacy APIs that wraps results within an object)
             // this is experimential and may be removed in future releases in favor of 
@@ -287,13 +287,13 @@ namespace DB2RestAPI.Controllers
             // This feature will be left undocumented in readme.md for now until the template feature is implemented
             // to be used right now for only specific legacy use cases
             string? rootNodeName = serviceQuerySection.GetValue<string?>("root_node")
-                ?? this._configuration.GetValue<string?>("default_root_node") ?? null;
+                ?? this._configuration.GetValue<string?>("root_node") ?? null;
 
 
             if (string.IsNullOrWhiteSpace(countQuery))
             {
                 var responseStructure = serviceQuerySection.GetValue<string>("response_structure")?.ToLower() ??
-                    this._configuration.GetValue<string>("default_response_structure")?.ToLower() ?? "auto";
+                    this._configuration.GetValue<string>("response_structure")?.ToLower() ?? "auto";
 
                 // check if `response_structure` is valid (valid values are `array`, `single`, `auto`)
                 if (responseStructure != "array" && responseStructure != "single" && responseStructure != "auto")

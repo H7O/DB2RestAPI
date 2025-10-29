@@ -126,12 +126,12 @@ namespace DB2RestAPI.Cache
 
             // Determine the cache duration
             int duration = memorySection.GetValue<int?>("duration_in_milliseconds") ??
-                this._configuration.GetValue<int?>("default_cache:memory:default_duration_in_milliseconds") ?? -1;
+                this._configuration.GetValue<int?>("cache:memory:duration_in_milliseconds") ?? -1;
             if (duration < 1)
                 return null;
 
             int maxPerValueCacheSize = memorySection.GetValue<int?>("max_per_value_cache_size") ??
-                this._configuration.GetValue<int?>("default_cache:memory:max_per_value_cache_size") ?? 1000;
+                this._configuration.GetValue<int?>("cache:memory:max_per_value_cache_size") ?? 1000;
 
             // Retrieve cache invalidators
             var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;
@@ -196,12 +196,12 @@ namespace DB2RestAPI.Cache
 
             // Determine the cache duration
             int duration = memorySection.GetValue<int?>("duration_in_milliseconds") ??
-                this._configuration.GetValue<int?>("default_cache:memory:default_duration_in_milliseconds") ?? -1;
+                this._configuration.GetValue<int?>("cache:memory:duration_in_milliseconds") ?? -1;
             if (duration < 1)
                 return null;
 
             int maxPerValueCacheSize = memorySection.GetValue<int?>("max_per_value_cache_size") ??
-                this._configuration.GetValue<int?>("default_cache:memory:max_per_value_cache_size") ?? 1000;
+                this._configuration.GetValue<int?>("cache:memory:max_per_value_cache_size") ?? 1000;
 
             // Retrieve cache invalidators
             var invalidatorsCsv = memorySection.GetValue<string?>("invalidators") ?? string.Empty;

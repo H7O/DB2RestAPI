@@ -375,7 +375,7 @@ namespace DB2RestAPI.Middlewares
             #region check if the target route certificate errors should be ignored
             var ignoreCertificateErrors = section.GetValue<bool?>("ignore_target_route_certificate_errors");
             // if no ignore certificate errors for this route, check if there are default ignore certificate errors for all routes
-            ignoreCertificateErrors ??= _configuration.GetValue<bool?>("default_ignore_target_route_certificate_errors");
+            ignoreCertificateErrors ??= _configuration.GetValue<bool?>("ignore_target_route_certificate_errors");
             #endregion
 
             using (var client = ignoreCertificateErrors == true

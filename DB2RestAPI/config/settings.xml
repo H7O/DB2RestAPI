@@ -15,6 +15,7 @@
     <path>config/api_gateway.xml</path>
     <path>config/global_api_keys.xml</path>
     <path>config/file_stores.xml</path>
+    <path>config/regex.xml</path>
     
     <!-- 
     Controls whether the application automatically restarts when configuration file paths are added or removed.
@@ -43,7 +44,7 @@
   -->
   <debug_mode_header_value>54321</debug_mode_header_value>
   
-  <default_generic_error_message><![CDATA[An error occurred while processing your request.]]></default_generic_error_message>
+  <generic_error_message><![CDATA[An error occurred while processing your request.]]></generic_error_message>
 
   <!-- Default headers to ignore when routing API Gateway requests 
   (e.g., when you have a route in `api_gateway.xml` that routes requests to another API)
@@ -53,7 +54,7 @@
   when the `x-api-key` is processed locally by this application and not needed by the target API.
   This value can be overridden in each route in `api_gateway.xml` by adding the `headers_to_exclude_from_routing` attribute to the `route` node
   -->
-  <default_headers_to_exclude_from_routing>Host</default_headers_to_exclude_from_routing>
+  <headers_to_exclude_from_routing>Host</headers_to_exclude_from_routing>
 
   <!--
   If 'true', the system will ignore certificate errors when routing requests to another API
@@ -66,10 +67,10 @@
   <!--
   Allows for passing a timeout value in seconds for the DB command execution
   -->
-  <default_db_command_timeout>30</default_db_command_timeout>
+  <db_command_timeout>30</db_command_timeout>
   
   <!-- 
-  `default_cache` can be specified here with similar structure to  `cache` structure on API nodes 
+  `cache` can be specified here with similar structure to  `cache` structure on API nodes 
   and it will be applied to all APIs unless overridden at the API level.
   -->
 

@@ -86,7 +86,7 @@ namespace DB2RestAPI.Settings
 
         public string GetDefaultGenericErrorMessage()
         {
-            var defaultGenericErrorMessage = this._configuration.GetSection("default_generic_error_message")?.Value;
+            var defaultGenericErrorMessage = this._configuration.GetSection("generic_error_message")?.Value;
             if (string.IsNullOrWhiteSpace(defaultGenericErrorMessage))
                 defaultGenericErrorMessage = "An error occurred while processing your request.";
             return defaultGenericErrorMessage;
@@ -143,7 +143,7 @@ namespace DB2RestAPI.Settings
 
             }
 
-            // get `default_generic_error_message` from config file
+            // get `generic_error_message` from config file
             // if it is not defined, use a default value `An error occurred while processing your request.`
 
 

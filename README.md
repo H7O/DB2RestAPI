@@ -218,7 +218,7 @@ Anything outside the reserved error code range `50000-51000` will be returned to
 This is a safety measure to prevent exposing any sensitive information from the database to the client.<br/>
 
 > **Default error message content**
-The default error message content can be changed in the `/config/settings.xml` file by changing the `default_generic_error_message` tag.
+The default error message content can be changed in the `/config/settings.xml` file by changing the `generic_error_message` tag.
 
 > **Debugging SQL errors**<br/>
 To debug SQL errors, instead of receiving a generic error message with http error code `500` you can send your request with the `debug-mode` http header filled with a value matching that of the `debug_mode_header_value` tag in `/config/settings.xml` file.<br/>

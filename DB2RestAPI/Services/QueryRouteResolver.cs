@@ -72,7 +72,7 @@ public class QueryRouteResolver
                 if (string.IsNullOrWhiteSpace(normalizedRoute)) continue;
                 var routeParameterPattern = 
                 querySection.GetValue<string>("route_variable_pattern")
-                ??_configuration.GetValue<string>("default_route_variable_pattern");
+                ??_configuration.GetValue<string>("route_variable_pattern");
 
                 var routeParametersRegex = string.IsNullOrWhiteSpace(routeParameterPattern) ? 
                     DefaultRegex.DefaultRouteVariablesCompiledRegex 
@@ -151,7 +151,7 @@ public class QueryRouteResolver
 
         var routeParameterPattern = configSection?.GetValue<string>("route_variable_pattern");
         if (string.IsNullOrWhiteSpace(routeParameterPattern))
-            routeParameterPattern = configSection?.GetValue<string>("default_route_variables_regex");
+            routeParameterPattern = configSection?.GetValue<string>("route_variables_regex");
         if (string.IsNullOrWhiteSpace(routeParameterPattern))
             routeParameterPattern = DefaultRegex.DefaultRouteVariablesPattern;
 
@@ -219,7 +219,7 @@ public class QueryRouteResolver
             }
 
             var routeParameterPattern = Config.GetValue<string>("route_variable_pattern")
-            ??_configuration.GetValue<string>("default_route_variable_pattern");
+            ??_configuration.GetValue<string>("route_variable_pattern");
 
             var routeParametersRegex = string.IsNullOrWhiteSpace(routeParameterPattern) ? 
                 DefaultRegex.DefaultRouteVariablesCompiledRegex :

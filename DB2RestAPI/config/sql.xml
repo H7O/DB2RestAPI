@@ -864,7 +864,7 @@
         <!-- 10 MB -->
 
         <!-- the below two field would fallback on `file_stores` settings if not defined here -->
-        <filename_field_in_payload>name</filename_field_in_payload>
+        <filename_field_in_payload>file_name</filename_field_in_payload>
         <base64_content_field_in_payload>content_base64</base64_content_field_in_payload>
 
 
