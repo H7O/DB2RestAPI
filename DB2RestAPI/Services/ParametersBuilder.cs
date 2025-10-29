@@ -18,6 +18,9 @@ namespace DB2RestAPI.Services;
 /// <summary>
 /// Service responsible for extracting and validating JSON payloads from HTTP requests.
 /// Supports both application/json and multipart/form-data content types.
+/// Things that are stored in HttpContext.Items by this class (not what's already before calling this service):
+/// - `files_data_field`: string representing the name of the json property in the payload that holds the files metadata and content (if any)
+/// - `parameters`: List<DbQueryParams> representing the extracted parameters from various sources
 /// </summary>
 public class ParametersBuilder
 {

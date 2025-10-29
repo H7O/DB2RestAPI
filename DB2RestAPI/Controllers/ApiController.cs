@@ -185,6 +185,9 @@ namespace DB2RestAPI.Controllers
                     // if it is a MySQL connection string, then use MySqlConnection, etc.
                     connection = new SqlConnection(connectionString);
 
+                // Register manually-created connection for disposal
+                HttpContext.Response.RegisterForDisposeAsync(connection);
+
             }
             #endregion
 
@@ -305,6 +308,12 @@ namespace DB2RestAPI.Controllers
                     });
                 }
                 var resultWithNoCount = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+                // perhaps here is the right place to register for disposal
+                if (resultWithNoCount != null) 
+                {
+                    HttpContext.Response.RegisterForDisposeAsync(resultWithNoCount);
+                }   
+
                 HttpContext.RequestAborted.ThrowIfCancellationRequested();
 
 
