@@ -1,6 +1,6 @@
 ﻿namespace DB2RestAPI.Services
 {
-    public class TempFileCleanup : IDisposable
+    public class TempFilesTracker : IDisposable
     {
         // Dictionary provides O(1) lookup for duplicate checking
         private readonly Dictionary<string, string> _files = new();

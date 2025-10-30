@@ -309,10 +309,10 @@ namespace DB2RestAPI.Controllers
                 }
                 var resultWithNoCount = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
                 // perhaps here is the right place to register for disposal
-                if (resultWithNoCount != null) 
+                if (resultWithNoCount != null)
                 {
                     HttpContext.Response.RegisterForDisposeAsync(resultWithNoCount);
-                }   
+                }
 
                 HttpContext.RequestAborted.ThrowIfCancellationRequested();
 
@@ -347,7 +347,7 @@ namespace DB2RestAPI.Controllers
                     {
                         // wrap the result in an object with the root node name
                         var wrappedResult = new ExpandoObject();
-                        wrappedResult.TryAdd(rootNodeName, (object?) singleResult);
+                        wrappedResult.TryAdd(rootNodeName, (object?)singleResult);
                         return StatusCode(customSuccessStatusCode, wrappedResult);
                     }
                     return StatusCode(customSuccessStatusCode, singleResult);
@@ -416,6 +416,12 @@ namespace DB2RestAPI.Controllers
             }
 
             var resultCount = await connection.ExecuteQueryAsync(countQuery, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+            // Register for disposal to ensure DbDataReader is properly cleaned up
+            if (resultCount != null)
+            {
+                HttpContext.Response.RegisterForDisposeAsync(resultCount);
+            }
+
             var rowCount = resultCount.AsEnumerable().FirstOrDefault();
             HttpContext.RequestAborted.ThrowIfCancellationRequested();
 
@@ -432,6 +438,12 @@ namespace DB2RestAPI.Controllers
 
 
             var result = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+            // Register for disposal to ensure DbDataReader is properly cleaned up
+            if (result != null)
+            {
+                HttpContext.Response.RegisterForDisposeAsync(result);
+            }
+
             HttpContext.RequestAborted.ThrowIfCancellationRequested();
 
             if (disableDifferredExecution)

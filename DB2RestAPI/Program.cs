@@ -45,6 +45,8 @@ builder.Services.AddSingleton<RouteConfigResolver>();
 
 builder.Services.AddSingleton<QueryRouteResolver>();
 builder.Services.AddSingleton<ParametersBuilder>();
+builder.Services.AddScoped<TempFilesTracker>();
+
 
 
 

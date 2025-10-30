@@ -28,6 +28,7 @@ public class ParametersBuilder
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IConfiguration _config;
     private readonly ILogger<ParametersBuilder> _logger;
+    private readonly TempFilesTracker _tempFilesTracker;
     // private readonly string _errorCode = "Payload Extractor Error";
     private static readonly JsonWriterOptions _jsonWriterOptions = new() { Indented = false };
     private static readonly JsonDocumentOptions _jsonDocumentOptions = new()
@@ -43,13 +44,15 @@ public class ParametersBuilder
     public ParametersBuilder(
         IHttpContextAccessor httpContextAccessor,
         IConfiguration configuration,
-        ILogger<ParametersBuilder> logger
+        ILogger<ParametersBuilder> logger,
+        TempFilesTracker tempFilesTracker
         )
     {
 
         _httpContextAccessor = httpContextAccessor;
         _config = configuration;
         _logger = logger;
+        _tempFilesTracker = tempFilesTracker;
 
     }
 
@@ -511,6 +514,9 @@ public class ParametersBuilder
 
             writer.WriteNumber("size", fileSize);
             writer.WriteString("backend_base64_temp_file_path", tempPath);
+
+            // Track temp file for cleanup later
+            _tempFilesTracker.AddLocalFile(tempPath, fileName);
             // Don't write the base64 content
         }
         else
