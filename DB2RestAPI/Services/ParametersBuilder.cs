@@ -28,7 +28,6 @@ public class ParametersBuilder
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IConfiguration _config;
     private readonly ILogger<ParametersBuilder> _logger;
-    private readonly TempFilesTracker _tempFilesTracker;
     // private readonly string _errorCode = "Payload Extractor Error";
     private static readonly JsonWriterOptions _jsonWriterOptions = new() { Indented = false };
     private static readonly JsonDocumentOptions _jsonDocumentOptions = new()
@@ -39,21 +38,30 @@ public class ParametersBuilder
 
     private static readonly FileExtensionContentTypeProvider _mimeTypeProvider = new FileExtensionContentTypeProvider();
 
-
+    /// <summary>
+    /// Gets the TempFilesTracker for the current request from the DI container.
+    /// This allows a singleton service to access a scoped service safely.
+    /// </summary>
+    private TempFilesTracker TempFilesTracker
+    {
+        get
+        {
+            var context = _httpContextAccessor.HttpContext
+                ?? throw new InvalidOperationException("HttpContext is not available");
+            
+            return context.RequestServices.GetRequiredService<TempFilesTracker>();
+        }
+    }
 
     public ParametersBuilder(
         IHttpContextAccessor httpContextAccessor,
         IConfiguration configuration,
-        ILogger<ParametersBuilder> logger,
-        TempFilesTracker tempFilesTracker
+        ILogger<ParametersBuilder> logger
         )
     {
-
         _httpContextAccessor = httpContextAccessor;
         _config = configuration;
         _logger = logger;
-        _tempFilesTracker = tempFilesTracker;
-
     }
 
     private string ContentType
@@ -516,7 +524,7 @@ public class ParametersBuilder
             writer.WriteString("backend_base64_temp_file_path", tempPath);
 
             // Track temp file for cleanup later
-            _tempFilesTracker.AddLocalFile(tempPath, fileName);
+            TempFilesTracker.AddLocalFile(tempPath, fileName);
             // Don't write the base64 content
         }
         else
