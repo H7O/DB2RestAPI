@@ -844,10 +844,10 @@
 
       <document_management>
         <!-- file stores could be a local store or an sftp remote store, their individual
-        settings correspondes to the ones defined in your settings.xml file under 
+        settings correspondes to the ones defined in your file_stores.xml file under
         `document_management` -> `file_stores` node
          -->
-        <file_stores>location1, myfiles, site2</file_stores>
+        <stores>location1, myfiles, site2</stores>
 
 
         <!-- `permitted_file_extensions` is optional, if not defined, 

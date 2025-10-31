@@ -5,6 +5,7 @@ using DB2RestAPI.Services;
 using DB2RestAPI.Settings;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Data.SqlClient;
 using System.Data.Common;
 
 
@@ -25,13 +26,22 @@ builder.Configuration.AddDynamicConfigurationFiles(builder.Configuration);
 
 // Add services to the container.
 
+// Register DbConnection as scoped
+builder.Services.AddScoped<DbConnection>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var connectionString = configuration.GetConnectionString("default")
+        ?? throw new InvalidOperationException("Connection string not found");
+    return new SqlConnection(connectionString);
+});
 
 
-builder.Services.AddScoped<DbConnection, DbConnection>(
-    provider => new Microsoft.Data.SqlClient.SqlConnection(
-        provider.GetRequiredService<IConfiguration>()
-    .GetConnectionString("default"))
-    );
+
+//builder.Services.AddScoped<DbConnection, DbConnection>(
+//    provider => new Microsoft.Data.SqlClient.SqlConnection(
+//        provider.GetRequiredService<IConfiguration>()
+//    .GetConnectionString("default"))
+//    );
 
 builder.Services.AddHybridCache();
 
@@ -46,6 +56,7 @@ builder.Services.AddSingleton<RouteConfigResolver>();
 builder.Services.AddSingleton<QueryRouteResolver>();
 builder.Services.AddSingleton<ParametersBuilder>();
 builder.Services.AddScoped<TempFilesTracker>();
+
 
 
 

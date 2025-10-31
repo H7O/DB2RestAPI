@@ -71,13 +71,13 @@
     -->
     <local_file_store>
       <location1>
-        <local_path><![CDATA[c:\location1\]]></local_path>
+        <path><![CDATA[c:\location1\]]></path>
       </location1>
       <myfiles>
-        <local_path><![CDATA[c:\myfiles\]]></local_path>
+        <path><![CDATA[c:\myfiles\]]></path>
       </myfiles>
       <site4>
-        <local_path><![CDATA[c:\site4\]]></local_path>
+        <path><![CDATA[c:\site4\]]></path>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request.
         default is `false` if tag is not present

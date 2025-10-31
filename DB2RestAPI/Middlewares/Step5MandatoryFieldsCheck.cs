@@ -111,6 +111,7 @@ namespace DB2RestAPI.Middlewares
             #endregion
 
 
+            #region check if the request was cancelled
             if (context.RequestAborted.IsCancellationRequested)
             {
                 await context.Response.DeferredWriteAsJsonAsync(
@@ -128,7 +129,7 @@ namespace DB2RestAPI.Middlewares
 
                 return;
             }
-
+            #endregion
             // retrieve the parameters (which consists of route, query string, form data, json body, and headers parameters)
             var qParams = await this._paramsBuilder.GetParamsAsync();
 

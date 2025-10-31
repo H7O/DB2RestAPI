@@ -524,7 +524,7 @@ public class ParametersBuilder
             writer.WriteString("backend_base64_temp_file_path", tempPath);
 
             // Track temp file for cleanup later
-            TempFilesTracker.AddLocalFile(tempPath, fileName);
+            TempFilesTracker.AddLocalFile(tempPath, fileName, relativePath);
             // Don't write the base64 content
         }
         else

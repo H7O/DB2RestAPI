@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="Com.H.Net.Ssh">
+      <HintPath>..\..\Com.H.Net.Ssh\Net9\bin\Release\net9.0\Com.H.Net.Ssh.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="config\file_stores.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
