@@ -35,7 +35,7 @@ builder.Services.AddScoped<DbConnection>(sp =>
     return new SqlConnection(connectionString);
 });
 
-
+builder.Services.AddScoped<TempFilesTracker>();
 
 //builder.Services.AddScoped<DbConnection, DbConnection>(
 //    provider => new Microsoft.Data.SqlClient.SqlConnection(
@@ -55,7 +55,7 @@ builder.Services.AddSingleton<RouteConfigResolver>();
 
 builder.Services.AddSingleton<QueryRouteResolver>();
 builder.Services.AddSingleton<ParametersBuilder>();
-builder.Services.AddScoped<TempFilesTracker>();
+
 
 
 
@@ -116,7 +116,8 @@ app.UseMiddleware<Step2ServiceTypeChecks>();
 app.UseMiddleware<Step3LocalApiKeysCheck>();
 app.UseMiddleware<Step4APIGatewayProcess>();
 app.UseMiddleware<Step5MandatoryFieldsCheck>();
-// app.UseMiddleware<Step6DBQueryProcess>();
+app.UseMiddleware<Step6FileManagement>();
+
 
 
 app.Run();

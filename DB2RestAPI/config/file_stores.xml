@@ -70,13 +70,10 @@
       You can give these locations any names you want (e.g., location1, siteA, myFiles, etc..)
     -->
     <local_file_store>
-      <location1>
-        <path><![CDATA[c:\location1\]]></path>
-      </location1>
-      <myfiles>
+      <site1>
         <path><![CDATA[c:\myfiles\]]></path>
-      </myfiles>
-      <site4>
+      </site1>
+      <site2>
         <path><![CDATA[c:\site4\]]></path>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request.
@@ -84,19 +81,19 @@
         -->
         <optional>true</optional>
 
-      </site4>
+      </site2>
     </local_file_store>
 
     <sftp_file_store>
-      <site1>
-        <host><![CDATA[192.168.1.100]]></host>
-        <port>22</port>
-        <username><![CDATA[test]]></username>
-        <password><![CDATA[password123]]></password>
+      <site3>
+        <host><![CDATA[192.168.1.194]]></host>
+        <port>2222</port>
+        <username><![CDATA[t]]></username>
+        <password><![CDATA[123]]></password>
         <remote_path><![CDATA[/site1/]]></remote_path>
         <enabled><![CDATA[true]]></enabled>
-      </site1>
-      <site2>
+      </site3>
+      <site4>
         <host><![CDATA[192.168.2.200]]></host>
         <port>22</port>
         <username><![CDATA[test]]></username>
@@ -110,7 +107,7 @@
         <optional>true</optional>
 
 
-      </site2>
+      </site4>
 
     </sftp_file_store>
 
