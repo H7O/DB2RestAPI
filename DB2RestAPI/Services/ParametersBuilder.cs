@@ -369,54 +369,54 @@ public class ParametersBuilder
         var section = this.Section;
 
         // get `filename_field_in_payload` from section or config or use default
-        var fileNameField = section.GetValue<string>("document_management:filename_field_in_payload");
+        var fileNameField = section.GetValue<string>("file_management:filename_field_in_payload");
         if (string.IsNullOrWhiteSpace(fileNameField))
-            fileNameField = _config.GetValue<string>("file_stores:filename_field_in_payload");
+            fileNameField = _config.GetValue<string>("file_management:filename_field_in_payload");
         if (string.IsNullOrWhiteSpace(fileNameField))
             fileNameField = "name";
 
         
         // get `base64_content_field_in_payload` from section or config or use default
-        var fileContentField = section.GetValue<string>("document_management:base64_content_field_in_payload");
+        var fileContentField = section.GetValue<string>("file_management:base64_content_field_in_payload");
         if (string.IsNullOrWhiteSpace(fileContentField))
-            fileContentField = _config.GetValue<string>("file_stores:base64_content_field_in_payload");
+            fileContentField = _config.GetValue<string>("file_management:base64_content_field_in_payload");
         if (string.IsNullOrWhiteSpace(fileContentField))
             fileContentField = "base64_content";
 
         // get `relative_file_path_structure` from section or config or use default (which is `{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}`)
-        var relativeFilePathStructure = section.GetValue<string>("document_management:relative_file_path_structure");
+        var relativeFilePathStructure = section.GetValue<string>("file_management:relative_file_path_structure");
         if (string.IsNullOrWhiteSpace(relativeFilePathStructure))
-            relativeFilePathStructure = _config.GetValue<string>("file_stores:relative_file_path_structure");
+            relativeFilePathStructure = _config.GetValue<string>("file_management:relative_file_path_structure");
         if (string.IsNullOrWhiteSpace(relativeFilePathStructure))
             relativeFilePathStructure = "{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}";
 
 
         // get `max_number_of_files` from section or config or use default (which is unlimited, i.e., null)
-        var maxNumberOfFiles = section.GetValue<int?>("document_management:max_number_of_files");
+        var maxNumberOfFiles = section.GetValue<int?>("file_management:max_number_of_files");
         if (maxNumberOfFiles == null || maxNumberOfFiles < 1)
-            maxNumberOfFiles = _config.GetValue<int?>("file_stores:max_number_of_files") ?? null;
+            maxNumberOfFiles = _config.GetValue<int?>("file_management:max_number_of_files") ?? null;
 
         // get `max_file_size_in_bytes` from section or config or use default (which is unlimited, i.e., null)
-        var maxFileSizeInBytes = section.GetValue<long?>("document_management:max_file_size_in_bytes");
+        var maxFileSizeInBytes = section.GetValue<long?>("file_management:max_file_size_in_bytes");
         if (maxFileSizeInBytes == null || maxFileSizeInBytes < 1)
-            maxFileSizeInBytes = _config.GetValue<long?>("file_stores:max_file_size_in_bytes") ?? null;
+            maxFileSizeInBytes = _config.GetValue<long?>("file_management:max_file_size_in_bytes") ?? null;
 
         // get `pass_files_content_to_query` from section or config or use default (which is false)
-        var passFilesContentToQuery = section.GetValue<bool?>("document_management:pass_files_content_to_query") ??
-            _config.GetValue<bool?>("file_stores:pass_files_content_to_query") ?? false;
+        var passFilesContentToQuery = section.GetValue<bool?>("file_management:pass_files_content_to_query") ??
+            _config.GetValue<bool?>("file_management:pass_files_content_to_query") ?? false;
 
         // get `permitted_file_extensions` from section or config or use default (which is all files, i.e., null)
-        var permittedFileExtensions = section.GetValue<string>("document_management:permitted_file_extensions");
+        var permittedFileExtensions = section.GetValue<string>("file_management:permitted_file_extensions");
         if (string.IsNullOrWhiteSpace(permittedFileExtensions))
-            permittedFileExtensions = _config.GetValue<string>("file_stores:permitted_file_extensions") ?? null;
+            permittedFileExtensions = _config.GetValue<string>("file_management:permitted_file_extensions") ?? null;
 
         var permittedExtensionsHashSet = permittedFileExtensions?
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet();
 
         // get `accept_caller_defined_file_ids` from section or config or use default (which is false)
-        var acceptCallerDefinedFileIds = section.GetValue<bool?>("document_management:accept_caller_defined_file_ids") ??
-            _config.GetValue<bool?>("file_stores:accept_caller_defined_file_ids") ?? false;
+        var acceptCallerDefinedFileIds = section.GetValue<bool?>("file_management:accept_caller_defined_file_ids") ??
+            _config.GetValue<bool?>("file_management:accept_caller_defined_file_ids") ?? false;
 
         // Write array directly to the provided writer
         writer.WriteStartArray();

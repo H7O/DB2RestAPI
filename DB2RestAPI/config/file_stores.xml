@@ -1,5 +1,5 @@
 ﻿<settings>
-  <file_stores>
+  <file_management>
     <relative_file_path_structure>{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}</relative_file_path_structure>
     <!--
       The variables you can use in the relative file path structure are:
@@ -111,6 +111,6 @@
 
     </sftp_file_store>
 
-  </file_stores>
+  </file_management>
 
 </settings>

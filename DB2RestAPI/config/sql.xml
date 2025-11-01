@@ -680,28 +680,48 @@
     <file_upload_example>
       <route>upload_file</route>
       <verb>POST</verb>
-      <document_management>
-        <!-- file stores could be a local store or an sftp remote store, their individual
-        settings correspondes to the ones defined in your settings.xml file under 
-        `document_management` -> `file_stores` node
+      <file_management>
+        <!-- file stores could be a local file store (a location locally on PC running this app) or an sftp remote store, 
+        settings for store names mentioned in `files_stores` below can be placed in main settings files (e.g., settings.xml or file_stores.xml, etc..) 
+        under `settings` -> `file_management` -> `local_file_store` or `sftp_file_store` nodes)
          -->
         <file_stores>location1, myfiles, site2</file_stores>
 
 
         <!-- `permitted_file_extensions` is optional, if not defined, 
         if will first check if there is a `permitted_file_extensions` tag defined
-        for each of the `file_stores` defined in your settings.xml, 
+        under `settings` -> `file_management`
         if not it will allow all file types -->
         <permitted_file_extensions>.txt,.pdf,.docx,.xlsx,.png,.jpg,.jpeg</permitted_file_extensions>
 
         <!-- `max_file_size_in_bytes` is optional, if not defined,
-        it will first check if there is a `max_file_size_in_bytes` tag defined
-        for each of the `file_stores` defined in your settings.xml,
-        if not it will default to 10 MB -->
+        it will check if there is a `max_file_size_in_bytes` tag defined
+        under `settings` -> `file_management`
+        if not it'll default to 300 MB 
+        -->
         <max_file_size_in_bytes>10485760</max_file_size_in_bytes> <!-- 10 MB -->
 
-        <!-- the below two field would fallback on `file_store` settings if not defined here -->
+        <!-- files_json_field_or_form_field_name is optional, if not defined, the system will fall back on
+        `settings` -> `file_management` -> `files_json_field_or_form_field_name` tag,
+        and if not found there also, the system will default to `files` as the field name
+        The purpose of this field is to tell the app under which json property (for application/json content type)
+        to find the json payload having the files metadata (or metadata and data for application/json content type)
+        The field should also be referenced in the sql query via `{fs{<that_field_name>}}` for the app to pass the files metadata (and data if that option is enabled) to the sql query.
+        -->
+        <files_json_field_or_form_field_name>files</files_json_field_or_form_field_name>
+
+        <!-- the below two field also falls back on tags under `settings` -> `file_management` 
+        that carry the same names as the ones below, and if not found there also, 
+        the system would return a 500 http error only if all the conditions below are met (otherwise it'll ignore the files content):
+        
+        - the caller passed files metadata (or metadata and data for application/json content type) under either a json payload field or a form field
+        - and the json payload field or form field name is the same as what is defined in `files_json_field_or_form_field_name` above
+        - and the query referenced that field via `{fs{<that_field_name>}}`
+        Note: however, for `base64_content_field_in_payload` is mandatory if the caller is sending files content in base64 format.
+        i.e., the system won't return a 500 error if that field is not defined for multipart/form-data content type uploads.
+        -->
         <filename_field_in_payload>name</filename_field_in_payload>
+        
         <base64_content_field_in_payload>base64_content</base64_content_field_in_payload>
 
 
@@ -709,49 +729,51 @@
         <!-- `pass_files_content_to_query` controls whether the uploaded files content is passed to the SQL query
         when set to true, the files content will be included in the query.
         when set to false, only the files metadata will be passed to the query.
-        if not defined, the app will check if it's defined in settings.xml under `document_management` node,
-        if not, it will default to false.
+        if not defined, the system will check if this tag is defined under `settings` -> `file_management`, if not, it will default to false.
         
         
-        
-        The structure to be passed to the query as follows in json:
-        
-        ```json
-        [
-            {
-              "id": "generated GUID for the file by the engine, unless passed by the caller",
-              "name": "example.txt",
-              "relative_path": "2025/Oct/22/<some-guid-goes-here>/example.txt",
-              "extension": ".txt",
-              "size": 1234,
-              "base64_content": "SGVsbG8gd29ybGQh..."
-            },
-            ...
-        ]
-        ```
-        
-        `base64_content` field will only be included if `pass_files_content_to_query` is set to true.
-        
-        `id` is a GUID generated by the engine for each uploaded file, unless the caller provides it during upload.
-        `relative_path` is the base path of the file store + `document_management:relative_file_path_structure`
-          e.g., if the base path is `c:\filestore` and the `relative_file_path_structure` is `{date{yyyy}}\{date{MMM}}\{date{dd}}\{{guid}}\{file{name}}`
-          then the full path of the file will be `c:\filestore\2025\Oct\22\<some-guid-goes-here>\example.txt`
-        
-        the caller can enrich the file metadata during upload by providing additional fields such as `description` (or any other custom fields)
-        
-        To do so, the caller needs to pass json metadata for each file being uploaded as follows:
+        the caller needs to pass json metadata for each file being uploaded as follows:
         
         ```json
         [
             {
               "id": "optional GUID for the file, if not provided, the engine will generate one",
               "name": "example.txt",
-              "description": "This is an example text file",
+              "description": "This is an example text file", // optional custom field
+              "base64_content": "SGVsbG8gd29ybGQh...", // only if `pass_files_content_to_query` is set to true
               // other custom fields can be added here
             },
             ...
         ]
         ```
+
+
+        
+        The system then adds extra fields to the structure sent by the caller and pass it to the query.
+        
+        below is the structure of the file metadata (and content if that option is enabled) that gets passed to the sql query:
+        
+        ```json
+        [
+            {
+              "id": "generated GUID for the file by the engine, unless passed by the caller",
+              "name": "example.txt",
+              "relative_path": "2025/Oct/22/<the-guid-referenced-in-the-id-field>/example.txt", // relative path structure is defined in settings
+              "extension": ".txt",
+              "size": 1234,
+              "base64_content": "SGVsbG8gd29ybGQh..." // only if `pass_files_content_to_query` is set to true 
+            },
+            ...
+        ]
+        ```
+        
+        `id` is a GUID generated by the engine for each uploaded file, unless the caller provides it during upload.
+        `relative_path` is the base path of the file store + `file_management:relative_file_path_structure`
+          e.g., if the base path is `c:\filestore` and the `relative_file_path_structure` is `{date{yyyy}}\{date{MMM}}\{date{dd}}\{{guid}}\{file{name}}`
+          then the full path of the file will be `c:\filestore\2025\Oct\22\<guid-goes-here>\example.txt`
+        
+        the caller can enrich the file metadata during upload by providing additional fields such as `description` (or any other custom fields)
+        
         
         The caller can send the files and its metadata in either `application/json` or `multipart/form-data` content type.
         
@@ -779,14 +801,14 @@
         
         Only the `name` and `base64_content` fields are mandatory for each file being uploaded.
         
-        Receiving the metadata (and the base64 content if that option is enabled) in sql query in this case can be done via `{files{json_metadata_field_name}}`
-        which in our example is `{files{files}}`
+        Receiving the metadata (and the base64 content if that option is enabled) in sql query in this case can be done via `{fs{json_metadata_field_name}}`
+        which in our example is `{fs{files}}`
         
         
-        2- For `multipart/form-data` content type, the caller can upload files in any way they like, 
+        2- For `multipart/form-data` content type, the caller can upload files as multipart files
           and choose a form field to send the files metadata in as a json payload.
-          for example, if the caller chooses to send the files metadata in a form field named `metadata`
-          the sql query can access the files metadata (along with base64 content if that option is enabled)  via `{files{metadata}}`
+          for example, if the caller chooses to send the files metadata in a form field named `files`
+          the sql query can access the files metadata (along with base64 content if that option is enabled)  via `{fs{files}}`
         
         -->
 
@@ -794,11 +816,11 @@
         <!-- max_number_of_files is optional, if not defined, it will check if it's defined in the file store settings,
         if not, it will default to 10 files per request
           -->
-      </document_management>
+      </file_management>
       <query>
         <![CDATA[
-          -- you can use `{files{metadata_field_name}}` to access the uploaded files metadata and content
-          -- depending on the `document_management` -> `pass_files_content_to_query`
+          -- you can use `{fs{metadata_field_name}}` to access the uploaded files metadata and content
+          -- depending on the `file_management` -> `pass_files_content_to_query`
           -- the file content will be included or not
 
           declare @files_json nvarchar(max) = {files{metadata_field_name}};
@@ -842,82 +864,79 @@
       <verb>POST</verb>
 
 
-      <document_management>
+      <file_management>
         <!-- file stores could be a local store or an sftp remote store, their individual
         settings correspondes to the ones defined in your file_stores.xml file under
-        `document_management` -> `file_stores` node
+        `settings` -> `file_management` node
          -->
         <stores>site1, site2, site3, site4</stores>
 
 
         <!-- `permitted_file_extensions` is optional, if not defined, 
         if will first check if there is a `permitted_file_extensions` tag defined
-        for each of the `file_stores` defined in your settings.xml, 
-        if not it will allow all file types -->
+        under `settings` -> `file_management` -->
         <permitted_file_extensions>.txt,.pdf,.docx,.xlsx,.png,.jpg,.jpeg</permitted_file_extensions>
 
         <!-- `max_file_size_in_bytes` is optional, if not defined,
         it will first check if there is a `max_file_size_in_bytes` tag defined
-        for each of the `file_stores` defined in your settings.xml,
-        if not it will default to 10 MB -->
+        under `settings` -> `file_management` or default to 300MB if not defined -->
         <max_file_size_in_bytes>10485760</max_file_size_in_bytes>
         <!-- 10 MB -->
 
-        <!-- the below two field would fallback on `file_stores` settings if not defined here -->
+        <!-- the below two field would fallback on `file_management` settings if not defined here -->
         <filename_field_in_payload>file_name</filename_field_in_payload>
         <base64_content_field_in_payload>base64_content</base64_content_field_in_payload>
 
 
         <pass_files_content_to_query>false</pass_files_content_to_query>
-        <!-- `pass_files_content_to_query` controls whether the uploaded files content is passed to the SQL query
+<!-- `pass_files_content_to_query` controls whether the uploaded files content is passed to the SQL query
         when set to true, the files content will be included in the query.
         when set to false, only the files metadata will be passed to the query.
-        if not defined, the app will check if it's defined in `file_stores` under `document_management` node,
-        if not, it will default to false.
+        if not defined, the system will check if this tag is defined under `settings` -> `file_management`, if not, it will default to false.
         
         
-        
-        The structure that is expected to be passed to the query variable (e.g., {fs{files}}) is as follows:
+        the caller needs to pass json metadata for each file being uploaded as follows:
         
         ```json
         [
             {
-              "id": "generated GUID for the file by the engine, unless passed by the caller and `accept_caller_defined_file_ids` is set to true in `file_stores`",
+              "id": "optional GUID for the file, if not provided, the engine will generate one",
               "name": "example.txt",
-              "relative_path": "2025/Oct/22/<some-guid-goes-here>/example.txt", // generated by the engine based on the `relative_file_path_structure` defined in the file store settings
-              "extension": ".txt", // file extension generated by the engine
-              "size": 1234, // file size in bytes generated by the engine
-              "base64_content": "SGVsbG8gd29ybGQh..." // base64 content of the file if `pass_files_content_to_query` is set to true
-            },
-            ...
-        ]
-        ```
-        
-        `base64_content` field will only be included if `pass_files_content_to_query` is set to true.
-        and in the case of `application/json` content type, the caller needs to provide the `base64_content` field
-        but in the case of `multipart/form-data` content type, the caller can upload the file normally
-        and the engine will read the file content and convert it to base64.
-        
-        `id` is a GUID generated by the engine for each uploaded file, unless the caller provides it during upload
-        and `accept_caller_defined_file_ids` is set to true in `file_stores`
-        `relative_path` is the base path of the file store + `document_management:relative_file_path_structure`
-          e.g., if the base path is `c:\filestore` and the `relative_file_path_structure` is `{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}`
-          then the full path of the file will be `c:\filestore\2025\Oct\22\<some-guid-goes-here>\example.txt`
-        
-        the caller can enrich the file metadata during upload by providing additional fields such as `description` (or any other custom fields)
-        
-        To do so, the caller needs to pass json metadata for each file being uploaded as follows:
-        
-        ```json
-        [
-            {
-              "name": "example.txt",
-              "description": "This is an example text file", // custom field
+              "description": "This is an example text file", // optional custom field
+              "base64_content": "SGVsbG8gd29ybGQh...", // only if `pass_files_content_to_query` is set to true
               // other custom fields can be added here
             },
             ...
         ]
         ```
+
+
+        
+        The system then adds extra fields to the structure sent by the caller and pass it to the query.
+        
+        below is the structure of the file metadata (and content if that option is enabled) that gets passed to the sql query:
+        
+        ```json
+        [
+            {
+              "id": "generated GUID for the file by the engine, unless passed by the caller",
+              "name": "example.txt",
+              "relative_path": "2025/Oct/22/<the-guid-referenced-in-the-id-field>/example.txt", // relative path structure is defined in settings
+              "extension": ".txt",
+              "size": 1234,
+              "base64_content": "SGVsbG8gd29ybGQh..." // only if `pass_files_content_to_query` is set to true 
+            },
+            ...
+        ]
+        ```
+        
+        `id` is a GUID generated by the engine for each uploaded file, unless the caller provides it during upload.
+        `relative_path` is the base path of the file store + `file_management:relative_file_path_structure`
+          e.g., if the base path is `c:\filestore` and the `relative_file_path_structure` is `{date{yyyy}}\{date{MMM}}\{date{dd}}\{{guid}}\{file{name}}`
+          then the full path of the file will be `c:\filestore\2025\Oct\22\<guid-goes-here>\example.txt`
+        
+        the caller can enrich the file metadata during upload by providing additional fields such as `description` (or any other custom fields)
+        
         
         The caller can send the files and its metadata in either `application/json` or `multipart/form-data` content type.
         
@@ -932,6 +951,7 @@
                 // other json payload fields can go here
             "files": [
                 {
+                  "id": "optional GUID for the file, if not provided, the engine will generate one",
                   "name": "example.txt",
                   "description": "This is an example text file",
                   "base64_content": "SGVsbG8gd29ybGQh..."
@@ -943,39 +963,15 @@
         ```
         
         Only the `name` and `base64_content` fields are mandatory for each file being uploaded.
-        And the name of those fields can be changed via `filename_field_in_payload` and `base64_content_field_in_payload` settings.
         
         Receiving the metadata (and the base64 content if that option is enabled) in sql query in this case can be done via `{fs{json_metadata_field_name}}`
         which in our example is `{fs{files}}`
         
-        the `files` in our `{fs{files}}` corresponds to the json property name in the payload that holds the files metadata and content.
         
-        
-        2- For `multipart/form-data` content type, the caller can upload files in any way they like, 
+        2- For `multipart/form-data` content type, the caller can upload files as multipart files
           and choose a form field to send the files metadata in as a json payload.
-          for example, if the caller chooses to send the files metadata in a form field named `metadata`
-          the sql query can access the files metadata (along with base64 content if that option is enabled)  via `{fs{metadata}}`
-          so the caller needs to send the files metadata in the `metadata` form field as follows:
-          ```json
-          [
-              {
-                "name": "example.txt",
-                "description": "This is an example text file",
-                // other custom fields can be added here
-              },
-              ...
-          ]
-          ```
-          notice that in this case, the caller does not need to provide the `base64_content` field as the engine
-          picks up the uploaded files content and converts it to base64 if that option is enabled.
-          
-          and for both content types, the caller can upload multiple files as needed. and if `max_number_of_files` is defined,
-          the number of files being uploaded should not exceed that number.
-          
-          files will be stored in one of the defined `file_stores` based on the file store selection logic defined in the engine.
-          and their base64 content will only be passed to the sql query if `pass_files_content_to_query` is set to true.
-          
-          the default behavior is to NOT pass the files base64 content to the sql query.
+          for example, if the caller chooses to send the files metadata in a form field named `files`
+          the sql query can access the files metadata (along with base64 content if that option is enabled)  via `{fs{files}}`
         
         -->
 
@@ -983,7 +979,7 @@
         <!-- max_number_of_files is optional, if not defined, it will check if it's defined in the file store settings,
         if not, it will default to 10 files per request
           -->
-      </document_management>
+      </file_management>
 
 
 

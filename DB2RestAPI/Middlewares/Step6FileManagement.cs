@@ -22,14 +22,12 @@ namespace DB2RestAPI.Middlewares
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
-        ILogger<Step6FileManagement> logger,
-        TempFilesTracker tempFilesTracker
+        ILogger<Step6FileManagement> logger
         )
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
-        private readonly TempFilesTracker _tempFilesTracker = tempFilesTracker;
         private readonly ILogger<Step6FileManagement> _logger = logger;
         private static readonly string _errorCode = "Step 6 - File Management Error";
 
@@ -39,7 +37,10 @@ namespace DB2RestAPI.Middlewares
             this._logger.LogDebug("{time}: in Step6FileManagement middleware",
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
             #endregion
-            if (!_tempFilesTracker.GetLocalFiles().Any())
+
+
+            var tempFilesTracker = context.RequestServices.GetRequiredService<TempFilesTracker>();
+            if (!tempFilesTracker.GetLocalFiles().Any())
             {
                 // Proceed to the next middleware
                 await this._next(context);
@@ -93,9 +94,9 @@ namespace DB2RestAPI.Middlewares
             #endregion
 
             #region get settings for file management
-            // Get file management settings from `document_management` section
-            var fileManagementSection = section.GetSection("document_management");
-            var defaultFileStoresSettings = this._configuration.GetSection("file_stores");
+            // Get file management settings from `file_management` section
+            var fileManagementSection = section.GetSection("file_management");
+            var defaultFileStoresSettings = this._configuration.GetSection("file_management");
             if (!fileManagementSection.Exists()
                 && !defaultFileStoresSettings.Exists())
             {
@@ -188,7 +189,7 @@ namespace DB2RestAPI.Middlewares
 
                     try
                     {
-                        foreach (var file in _tempFilesTracker.GetLocalFiles())
+                        foreach (var file in tempFilesTracker.GetLocalFiles())
                         {
                             var destinationPath = Path.Combine(localPath, Path.GetFileName(file.Value.RelativePath));
                             File.Copy(file.Key, destinationPath);
@@ -246,7 +247,7 @@ namespace DB2RestAPI.Middlewares
 
                         try
                         {
-                            foreach (var file in _tempFilesTracker.GetLocalFiles())
+                            foreach (var file in tempFilesTracker.GetLocalFiles())
                             {
                                 var destinationPath = Path.Combine(remotePath, Path.GetFileName(file.Value.RelativePath))
                                     .UnifyPathSeperator().Replace("\\", "/");
@@ -313,7 +314,7 @@ namespace DB2RestAPI.Middlewares
                         var localPath = entry.Config.GetValue<string>("path");
                         if (string.IsNullOrWhiteSpace(localPath))
                             continue;
-                        foreach (var file in _tempFilesTracker.GetLocalFiles())
+                        foreach (var file in tempFilesTracker.GetLocalFiles())
                         {
                             try
                             {
@@ -358,7 +359,7 @@ namespace DB2RestAPI.Middlewares
                         {
                             // remote path can be empty, in which case files are uploaded to the user's home directory
                             var remotePath = entry.Config.GetValue<string>("path", string.Empty);
-                            foreach (var file in _tempFilesTracker.GetLocalFiles())
+                            foreach (var file in tempFilesTracker.GetLocalFiles())
                             {
                                 try
                                 {

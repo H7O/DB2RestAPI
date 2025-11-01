@@ -9,6 +9,9 @@
     }
     public class TempFilesTracker : IDisposable
     {
+        public TempFilesTracker()
+        {
+        }
         // Dictionary provides O(1) lookup for duplicate checking
         private readonly Dictionary<string, TempFileInfo> _files = new();
 
