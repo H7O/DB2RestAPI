@@ -1,9 +1,11 @@
 using Com.H.Data.Common;
 using Com.H.IO;
 using DB2RestAPI.Settings;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Identity.Client;
 using System.Buffers;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
@@ -302,7 +304,7 @@ public class ParametersBuilder
 
                 foreach (JsonProperty property in root.EnumerateObject())
                 {
-                    if (!property.NameEquals(filesField))
+                    if (!property.NameEquals(filesField??string.Empty))
                     {
                         property.WriteTo(writer);
                     }
@@ -946,17 +948,13 @@ public class ParametersBuilder
             formDataVarRegex = _config.GetValue<string>("form_data_variables_regex");
         if (string.IsNullOrWhiteSpace(formDataVarRegex))
             formDataVarRegex = DefaultRegex.DefaultFormDataVariablesPattern;
-        var nullProtectionParams = () => new DbQueryParams()
-        {
-            DataModel = new Dictionary<string, string> { { "unlikely_header_to_be_passed", "123" } },
-            QueryParamsRegex = formDataVarRegex
-        };
+        var nullProtectionParams = () =>
+            new DbQueryParams()
+            {
+                DataModel = new Dictionary<string, string> { { "unlikely_header_to_be_passed", "123" } },
+                QueryParamsRegex = formDataVarRegex
+            };
 
-        // somehow context.Request.Content is not avaiable here (compiler error - not recognized as a property), need to investigate later
-        //if (!context.Request.Content.IsMimeMultipartContent())
-        //{
-        //    return nullProtectionParams();
-        //}
 
         if (!(
             contentType.Contains("multipart/form-data") == true
@@ -967,20 +965,75 @@ public class ParametersBuilder
 
         try
         {
+
             // Read the form data
             var form = await context.Request.ReadFormAsync(context.RequestAborted);
 
-            if (form == null)
+            if (form == null || form.Count < 1)
                 return nullProtectionParams();
-            // todo: exclude `filesField` and also exclude files in the multipart form data if any
+
+            //if (string.IsNullOrWhiteSpace(filesField))
+            //{
+            //    // no files field specified, return all form fields as is
+            //    return new DbQueryParams()
+            //    {
+            //        DataModel = form.ToDictionary(
+            //            kvp => kvp.Key,
+            //            kvp => string.Join("|", kvp.Value.Where(v => !string.IsNullOrEmpty(v)))
+            //            ),
+            //        QueryParamsRegex = formDataVarRegex
+            //    };
+            //}
+
+            
+            using var ms = new MemoryStream();
+            using var writer = new Utf8JsonWriter(ms, _jsonWriterOptions);
+
+            writer.WriteStartObject();
+
+            foreach(var kvp in form)
+            {
+                if (!StringComparer.OrdinalIgnoreCase.Equals(kvp.Key, filesField ?? string.Empty))
+                {
+                    writer.WritePropertyName(kvp.Key);
+                    if (kvp.Value.Count == 1)
+                    {
+                        writer.WriteStringValue(kvp.Value[0]);
+                    }
+                    else
+                    {
+                        writer.WriteStartArray();
+                        foreach (var val in kvp.Value)
+                        {
+                            writer.WriteStringValue(val);
+                        }
+                        writer.WriteEndArray();
+                    }
+                    continue;
+                }
+
+                // the filesField should have the files metadata in JSON array format
+                if (string.IsNullOrWhiteSpace(filesField)
+                    || kvp.Value.Count <1)
+                    continue;
+                var jsonArrayText = kvp.Value[0];
+                if (string.IsNullOrWhiteSpace(jsonArrayText))
+                    continue;
+
+                // todo: I need to see if I could repurpose the ProcessFiles method here to process files in multipart form data
+                // perhaps converting the metadata `jsonArrayText` to `JsonElement` first and then calling ProcessFiles
+                // but also adding another parameter to ProcessFiles to accept the form files collection to get the actual file content from there
+            }
+
+            writer.WriteEndObject();
+
             return new DbQueryParams()
             {
-                DataModel = form.Where(kvp => string.IsNullOrWhiteSpace(filesField)
-                || !kvp.Key.Equals(filesField, StringComparison.OrdinalIgnoreCase))
-                .ToDictionary(kvp => kvp.Key, kvp => string.Join("|", kvp.Value.Where(v => !string.IsNullOrEmpty(v)))
-                ),
+                DataModel = Encoding.UTF8.GetString(ms.ToArray()),
                 QueryParamsRegex = formDataVarRegex
             };
+
+
         }
         catch
         {
