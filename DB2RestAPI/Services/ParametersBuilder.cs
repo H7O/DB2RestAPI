@@ -312,7 +312,7 @@ public class ParametersBuilder
                     {
                         // Write the property name first, then the array value
                         writer.WritePropertyName(property.Name);
-                        await ProcessFiles(property, writer);
+                        await ProcessFiles(property.Value, writer);
                     }
 
                 }
@@ -347,14 +347,15 @@ public class ParametersBuilder
     /// Optimized version - writes directly to the provided Utf8JsonWriter
     /// </summary>
     public async Task ProcessFiles(
-        JsonProperty jsonArray, Utf8JsonWriter writer)
+        JsonElement jsonArray,
+        Utf8JsonWriter writer)
     {
         // check if jsonArray is indeed an array, if not throw exception
-        if (jsonArray.Value.ValueKind != JsonValueKind.Array)
-            throw new ArgumentException($"Invalid JSON format: Property `{jsonArray.Name}` must be an array");
+        if (jsonArray.ValueKind != JsonValueKind.Array)
+            throw new ArgumentException($"Invalid JSON format: Property must be an array");
 
         // Check if array is empty, if so just write empty array
-        if (jsonArray.Value.GetArrayLength() == 0)
+        if (jsonArray.GetArrayLength() == 0)
         {
             writer.WriteStartArray();
             writer.WriteEndArray();
@@ -420,7 +421,7 @@ public class ParametersBuilder
         int fileCount = 0;
         // iterate over each file in the array and build the new array with extra fields namely:
         // id, relative_path, extension, size, mime_type, local_temp_path (if content_base64 is passed)
-        foreach (var fileElement in jsonArray.Value.EnumerateArray())
+        foreach (var fileElement in jsonArray.EnumerateArray())
         {
             if (maxNumberOfFiles.HasValue && fileCount >= maxNumberOfFiles.Value)
                 throw new ArgumentException($"Number of files exceeds the maximum allowed limit of {maxNumberOfFiles.Value}");
@@ -1024,9 +1025,10 @@ public class ParametersBuilder
                 // perhaps converting the metadata `jsonArrayText` to `JsonElement` first and then calling ProcessFiles
                 // but also adding another parameter to ProcessFiles to accept the form files collection to get the actual file content from there
                 using var jsonDoc = JsonDocument.Parse(jsonArrayText);
-                var jsonArrayElement = jsonDoc.RootElement; // metadata array similar to what we had in JSON body
-                // which now we have parity with JSON body files processing
-                // what's left is modifying ProcessFiles to accept the actual form files collection alongside the metadata array element
+                var jsonElement = jsonDoc.RootElement;
+
+                // after having your jsonArray in the form of JsonElement, you can now call ProcessFiles
+                // but first you need to add an extra optional parameter to ProcessFiles to accept the form files collection
             }
 
             writer.WriteEndObject();
