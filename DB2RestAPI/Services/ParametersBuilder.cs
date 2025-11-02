@@ -1023,6 +1023,10 @@ public class ParametersBuilder
                 // todo: I need to see if I could repurpose the ProcessFiles method here to process files in multipart form data
                 // perhaps converting the metadata `jsonArrayText` to `JsonElement` first and then calling ProcessFiles
                 // but also adding another parameter to ProcessFiles to accept the form files collection to get the actual file content from there
+                using var jsonDoc = JsonDocument.Parse(jsonArrayText);
+                var jsonArrayElement = jsonDoc.RootElement; // metadata array similar to what we had in JSON body
+                // which now we have parity with JSON body files processing
+                // what's left is modifying ProcessFiles to accept the actual form files collection alongside the metadata array element
             }
 
             writer.WriteEndObject();
