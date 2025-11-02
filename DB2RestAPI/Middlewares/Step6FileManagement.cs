@@ -120,10 +120,10 @@ namespace DB2RestAPI.Middlewares
                 return;
             }
 
-            var storeList = stores.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            var storesList = stores.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .ToHashSet();
 
-            if (!storeList.Any())
+            if (!storesList.Any())
             {
                 // No valid stores found, proceed to next middleware
                 await this._next(context);
@@ -132,7 +132,7 @@ namespace DB2RestAPI.Middlewares
 
             var localStores = new List<StoreOperationTracker>();
             var sftpStores = new List<StoreOperationTracker>();
-            foreach (var store in stores)
+            foreach (var store in storesList)
             {
                 var storeSection = defaultFileStoresSettings.GetSection($"local_file_store:{store}");
                 if (storeSection.Exists())
@@ -192,7 +192,13 @@ namespace DB2RestAPI.Middlewares
                         foreach (var file in tempFilesTracker.GetLocalFiles())
                         {
                             var destinationPath = Path.Combine(localPath, Path.GetFileName(file.Value.RelativePath));
-                            File.Copy(file.Key, destinationPath);
+                            // see if the parent directory exists, if not create it
+                            var parentDir = Path.GetDirectoryName(destinationPath);
+                            if (!string.IsNullOrWhiteSpace(parentDir))
+                            {
+                                Directory.CreateDirectory(parentDir!);
+                            }
+                            File.Copy(file.Key, destinationPath, true);
                             entry.WasSuccessful = true;
                             this._logger.LogDebug("{time}: Copied temp file '{tempFile}' to local store ({local_store_name})  at '{destinationPath}' in Step6FileManagement middleware",
                                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),
@@ -301,10 +307,8 @@ namespace DB2RestAPI.Middlewares
                 this._logger.LogError(ex, "{errorCode}: An exception occurred in Step6FileManagement middleware: {message}",
                     _errorCode,
                     ex.Message);
-                throw; // Re-throw the exception after logging
-            }
-            finally
-            {
+
+
                 // rollback local store files
                 if (localStores != null)
                 {
@@ -328,7 +332,7 @@ namespace DB2RestAPI.Middlewares
                                         entry.Config.Key);
                                 }
                             }
-                            catch (Exception ex)
+                            catch (Exception ex2)
                             {
                                 this._logger.LogWarning("{time}: Failed to delete file '{file}' from local store ({local_store_name}) during rollback in Step6FileManagement middleware"
                                     + Environment.NewLine
@@ -337,7 +341,7 @@ namespace DB2RestAPI.Middlewares
                                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),
                                     file.Key,
                                     entry.Config.Key,
-                                    ex.Message
+                                    ex2.Message
                                     );
                             }
                         }
@@ -371,7 +375,7 @@ namespace DB2RestAPI.Middlewares
                                         destinationPath,
                                         entry.Config.Key);
                                 }
-                                catch (Exception ex)
+                                catch (Exception ex2)
                                 {
                                     this._logger.LogWarning("{time}: Failed to delete file '{file}' from SFTP store ({sftp_store_name}) during rollback in Step6FileManagement middleware"
                                         + Environment.NewLine
@@ -380,7 +384,7 @@ namespace DB2RestAPI.Middlewares
                                         DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),
                                         file.Key,
                                         entry.Config.Key,
-                                        ex.Message
+                                        ex2.Message
                                         );
                                 }
                             }
@@ -388,9 +392,12 @@ namespace DB2RestAPI.Middlewares
                     }
                 }
 
-                
-                this._logger.LogDebug("{time}: Temporary files cleaned up in Step6FileManagement middleware",
+
+                this._logger.LogDebug("{time}: files rolled back in Step6FileManagement middleware",
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
+
+
+                throw; // Re-throw the exception after logging
             }
         }
 

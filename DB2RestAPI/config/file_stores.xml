@@ -74,7 +74,7 @@
         <path><![CDATA[c:\myfiles\]]></path>
       </site1>
       <site2>
-        <path><![CDATA[c:\site4\]]></path>
+        <path><![CDATA[g:\site4\]]></path>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request.
         default is `false` if tag is not present
@@ -86,28 +86,28 @@
 
     <sftp_file_store>
       <site3>
-        <host><![CDATA[192.168.1.194]]></host>
+        <host><![CDATA[192.168.50.196]]></host>
         <port>2222</port>
         <username><![CDATA[t]]></username>
         <password><![CDATA[123]]></password>
-        <remote_path><![CDATA[/site1/]]></remote_path>
-        <enabled><![CDATA[true]]></enabled>
-      </site3>
-      <site4>
-        <host><![CDATA[192.168.2.200]]></host>
-        <port>22</port>
-        <username><![CDATA[test]]></username>
-        <password><![CDATA[password123]]></password>
-        <remote_path><![CDATA[/site2/]]></remote_path>
+        <path><![CDATA[/site2/]]></path>
         <enabled><![CDATA[true]]></enabled>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request
         default is `false` if tag is not present
         -->
         <optional>true</optional>
-
-
+      </site3>
+      <site4>
+        <host><![CDATA[192.168.50.196]]></host>
+        <port>2222</port>
+        <username><![CDATA[t]]></username>
+        <password><![CDATA[123]]></password>
+        <path><![CDATA[/site1/]]></path>
+        <enabled><![CDATA[true]]></enabled>
       </site4>
+
+
 
     </sftp_file_store>
 
