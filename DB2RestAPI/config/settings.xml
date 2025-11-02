@@ -14,7 +14,7 @@
     <path>config/sql.xml</path>
     <path>config/api_gateway.xml</path>
     <path>config/global_api_keys.xml</path>
-    <path>config/file_stores.xml</path>
+    <path>config/file_management.xml</path>
     <path>config/regex.xml</path>
     
     <!-- 

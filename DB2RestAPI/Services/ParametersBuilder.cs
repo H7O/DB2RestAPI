@@ -107,22 +107,13 @@ public class ParametersBuilder
             if (!string.IsNullOrWhiteSpace(filesDataFieldName))
                 return filesDataFieldName;
 
-            #region get files data field name from the query (if any)
+            #region get files data field name from section -> settings (if any)
 
-            var filesRegex = section.GetValue<string>("files_variables_regex");
-            if (string.IsNullOrWhiteSpace(filesRegex))
-                filesRegex = _config.GetValue<string>("regex:files_variables_regex");
-            if (string.IsNullOrWhiteSpace(filesRegex))
-                filesRegex = DefaultRegex.DefaultFilesVariablesPattern;
-
-            var query = section?.GetValue<string>("query");
-            filesDataFieldName = Regex
-                .Matches(query ?? string.Empty, filesRegex)?
-                .FirstOrDefault()?.Groups["param"]?.Value;
-
-            if (!string.IsNullOrWhiteSpace(filesDataFieldName))
-                context.Items["files_data_field"] = filesDataFieldName;
-            else filesDataFieldName = null;
+            filesDataFieldName = section.GetValue<string>("file_management:files_json_field_or_form_field_name");
+            if (string.IsNullOrWhiteSpace(filesDataFieldName))
+                filesDataFieldName = _config.GetValue<string>("file_management:files_json_field_or_form_field_name");
+            if (string.IsNullOrWhiteSpace(filesDataFieldName))
+                return null;
             return filesDataFieldName;
             #endregion
 
@@ -261,6 +252,9 @@ public class ParametersBuilder
         var context = this.Context;
         var section = this.Section;
         var contentType = this.ContentType;
+
+
+
         var filesField = this.FilesDataFieldNameInQueryIfAny;
 
 

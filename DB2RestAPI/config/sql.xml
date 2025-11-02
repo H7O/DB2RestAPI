@@ -888,6 +888,12 @@
         <base64_content_field_in_payload>base64_content</base64_content_field_in_payload>
 
 
+        <!-- `files_json_field_or_form_field_name` tells the application to look for files metadata in 
+        the specified json property (for application/json content type) or form field (for multipart/form-data content type)
+        if not defined, the system will fall back on the same tag under `settings` -> `file_management`
+        -->
+        <files_json_field_or_form_field_name>files</files_json_field_or_form_field_name>
+
         <pass_files_content_to_query>false</pass_files_content_to_query>
 <!-- `pass_files_content_to_query` controls whether the uploaded files content is passed to the SQL query
         when set to true, the files content will be included in the query.
@@ -992,7 +998,7 @@
         declare @name nvarchar(500) = {{name}};
         declare @phone nvarchar(100) = {{phone}};
         declare @active bit = {{active}};
-        declare @files_json nvarchar(max) = {fs{files}};
+        declare @files_json nvarchar(max) = {{files}};
         declare @description nvarchar(1000) = {{description}};
       
         -- check if the contact already exists
@@ -1115,7 +1121,7 @@
             select id, file_name, relative_path, description
             from @files
             for json path
-        ) as files
+        ) as {type{json{files}}}
     from @new_contact nc;
 
     ]]>

@@ -29,12 +29,6 @@
     per API node in sql.xml
     override precedence is: API node > global setting here
       -->
-    <files_json_field_or_form_field_name>files</files_json_field_or_form_field_name>
-    <!-- files_json_field_or_form_field_name is optional, if not defined, 
-    it will default to `files`, can be overridden
-    per API node in sql.xml
-    override precedence is: API node > global setting here
-    -->
 
     <max_file_size_in_bytes>314572800</max_file_size_in_bytes>
     <!-- 10 MB -->
@@ -86,11 +80,11 @@
 
     <sftp_file_store>
       <site3>
-        <host><![CDATA[192.168.50.196]]></host>
-        <port>2222</port>
+        <host><![CDATA[test_sftp]]></host>
+        <port>3333</port>
         <username><![CDATA[t]]></username>
         <password><![CDATA[123]]></password>
-        <path><![CDATA[/site2/]]></path>
+        <path><![CDATA[/site3/]]></path>
         <enabled><![CDATA[true]]></enabled>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request
@@ -99,11 +93,11 @@
         <optional>true</optional>
       </site3>
       <site4>
-        <host><![CDATA[192.168.50.196]]></host>
-        <port>2222</port>
+        <host><![CDATA[test_sftp]]></host>
+        <port>3333</port>
         <username><![CDATA[t]]></username>
         <password><![CDATA[123]]></password>
-        <path><![CDATA[/site1/]]></path>
+        <path><![CDATA[/site3/]]></path>
         <enabled><![CDATA[true]]></enabled>
       </site4>
 

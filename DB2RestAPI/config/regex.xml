@@ -73,34 +73,6 @@
   
     
     
-    
-    
-    <!--
-    `files_variables_regex` with default regex of `(?<open_marker>\{fs\{)(?<param>.*?)?(?<close_marker>\}\})`
-    even if you delete the `files_variables_regex` node,
-    with same logic as above for files variable to look for in queries, if found, the variable name mentioned in
-    it (e.g., having the variable `{fs{files}}` be found in your API query) the app would use that name (in our example `files`)
-    to look for files meta data and their base 64 content in json payload field having the same name.
-    This is for `application/json` post requests.
-  
-    And for `multipart/form-data` post requests, the app would look for files meta data only in a form field having that name
-    without looking for base64 content as files are sent as binary content in multipart/form-data posts.
-    And since files meta data in `multipart/form-data` posts are sent seperately from their binary content,
-    the app would automatically link the files meta data with their binary content based on the file name.
-    Note: there is no generic form of this variable decorator like the other variable types above,
-    because files variable decorator uses only one specific format `{fs{var_name}}` to avoid confusion with other variable types.
-    The key point is that the engine needs to look for a specific variable decorator format in queries to identify files variables.
-    And if it used a generic format like {{var_name}}, the regex would pick up the first occurrence of `{{` and the first occurrence of `}}`
-    giving the wrong variable name to the engine to look for files meta data and content.
-    -->
-    <files_variables_regex>
-      <![CDATA[(?<open_marker>\{fs\{)(?<param>.*?)?(?<close_marker>\}\})]]>
-    </files_variables_regex>
-
-    
-    
-    
-    
     <!--
     NOTE: the variable pattern in default regex strings allows for using 
     variable names in your query in a generic decorator
