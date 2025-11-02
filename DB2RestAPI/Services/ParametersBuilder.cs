@@ -347,15 +347,16 @@ public class ParametersBuilder
     /// Optimized version - writes directly to the provided Utf8JsonWriter
     /// </summary>
     public async Task ProcessFiles(
-        JsonElement jsonArray,
-        Utf8JsonWriter writer)
+        JsonElement filesArray,
+        Utf8JsonWriter writer,
+        IFormFileCollection? formFiles = null)
     {
         // check if jsonArray is indeed an array, if not throw exception
-        if (jsonArray.ValueKind != JsonValueKind.Array)
+        if (filesArray.ValueKind != JsonValueKind.Array)
             throw new ArgumentException($"Invalid JSON format: Property must be an array");
 
         // Check if array is empty, if so just write empty array
-        if (jsonArray.GetArrayLength() == 0)
+        if (filesArray.GetArrayLength() == 0)
         {
             writer.WriteStartArray();
             writer.WriteEndArray();
@@ -415,30 +416,58 @@ public class ParametersBuilder
         var acceptCallerDefinedFileIds = section.GetValue<bool?>("file_management:accept_caller_defined_file_ids") ??
             _config.GetValue<bool?>("file_management:accept_caller_defined_file_ids") ?? false;
 
+        // Determine if we're processing multipart files or JSON base64
+        bool isMultipartMode = formFiles != null && formFiles.Count > 0;
+
+
         // Write array directly to the provided writer
         writer.WriteStartArray();
 
         int fileCount = 0;
         // iterate over each file in the array and build the new array with extra fields namely:
         // id, relative_path, extension, size, mime_type, local_temp_path (if content_base64 is passed)
-        foreach (var fileElement in jsonArray.EnumerateArray())
+        foreach (var fileElement in filesArray.EnumerateArray())
         {
             if (maxNumberOfFiles.HasValue && fileCount >= maxNumberOfFiles.Value)
                 throw new ArgumentException($"Number of files exceeds the maximum allowed limit of {maxNumberOfFiles.Value}");
 
             if (fileElement.ValueKind != JsonValueKind.Object)
                 throw new ArgumentException("Invalid JSON format: Each file entry must be a JSON object");
-            await ProcessSingleFileEntry(
-                fileElement,
-                writer,
-                fileNameField,
-                fileContentField,
-                relativeFilePathStructure,
-                maxFileSizeInBytes,
-                passFilesContentToQuery,
-                acceptCallerDefinedFileIds,
-                permittedExtensionsHashSet,
-                context.RequestAborted);
+
+            if (isMultipartMode)
+            {
+                // Validate we have enough files in the collection
+                if (fileCount >= formFiles!.Count)
+                    throw new ArgumentException($"Mismatch between metadata entries ({filesArray.GetArrayLength()}) and uploaded files ({formFiles.Count})");
+
+                // Process multipart file - get content from form file
+                await ProcessSingleMultipartFileEntry(
+                    fileElement,
+                    formFiles[fileCount],
+                    writer,
+                    fileNameField,
+                    relativeFilePathStructure,
+                    maxFileSizeInBytes,
+                    passFilesContentToQuery,
+                    acceptCallerDefinedFileIds,
+                    permittedExtensionsHashSet,
+                    context.RequestAborted);
+            }
+            else
+            {
+                // Process JSON file - get base64 content from JSON
+                await ProcessSingleFileEntry(
+                    fileElement,
+                    writer,
+                    fileNameField,
+                    fileContentField,
+                    relativeFilePathStructure,
+                    maxFileSizeInBytes,
+                    passFilesContentToQuery,
+                    acceptCallerDefinedFileIds,
+                    permittedExtensionsHashSet,
+                    context.RequestAborted);
+            }
 
             fileCount++;
 
@@ -554,6 +583,126 @@ public class ParametersBuilder
         writer.WriteEndObject();
     }
 
+
+    /// <summary>
+    /// Process a single file from multipart/form-data
+    /// File content comes from IFormFile, metadata comes from JSON
+    /// </summary>
+    private async Task ProcessSingleMultipartFileEntry(
+        JsonElement fileMetadata,
+        IFormFile formFile,
+        Utf8JsonWriter writer,
+        string fileNameField,
+        string relativeFilePathStructure,
+        long? maxFileSizeInBytes,
+        bool passFilesContentToQuery,
+        bool acceptCallerDefinedFileIds,
+        HashSet<string>? permittedExtensionsHashSet,
+        CancellationToken cancellationToken)
+    {
+        // Use filename from metadata if provided, otherwise use the uploaded file's name
+        string fileName;
+        if (fileMetadata.TryGetProperty(fileNameField, out var fileNameProperty)
+            && fileNameProperty.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(fileNameProperty.GetString()))
+        {
+            fileName = fileNameProperty.GetString()!;
+        }
+        else
+        {
+            fileName = formFile.FileName;
+        }
+
+        fileName = ValidateAndGetNormalizeFileName(fileName, permittedExtensionsHashSet);
+
+        // Check file size
+        if (maxFileSizeInBytes.HasValue && formFile.Length > maxFileSizeInBytes.Value)
+        {
+            throw new ArgumentException($"File `{fileName}` exceeds the maximum allowed size of {maxFileSizeInBytes.Value} bytes");
+        }
+
+        // Get or generate file ID
+        Guid fileId;
+        if (acceptCallerDefinedFileIds
+            && fileMetadata.TryGetProperty("id", out var idProperty)
+            && idProperty.ValueKind == JsonValueKind.String
+            && Guid.TryParse(idProperty.GetString(), out var parsedGuid))
+        {
+            fileId = parsedGuid;
+        }
+        else
+        {
+            fileId = Guid.NewGuid();
+        }
+
+        var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName);
+        var mimeType = formFile.ContentType ?? GetMimeTypeFromFileName(fileName);
+
+        // Write file object
+        writer.WriteStartObject();
+        writer.WriteString("id", fileId);
+        writer.WriteString(fileNameField, fileName);
+        writer.WriteString("relative_path", relativePath);
+        writer.WriteString("extension", Path.GetExtension(fileName));
+        writer.WriteString("mime_type", mimeType);
+        writer.WriteNumber("size", formFile.Length);
+
+        if (!passFilesContentToQuery)
+        {
+            // Save to temp file (NO base64 decoding needed!)
+            var tempPath = Path.GetTempFileName();
+
+            try
+            {
+                using (var stream = formFile.OpenReadStream())
+                using (var fileStream = new FileStream(
+                    tempPath, 
+                    FileMode.Create, 
+                    FileAccess.Write, 
+                    FileShare.None,
+                    bufferSize: 81920,
+                    useAsync: true))
+                {
+                    await stream.CopyToAsync(fileStream, cancellationToken);
+                }
+
+                writer.WriteString("backend_temp_file_path", tempPath);
+                TempFilesTracker.AddLocalFile(tempPath, fileName, relativePath);
+            }
+            catch
+            {
+                // Clean up temp file if something goes wrong
+                try { File.Delete(tempPath); } catch { }
+                throw;
+            }
+        }
+        else
+        {
+            // Read file and convert to base64 for inclusion in JSON
+            using var ms = new MemoryStream();
+            using (var stream = formFile.OpenReadStream())
+            {
+                await stream.CopyToAsync(ms, cancellationToken);
+            }
+
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            writer.WriteString("base64_content", base64);
+        }
+
+        // Copy any additional properties from metadata JSON
+        foreach (var prop in fileMetadata.EnumerateObject())
+        {
+            // Skip properties we've already written
+            if (prop.Name.Equals(fileNameField, StringComparison.OrdinalIgnoreCase) ||
+                prop.Name.Equals("id", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            writer.WritePropertyName(prop.Name);
+            prop.Value.WriteTo(writer);
+        }
+
+        writer.WriteEndObject();
+    }
 
 
     /// <summary>
@@ -973,20 +1122,6 @@ public class ParametersBuilder
             if (form == null || form.Count < 1)
                 return nullProtectionParams();
 
-            //if (string.IsNullOrWhiteSpace(filesField))
-            //{
-            //    // no files field specified, return all form fields as is
-            //    return new DbQueryParams()
-            //    {
-            //        DataModel = form.ToDictionary(
-            //            kvp => kvp.Key,
-            //            kvp => string.Join("|", kvp.Value.Where(v => !string.IsNullOrEmpty(v)))
-            //            ),
-            //        QueryParamsRegex = formDataVarRegex
-            //    };
-            //}
-
-            
             using var ms = new MemoryStream();
             using var writer = new Utf8JsonWriter(ms, _jsonWriterOptions);
 
@@ -1015,20 +1150,17 @@ public class ParametersBuilder
 
                 // the filesField should have the files metadata in JSON array format
                 if (string.IsNullOrWhiteSpace(filesField)
-                    || kvp.Value.Count <1)
+                    || kvp.Value.Count < 1)
                     continue;
+                    
+                
                 var jsonArrayText = kvp.Value[0];
                 if (string.IsNullOrWhiteSpace(jsonArrayText))
                     continue;
 
-                // todo: I need to see if I could repurpose the ProcessFiles method here to process files in multipart form data
-                // perhaps converting the metadata `jsonArrayText` to `JsonElement` first and then calling ProcessFiles
-                // but also adding another parameter to ProcessFiles to accept the form files collection to get the actual file content from there
                 using var jsonDoc = JsonDocument.Parse(jsonArrayText);
-                var jsonElement = jsonDoc.RootElement;
-
-                // after having your jsonArray in the form of JsonElement, you can now call ProcessFiles
-                // but first you need to add an extra optional parameter to ProcessFiles to accept the form files collection
+                writer.WritePropertyName(filesField!);
+                await ProcessFiles(jsonDoc.RootElement, writer, form.Files); // ← Pass JsonElement + form files
             }
 
             writer.WriteEndObject();
@@ -1038,8 +1170,6 @@ public class ParametersBuilder
                 DataModel = Encoding.UTF8.GetString(ms.ToArray()),
                 QueryParamsRegex = formDataVarRegex
             };
-
-
         }
         catch
         {

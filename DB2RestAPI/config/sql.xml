@@ -1111,6 +1111,10 @@
 
     -- 5) after committing return the @new_contact with extra field called `files` that has the @files table content 
     --    as a json string (json array)
+    
+    -- debug : delete the entries (so you could keep rerunning the test)
+    delete from [contacts] where id in (select id from @new_contact);
+    delete from [files] where contact_id in (select id from @new_contact);
 
     select 
         nc.id,
