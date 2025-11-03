@@ -98,7 +98,9 @@ public class Step2ServiceTypeChecks(
         // caller should set the Content-Type header to either `application/json` or `multipart/form-data`
         // with error code 400
 
-        var contentType = context.Request.ContentType;
+        var contentType = context.Request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
+
+        // string? mediaType = contentType?.Split(';')[0].Trim().ToLowerInvariant();
 
         if (
             !(contentType!=null && _acceptableContentTypes.Contains(contentType.ToLower())
