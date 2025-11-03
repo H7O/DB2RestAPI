@@ -196,7 +196,7 @@ namespace DB2RestAPI.Controllers
             try
             {
                 var response = await _settings.CacheService
-                    .Get<ObjectResult>(
+                    .Get<IActionResult>(
                     section,
                     qParams,
                     disableDiffered => GetResultFromDbAsync(section, connection, query, qParams, disableDiffered),
@@ -264,7 +264,7 @@ namespace DB2RestAPI.Controllers
         /// <param name="qParams">A list of query parameters to be used in the query.</param>
         /// <param name="disableDifferredExecution">For caching purposes, retrieves all records in memory if enabled so they could be placed in a cache mechanism</param>
         /// <returns>An <see cref="ObjectResult"/> containing the result of the query execution.</returns>
-        public async Task<ObjectResult> GetResultFromDbAsync(
+        public async Task<IActionResult> GetResultFromDbAsync(
             IConfigurationSection serviceQuerySection,
             DbConnection connection,
             string query,
