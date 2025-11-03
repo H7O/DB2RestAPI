@@ -4,19 +4,19 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DB2RestAPI.Middlewares
 {
-    public class Step6FileDownloadManagement(
+    public class Step7FileDownloadManagement(
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
-        ILogger<Step6FileDownloadManagement> logger
+        ILogger<Step7FileDownloadManagement> logger
             )
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
-        private readonly ILogger<Step6FileDownloadManagement> _logger = logger;
+        private readonly ILogger<Step7FileDownloadManagement> _logger = logger;
         // private static int count = 0;
-        private static readonly string _errorCode = "Step 6 - File Download Management Error";
+        private static readonly string _errorCode = "Step 7 - File Download Management Error";
         public async Task InvokeAsync(HttpContext context)
         {
             #region log the time and the middleware name
