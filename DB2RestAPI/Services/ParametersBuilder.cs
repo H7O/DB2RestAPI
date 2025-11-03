@@ -1165,6 +1165,8 @@ public class ParametersBuilder
 
             writer.WriteEndObject();
 
+            await writer.FlushAsync(context.RequestAborted);
+
             return new DbQueryParams()
             {
                 DataModel = Encoding.UTF8.GetString(ms.ToArray()),
