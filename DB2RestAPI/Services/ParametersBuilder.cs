@@ -202,9 +202,9 @@ public class ParametersBuilder
         var context = Context;
 
         // add headers to qParams
-        var headersVarPattern = section.GetValue<string>("headers_variables_regex");
+        var headersVarPattern = section.GetValue<string>("headers_variables_pattern");
         if (string.IsNullOrWhiteSpace(headersVarPattern))
-            headersVarPattern = _config.GetValue<string>("regex:headers_variables_regex");
+            headersVarPattern = _config.GetValue<string>("regex:headers_variables_pattern");
         if (string.IsNullOrWhiteSpace(headersVarPattern))
             headersVarPattern = DefaultRegex.DefaultHeadersPattern;
 
@@ -260,9 +260,9 @@ public class ParametersBuilder
         var filesField = this.FilesDataFieldNameInQueryIfAny;
 
 
-        var jsonVarRegex = Section.GetValue<string>("json_variables_regex");
+        var jsonVarRegex = Section.GetValue<string>("json_variables_pattern");
         if (string.IsNullOrWhiteSpace(jsonVarRegex))
-            jsonVarRegex = _config.GetValue<string>("regex:json_variables_regex");
+            jsonVarRegex = _config.GetValue<string>("regex:json_variables_pattern");
         if (string.IsNullOrWhiteSpace(jsonVarRegex))
             jsonVarRegex = DefaultRegex.DefaultJsonVariablesPattern;
 
@@ -1093,9 +1093,9 @@ public class ParametersBuilder
         var contentType = this.ContentType;
         var filesField = this.FilesDataFieldNameInQueryIfAny;
 
-        var formDataVarRegex = section.GetValue<string>("form_data_variables_regex");
+        var formDataVarRegex = section.GetValue<string>("form_data_variables_pattern");
         if (string.IsNullOrWhiteSpace(formDataVarRegex))
-            formDataVarRegex = _config.GetValue<string>("form_data_variables_regex");
+            formDataVarRegex = _config.GetValue<string>("form_data_variables_pattern");
         if (string.IsNullOrWhiteSpace(formDataVarRegex))
             formDataVarRegex = DefaultRegex.DefaultFormDataVariablesPattern;
         var nullProtectionParams = () =>
@@ -1191,9 +1191,9 @@ public class ParametersBuilder
         var context = this.Context;
         var section = this.Section;
         var contentType = this.ContentType;
-        var queryStringVarRegex = section.GetValue<string>("query_string_variables_regex");
+        var queryStringVarRegex = section.GetValue<string>("query_string_variables_pattern");
         if (string.IsNullOrWhiteSpace(queryStringVarRegex))
-            queryStringVarRegex = _config.GetValue<string>("query_string_variables_regex");
+            queryStringVarRegex = _config.GetValue<string>("query_string_variables_pattern");
         if (string.IsNullOrWhiteSpace(queryStringVarRegex))
             queryStringVarRegex = DefaultRegex.DefaultQueryStringPattern;
 
@@ -1221,9 +1221,9 @@ public class ParametersBuilder
         var context = this.Context;
         var section = this.Section;
         var contentType = this.ContentType;
-        var routeVarRegex = section.GetValue<string>("route_variables_regex");
+        var routeVarRegex = section.GetValue<string>("route_variables_pattern");
         if (string.IsNullOrWhiteSpace(routeVarRegex))
-            routeVarRegex = _config.GetValue<string>("route_variables_regex");
+            routeVarRegex = _config.GetValue<string>("route_variables_pattern");
         if (string.IsNullOrWhiteSpace(routeVarRegex))
             routeVarRegex = DefaultRegex.DefaultRouteVariablesPattern;
         if (context.Items["route_parameters"] is Dictionary<string, string> routeParameters && routeParameters?.Count > 0)

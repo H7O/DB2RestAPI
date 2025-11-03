@@ -151,7 +151,7 @@ public class QueryRouteResolver
 
         var routeParameterPattern = configSection?.GetValue<string>("route_variable_pattern");
         if (string.IsNullOrWhiteSpace(routeParameterPattern))
-            routeParameterPattern = configSection?.GetValue<string>("route_variables_regex");
+            routeParameterPattern = configSection?.GetValue<string>("route_variables_pattern");
         if (string.IsNullOrWhiteSpace(routeParameterPattern))
             routeParameterPattern = DefaultRegex.DefaultRouteVariablesPattern;
 

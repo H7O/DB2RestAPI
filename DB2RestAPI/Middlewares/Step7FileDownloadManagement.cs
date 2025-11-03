@@ -104,6 +104,18 @@ namespace DB2RestAPI.Middlewares
             #region set context items for ApiController to handle file download instead of returning json
 
             context.Items["is_file_download"] = true;
+            // get the store if available
+            var fileStore = fileManagementSection.GetValue<string>("store");
+            if (string.IsNullOrWhiteSpace(fileStore))
+                await _next(context);
+
+            var fileVariablesRegex = fileManagementSection.GetValue<string>("file_variables_pattern");
+            if (string.IsNullOrWhiteSpace(fileVariablesRegex))
+                _configuration.GetValue<string>("regex:file_variables_pattern");
+            if (string.IsNullOrWhiteSpace(fileVariablesRegex))
+                fileVariablesRegex = DefaultRegex.DefaultFileVariablesPattern;
+
+
 
             #endregion
 
