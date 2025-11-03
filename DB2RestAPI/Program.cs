@@ -116,7 +116,7 @@ app.UseMiddleware<Step2ServiceTypeChecks>();
 app.UseMiddleware<Step3LocalApiKeysCheck>();
 app.UseMiddleware<Step4APIGatewayProcess>();
 app.UseMiddleware<Step5MandatoryFieldsCheck>();
-app.UseMiddleware<Step6FileManagement>();
+app.UseMiddleware<Step6FileUploadManagement>();
 
 
 

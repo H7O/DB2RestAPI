@@ -18,18 +18,18 @@ namespace DB2RestAPI.Middlewares
             WasSuccessful = null;
         }
     }
-    public class Step6FileManagement(
+    public class Step6FileUploadManagement(
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
-        ILogger<Step6FileManagement> logger
+        ILogger<Step6FileUploadManagement> logger
         )
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
-        private readonly ILogger<Step6FileManagement> _logger = logger;
-        private static readonly string _errorCode = "Step 6 - File Management Error";
+        private readonly ILogger<Step6FileUploadManagement> _logger = logger;
+        private static readonly string _errorCode = "Step 6 - File Upload Management Error";
 
         public async Task InvokeAsync(HttpContext context)
         {
