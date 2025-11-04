@@ -137,7 +137,7 @@ namespace DB2RestAPI.Middlewares
             });
 
             // get the file store section from settings
-            
+
             var fileStoreSection = this._configuration.GetSection($"file_management:local_file_store:{fileStore}");
             if (!fileStoreSection.Exists())
             {
@@ -149,27 +149,24 @@ namespace DB2RestAPI.Middlewares
                 }
                 context.Items["sftp_file_store_section"] = fileStoreSection;
             }
-            else             {
+            else
+            {
                 context.Items["local_file_store_section"] = fileStoreSection;
 
+                var path = fileStoreSection.GetValue<string>("path");
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    dataModel["base_path"] = path;
+                }
+
+                #endregion
 
 
+                // Proceed to the next middleware
+                await _next(context);
 
-            var path = fileStoreSection.GetValue<string>("path");
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                dataModel["base_path"] = path;
             }
-
-
-            #endregion
-
-
-            // Proceed to the next middleware
-            await _next(context);
-
         }
-
 
     }
 }
