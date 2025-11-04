@@ -1,4 +1,5 @@
-﻿using DB2RestAPI.Settings;
+﻿using Com.H.Data.Common;
+using DB2RestAPI.Settings;
 using DB2RestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 
@@ -84,15 +85,12 @@ namespace DB2RestAPI.Middlewares
 
             #endregion
 
-            #region check if `response_type` is set to `file`
-            var responseType = fileManagementSection.GetValue<string>("response_type");
-            if (string.IsNullOrWhiteSpace(responseType))
-                responseType = defaultFileStoresSettings.GetValue<string>("file_management:response_type");
+            #region check if `response_structure` is set to `file`
+            var responseStructure = section.GetValue<string>("response_structure");
+            if (string.IsNullOrWhiteSpace(responseStructure))
+                responseStructure = defaultFileStoresSettings.GetValue<string>("file_management:response_type");
 
-            if (string.IsNullOrWhiteSpace(responseType))
-                responseType = "json";
-
-            if (!StringComparer.OrdinalIgnoreCase.Equals(responseType, "file"))
+            if (!StringComparer.OrdinalIgnoreCase.Equals(responseStructure, "file"))
             {
                 // Not a file download request, proceed to next middleware
                 await this._next(context);
@@ -101,20 +99,67 @@ namespace DB2RestAPI.Middlewares
 
             #endregion
 
-            #region set context items for ApiController to handle file download instead of returning json
+            #region set context items and prepare query parameters for file download
 
             context.Items["is_file_download"] = true;
             // get the store if available
             var fileStore = fileManagementSection.GetValue<string>("store");
             if (string.IsNullOrWhiteSpace(fileStore))
+            {
                 await _next(context);
+                return;
+            }
 
-            var fileVariablesRegex = fileManagementSection.GetValue<string>("file_variables_pattern");
-            if (string.IsNullOrWhiteSpace(fileVariablesRegex))
+            var fileVariablesPattern = fileManagementSection.GetValue<string>("file_variables_pattern");
+            if (string.IsNullOrWhiteSpace(fileVariablesPattern))
                 _configuration.GetValue<string>("regex:file_variables_pattern");
-            if (string.IsNullOrWhiteSpace(fileVariablesRegex))
-                fileVariablesRegex = DefaultRegex.DefaultFileVariablesPattern;
+            if (string.IsNullOrWhiteSpace(fileVariablesPattern))
+                fileVariablesPattern = DefaultRegex.DefaultFileVariablesPattern;
 
+
+            var qParams = context.Items["parameters"] as List<DbQueryParams>;
+            if (qParams == null)
+            {
+                qParams = new List<DbQueryParams>();
+                context.Items["parameters"] = qParams;
+            }
+
+            Dictionary<string, object> dataModel = new Dictionary<string, object>
+            {
+                { "store", fileStore! },
+                { "base_path", null }
+            };
+
+            qParams.Add(new DbQueryParams
+            {
+                DataModel = dataModel,
+                QueryParamsRegex = fileVariablesPattern
+            });
+
+            // get the file store section from settings
+            
+            var fileStoreSection = this._configuration.GetSection($"file_management:local_file_store:{fileStore}");
+            if (!fileStoreSection.Exists())
+            {
+                fileStoreSection = this._configuration.GetSection($"file_management:sftp_file_store:{fileStore}");
+                if (!fileStoreSection.Exists())
+                {
+                    await _next(context);
+                    return;
+                }
+                context.Items["sftp_file_store_section"] = fileStoreSection;
+            }
+            else             {
+                context.Items["local_file_store_section"] = fileStoreSection;
+
+
+
+
+            var path = fileStoreSection.GetValue<string>("path");
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                dataModel["base_path"] = path;
+            }
 
 
             #endregion

@@ -38,6 +38,8 @@ public class ParametersBuilder
         CommentHandling = JsonCommentHandling.Skip
     };
 
+
+
     private static readonly FileExtensionContentTypeProvider _mimeTypeProvider = new FileExtensionContentTypeProvider();
 
     /// <summary>
@@ -272,7 +274,7 @@ public class ParametersBuilder
             QueryParamsRegex = jsonVarRegex
         };
 
-        if (!contentType.Contains("application/json") == true)
+        if (!StringComparer.InvariantCultureIgnoreCase.Equals(contentType, "application/json"))
             return nullProtectionParams();
 
 
@@ -1086,6 +1088,11 @@ public class ParametersBuilder
     #endregion
 
 
+    private static readonly HashSet<string> _formContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/x-www-form-urlencoded",
+        "multipart/form-data"
+    };  
     private async Task<DbQueryParams> ExtractFromMultipartFormAsync()
     {
         var context = this.Context;
@@ -1106,11 +1113,7 @@ public class ParametersBuilder
             };
 
 
-        if (!(
-            contentType.Contains("multipart/form-data") == true
-            || contentType.Contains("application/x-www-form-urlencoded") == true
-            )
-            )
+        if (!_formContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
             return nullProtectionParams();
 
         try

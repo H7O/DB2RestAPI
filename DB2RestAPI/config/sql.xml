@@ -1137,6 +1137,8 @@
     <download_document_example>
       <route>documents</route>
       <verb>get</verb>
+      <response_structure>file</response_structure>
+
       <mandatory_parameters>id</mandatory_parameters>
       
       <file_management>
@@ -1159,18 +1161,14 @@
         2- `relative_path`
         3- `http`
         
-        The query also will receive from the system the following variable:
-        - `{fs{path}}`: which holds the base path of the file store where the file is located 
+        The query also will receive from the app the following variable:
+        - `{fs{store}}`: which holds the name of the file store where the file is located (e.g., `local1`, `sftp_backup`, `site1`, etc..)
+        - `{fs{base_path}}`: which holds the base path of the file store where the file is located 
         (e.g., `c:/filestore` for local store, or `/var/filestore`, `/home/user/filestore`, etc.. for sftp stores)
-        - {fs{relative_file_path_structure}}: which holds the relative file path structure defined in settings 
-        (e.g., `{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}`)
-        - {fs{relative_file_path_structure_date_filled}}: which holds the relative file path structure filled 
-        with the actual dates values. (e.g., `2025/Oct/28/{{guid}}/{file{name}}`) to simplify building the full path in the query if needed.
         - any parameters passed in the query string, json payload, form data, headers, route info, etc.. (similar to other examples above) 
         can be accessed via {{param_name}} notation
         -->
         
-        <response_type>file</response_type>
 
         <store>site1</store>
         

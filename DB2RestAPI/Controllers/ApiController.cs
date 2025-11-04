@@ -17,6 +17,7 @@ using DB2RestAPI.Cache;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using DB2RestAPI.Settings;
 using Microsoft.Data.SqlClient;
+using Com.H.IO;
 
 namespace DB2RestAPI.Controllers
 {
@@ -54,6 +55,13 @@ namespace DB2RestAPI.Controllers
         private readonly SettingsService _settings = settingsService;
 
         private static readonly string _errorCode = "API Controller Error";
+        private static readonly HashSet<string> _responseStructures = new HashSet<string>
+        {
+            "array",
+            "single",
+            "auto",
+            "file"
+        };
 
 
 
@@ -298,13 +306,14 @@ namespace DB2RestAPI.Controllers
                 var responseStructure = serviceQuerySection.GetValue<string>("response_structure")?.ToLower() ??
                     this._configuration.GetValue<string>("response_structure")?.ToLower() ?? "auto";
 
-                // check if `response_structure` is valid (valid values are `array`, `single`, `auto`)
-                if (responseStructure != "array" && responseStructure != "single" && responseStructure != "auto")
+                // check if `response_structure` is valid (valid values are `array`, `single`, `auto`, `file`)
+                if (!_responseStructures.Contains(responseStructure, StringComparer.OrdinalIgnoreCase))
                 {
                     return StatusCode(500, new
                     {
                         success = false,
-                        message = $"Invalid response structure `{responseStructure}` defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        message = $"Invalid response structure `{responseStructure}` defined for route "
+                        + $"`{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
                     });
                 }
                 var resultWithNoCount = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
@@ -351,155 +360,392 @@ namespace DB2RestAPI.Controllers
                         return StatusCode(customSuccessStatusCode, wrappedResult);
                     }
                     return StatusCode(customSuccessStatusCode, singleResult);
+                }
 
-
+                if (responseStructure == "file")
+                {
+                    return await ReturnFile(resultWithNoCount);
                 }
                 if (responseStructure == "auto")
-                {
-                    // if response structure is auto, then return an array if there are more than one record
-                    // and a single record if there is only one record
-                    // ToChamberedAsyncEnumerable is a custom extension method that returns an enumerable that have 
-                    // some of its items already read into memory. In the case below, the extension method is
-                    // instructed to read 2 items into memory and keep the remaining (if any) in the enumerable.
-                    // The returned enumerable from the extension method should have a `ChamberedCount` property
-                    // matching that of the items count its instructed to read into memory.
-                    // If the `ChamberedCount` is less than 2, then this indicates that there is only one (or zero) record
-                    // available in the enumerable (i.e., the enumerable is exhausted, in other words ran out of items to iterate through
-                    // before it got to our `ChamberedCount` limit).
-                    // In this case, we return the first record if it exists, or an empty resultWithNoCount.
+                        {
+                            // if response structure is auto, then return an array if there are more than one record
+                            // and a single record if there is only one record
+                            // ToChamberedAsyncEnumerable is a custom extension method that returns an enumerable that have 
+                            // some of its items already read into memory. In the case below, the extension method is
+                            // instructed to read 2 items into memory and keep the remaining (if any) in the enumerable.
+                            // The returned enumerable from the extension method should have a `ChamberedCount` property
+                            // matching that of the items count its instructed to read into memory.
+                            // If the `ChamberedCount` is less than 2, then this indicates that there is only one (or zero) record
+                            // available in the enumerable (i.e., the enumerable is exhausted, in other words ran out of items to iterate through
+                            // before it got to our `ChamberedCount` limit).
+                            // In this case, we return the first record if it exists, or an empty resultWithNoCount.
 
-                    var chamberedResult = await resultWithNoCount.ToChamberedEnumerableAsync(2, HttpContext.RequestAborted);
+                            var chamberedResult = await resultWithNoCount.ToChamberedEnumerableAsync(2, HttpContext.RequestAborted);
+
+                            HttpContext.RequestAborted.ThrowIfCancellationRequested();
+
+                            if (chamberedResult.WasExhausted(2))
+                            {
+                                var singleResult = chamberedResult.AsEnumerable().FirstOrDefault();
+                                // close the reader
+                                await resultWithNoCount.CloseReaderAsync();
+                                if (!string.IsNullOrWhiteSpace(rootNodeName))
+                                {
+                                    // wrap the result in an object with the root node name
+                                    var wrappedResult = new ExpandoObject();
+                                    wrappedResult.TryAdd(rootNodeName, (object?)singleResult);
+                                    return StatusCode(customSuccessStatusCode, wrappedResult);
+                                }
+
+                                return StatusCode(customSuccessStatusCode, singleResult);
+                            }
+                            else
+                            {
+                                if (!string.IsNullOrWhiteSpace(rootNodeName))
+                                {
+                                    // wrap the result in an object with the root node name
+                                    var wrappedResult = new ExpandoObject();
+                                    wrappedResult.TryAdd(rootNodeName,
+                                        disableDifferredExecution ?
+                                        chamberedResult.AsEnumerable().ToArray()
+                                        :
+                                        chamberedResult);
+                                    return StatusCode(customSuccessStatusCode, wrappedResult);
+                                }
+
+                                return StatusCode(customSuccessStatusCode,
+                                    disableDifferredExecution ?
+                                    chamberedResult.AsEnumerable().ToArray()
+                                    :
+                                    chamberedResult);
+                            }
+                        }
+                        return StatusCode(500, new
+                        {
+                            success = false,
+                            message = $"Invalid response structure `{responseStructure}` defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        });
+                    }
+
+                    var resultCount = await connection.ExecuteQueryAsync(countQuery, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+                    // Register for disposal to ensure DbDataReader is properly cleaned up
+                    if (resultCount != null)
+                    {
+                        HttpContext.Response.RegisterForDisposeAsync(resultCount);
+                    }
+
+                    var rowCount = resultCount.AsEnumerable().FirstOrDefault();
+                    HttpContext.RequestAborted.ThrowIfCancellationRequested();
+
+                    if (rowCount == null)
+                    {
+                        return StatusCode(500, new
+                        {
+                            success = false,
+                            message = $"Count query `{countQuery}` did not return any records for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        });
+                    }
+                    // close the reader for the count query
+                    await resultCount.CloseReaderAsync();
+
+
+                    var result = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
+                    // Register for disposal to ensure DbDataReader is properly cleaned up
+                    if (result != null)
+                    {
+                        HttpContext.Response.RegisterForDisposeAsync(result);
+                    }
 
                     HttpContext.RequestAborted.ThrowIfCancellationRequested();
 
-                    if (chamberedResult.WasExhausted(2))
+                    if (disableDifferredExecution)
                     {
-                        var singleResult = chamberedResult.AsEnumerable().FirstOrDefault();
-                        // close the reader
-                        await resultWithNoCount.CloseReaderAsync();
-                        if (!string.IsNullOrWhiteSpace(rootNodeName))
-                        {
-                            // wrap the result in an object with the root node name
-                            var wrappedResult = new ExpandoObject();
-                            wrappedResult.TryAdd(rootNodeName, (object?)singleResult);
-                            return StatusCode(customSuccessStatusCode, wrappedResult);
-                        }
 
-                        return StatusCode(customSuccessStatusCode, singleResult);
-                    }
-                    else
-                    {
                         if (!string.IsNullOrWhiteSpace(rootNodeName))
                         {
                             // wrap the result in an object with the root node name
                             var wrappedResult = new ExpandoObject();
                             wrappedResult.TryAdd(rootNodeName,
-                                disableDifferredExecution ?
-                                chamberedResult.AsEnumerable().ToArray()
-                                :
-                                chamberedResult);
+                                new
+                                {
+                                    success = true,
+                                    count = rowCount,
+                                    data = result.AsEnumerable().ToArray()
+                                }
+                                );
                             return StatusCode(customSuccessStatusCode, wrappedResult);
                         }
 
+                        // if disableDifferredExecution is true, then we want to read all records into memory
+                        // so that we can cache them
                         return StatusCode(customSuccessStatusCode,
-                            disableDifferredExecution ?
-                            chamberedResult.AsEnumerable().ToArray()
-                            :
-                            chamberedResult);
+                            new
+                            {
+                                success = true,
+                                count = rowCount,
+                                data = result.AsEnumerable().ToArray()
+                            });
                     }
-                }
-                return StatusCode(500, new
-                {
-                    success = false,
-                    message = $"Invalid response structure `{responseStructure}` defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
-                });
-            }
 
-            var resultCount = await connection.ExecuteQueryAsync(countQuery, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
-            // Register for disposal to ensure DbDataReader is properly cleaned up
-            if (resultCount != null)
-            {
-                HttpContext.Response.RegisterForDisposeAsync(resultCount);
-            }
-
-            var rowCount = resultCount.AsEnumerable().FirstOrDefault();
-            HttpContext.RequestAborted.ThrowIfCancellationRequested();
-
-            if (rowCount == null)
-            {
-                return StatusCode(500, new
-                {
-                    success = false,
-                    message = $"Count query `{countQuery}` did not return any records for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
-                });
-            }
-            // close the reader for the count query
-            await resultCount.CloseReaderAsync();
+                    if (!string.IsNullOrWhiteSpace(rootNodeName))
+                    {
+                        // wrap the result in an object with the root node name
+                        var wrappedResult = new ExpandoObject();
+                        wrappedResult.TryAdd(rootNodeName,
+                            new
+                            {
+                                success = true,
+                                count = rowCount,
+                                data = await result.ToChamberedEnumerableAsync()
+                            }
+                            );
+                        return StatusCode(customSuccessStatusCode, wrappedResult);
+                    }
 
 
-            var result = await connection.ExecuteQueryAsync(query, qParams, commandTimeout: dbCommandTimeout, cToken: HttpContext.RequestAborted);
-            // Register for disposal to ensure DbDataReader is properly cleaned up
-            if (result != null)
-            {
-                HttpContext.Response.RegisterForDisposeAsync(result);
-            }
-
-            HttpContext.RequestAborted.ThrowIfCancellationRequested();
-
-            if (disableDifferredExecution)
-            {
-
-                if (!string.IsNullOrWhiteSpace(rootNodeName))
-                {
-                    // wrap the result in an object with the root node name
-                    var wrappedResult = new ExpandoObject();
-                    wrappedResult.TryAdd(rootNodeName,
+                    return StatusCode(customSuccessStatusCode,
                         new
                         {
                             success = true,
                             count = rowCount,
-                            data = result.AsEnumerable().ToArray()
-                        }
-                        );
-                    return StatusCode(customSuccessStatusCode, wrappedResult);
+                            data = await result.ToChamberedEnumerableAsync()
+                        });
                 }
 
-                // if disableDifferredExecution is true, then we want to read all records into memory
-                // so that we can cache them
-                return StatusCode(customSuccessStatusCode,
-                    new
-                    {
-                        success = true,
-                        count = rowCount,
-                        data = result.AsEnumerable().ToArray()
-                    });
-            }
+        private async Task<IActionResult> ReturnFile(
+            DbAsyncQueryResult<dynamic>? resultWithNoCount)
+        {
+            #region getting the file details from the result set
+            // if response structure is file, then return the first record and get the file details from it
 
-            if (!string.IsNullOrWhiteSpace(rootNodeName))
-            {
-                // wrap the result in an object with the root node name
-                var wrappedResult = new ExpandoObject();
-                wrappedResult.TryAdd(rootNodeName,
-                    new
-                    {
-                        success = true,
-                        count = rowCount,
-                        data = await result.ToChamberedEnumerableAsync()
-                    }
-                    );
-                return StatusCode(customSuccessStatusCode, wrappedResult);
-            }
+            var singleResult = resultWithNoCount?.AsEnumerable().FirstOrDefault();
 
+            // close the reader
+            if (resultWithNoCount != null)
+                await resultWithNoCount.CloseReaderAsync();
 
-            return StatusCode(customSuccessStatusCode,
-                new
+            if (singleResult == null) {
+                // close the reader
+                return NotFound(new
                 {
-                    success = true,
-                    count = rowCount,
-                    data = await result.ToChamberedEnumerableAsync()
+                    success = false,
+                    message = $"No file record found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
                 });
+            }
+
+            var dictResult = singleResult as IDictionary<string, object?>;
+            if (dictResult == null)
+            {
+                // return 404 not found error
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"No file record found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                });
+            }
+            #endregion
+
+
+            
+
+            // check if any of the following fields are present in the singleResult:
+            /*
+                file_name,
+                base64_content,
+                relative_path,
+                content_type,
+                http
+                Note: if multiple fields are provided (e.g., both `base64_content`, `relative_path` and `http`),
+                the app will prioritize the file content source in the following order:
+                1- `base64_content`
+                2- `relative_path`
+                3- `http` (just proxy the file from the provided URL)
+            */
+
+            #region file name determination
+            string fileName = "downloaded_file"; // default name if file_name or relative_path (from which we can infer the file name) was not provided
+
+            if (dictResult.ContainsKey("file_name")
+                && dictResult["file_name"] != null
+                && !string.IsNullOrWhiteSpace(dictResult["file_name"]?.ToString()))
+            {
+                fileName = dictResult["file_name"]!.ToString()!;
+            }
+            else if (dictResult.ContainsKey("relative_path")
+                && dictResult["relative_path"] != null
+                && !string.IsNullOrWhiteSpace(dictResult["relative_path"]?.ToString()))
+            {
+                fileName = Path.GetFileName(dictResult["relative_path"]!.ToString()!);
+            }
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                fileName = "downloaded_file";
+
+            #endregion
+
+            #region determine content type
+            // if not provided in the result set, try to determine the content type from file extension
+            // and if that fails, use application/octet-stream as the default content type
+            string contentType = string.Empty;
+            if (dictResult.ContainsKey("content_type")
+                && dictResult["content_type"] != null
+                && !string.IsNullOrWhiteSpace(dictResult["content_type"]?.ToString()))
+            {
+                contentType = dictResult["content_type"]!.ToString()!;
+            }
+            if (string.IsNullOrWhiteSpace(contentType))
+            {
+                var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+                if (!provider.TryGetContentType(fileName, out contentType!))
+                {
+                    contentType = "application/octet-stream";
+                }
+            }
+
+            #endregion
+
+
+            #region base64 content source handling
+
+            if (dictResult.ContainsKey("base64_content"))
+            {
+                var base64Content = dictResult["base64_content"]?.ToString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(base64Content))
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = $"No file content found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                    });
+                }
+                var fileBytes = Convert.FromBase64String(base64Content);
+                return File(fileBytes, contentType, fileName);
+            }
+            #endregion
+            else if (dictResult.ContainsKey("relative_path"))
+            {
+                var relativePath = dictResult["relative_path"]?.ToString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(relativePath))
+                {
+                    relativePath = fileName;
+                }
+                // get IConfigurationSection for local_file_store from context items
+                if (HttpContext.Items.ContainsKey("local_file_store_section"))
+                {
+                   var localStoreSection = HttpContext.Items["local_file_store_section"] as IConfigurationSection;
+                   if (localStoreSection != null
+                        && localStoreSection.Exists())
+                   {
+                        var basePath = localStoreSection.GetValue<string>("base_path") ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(basePath)) basePath = AppContext.BaseDirectory;
+                        if (!string.IsNullOrWhiteSpace(basePath))
+                        {
+                            relativePath = Path.Combine(basePath, relativePath);
+                        }
+                        if (!System.IO.File.Exists(relativePath))
+                        {
+                            return NotFound(new
+                            {
+                                success = false,
+                                message = $"File not found at relative path `{relativePath}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                            });
+                        }
+                        var fileStream = new FileStream(relativePath, FileMode.Open, FileAccess.Read);
+                        return File(fileStream, contentType, fileName);
+                    }
+                }
+                if (HttpContext.Items.ContainsKey("sftp_file_store_section"))
+                {
+                    var sftpStoreSection = HttpContext.Items["sftp_file_store_section"] as IConfigurationSection;
+                    if (sftpStoreSection != null
+                         && sftpStoreSection.Exists())
+                    {
+                        var basePath = sftpStoreSection.GetValue<string>("base_path") ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(basePath)) basePath = "";
+                        if (!string.IsNullOrWhiteSpace(basePath))
+                        {
+                            relativePath = Path.Combine(basePath, relativePath)
+                                .UnifyPathSeperator()
+                                .Replace("\\", "/");
+                        }
+                        string host = sftpStoreSection.GetValue<string>("host")??string.Empty;
+                        if (string.IsNullOrWhiteSpace(host))
+                        {
+                            return NotFound(new
+                            {
+                                success = false,
+                                message = $"SFTP host not defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                            });
+                        }
+
+                        int port = sftpStoreSection.GetValue<int?>("port") ?? 22;
+                        string username = sftpStoreSection.GetValue<string>("username") ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(username))
+                        {
+                            return NotFound(new
+                            {
+                                success = false,
+                                message = $"SFTP username not defined for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                            });
+                        }
+
+                        string password = sftpStoreSection.GetValue<string>("password") ?? string.Empty;
+
+                        var sftpClient = new Com.H.Net.Ssh.SFtpClient(
+                            host,
+                            port,
+                            username,
+                            password
+                            );
+                        // register sftpClient for disposal
+                        HttpContext.Response.RegisterForDisposeAsync(sftpClient);
+                        var stream = await sftpClient.DownloadAsStreamAsync(
+                            relativePath,
+                            HttpContext.RequestAborted
+                            );
+
+
+                    }
+                }
+            }
+            else if (dictResult.ContainsKey("http"))
+            {
+                var httpUrl = dictResult["http"]?.ToString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(httpUrl)
+                    || !Uri.IsWellFormedUriString(httpUrl, UriKind.Absolute))
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = $"Invalid HTTP URL `{httpUrl}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+
+                    });
+                }
+                using (HttpClient httpClient = new HttpClient())
+                {
+                    var response = await httpClient.GetAsync(httpUrl);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        return StatusCode((int)response.StatusCode, new
+                        {
+                            success = false,
+                            message = $"Failed to download file from `{httpUrl}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        });
+                    }
+                    var fileBytes = await response.Content.ReadAsByteArrayAsync();
+                    contentType = response.Content.Headers.ContentType?.MediaType ?? contentType; // "application/octet-stream";
+                    return File(fileBytes, contentType, fileName);
+                }
+            }
+            else
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"No valid file content source found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                });
+            }
         }
 
-
     }
-}
+        }

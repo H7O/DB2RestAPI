@@ -183,7 +183,7 @@ namespace DB2RestAPI.Middlewares
 
                 foreach (var entry in localStores)
                 {
-                    var localPath = entry.Config.GetValue<string>("path");
+                    var localPath = entry.Config.GetValue<string>("base_path");
                     if (string.IsNullOrWhiteSpace(localPath))
                         continue;
 
@@ -249,7 +249,7 @@ namespace DB2RestAPI.Middlewares
                     foreach (var entry in group)
                     {
                         // remote path can be empty, in which case files are uploaded to the user's home directory
-                        var remotePath = entry.Config.GetValue<string>("path", string.Empty);
+                        var remotePath = entry.Config.GetValue<string>("base_path", string.Empty);
 
                         try
                         {
@@ -315,7 +315,7 @@ namespace DB2RestAPI.Middlewares
                     foreach (var entry in localStores.Where(x => x?.WasSuccessful == true))
                     {
                         // delete the files copied to local store
-                        var localPath = entry.Config.GetValue<string>("path");
+                        var localPath = entry.Config.GetValue<string>("base_path");
                         if (string.IsNullOrWhiteSpace(localPath))
                             continue;
                         foreach (var file in tempFilesTracker.GetLocalFiles())
@@ -362,7 +362,7 @@ namespace DB2RestAPI.Middlewares
                         foreach (var entry in group.Where(x => x?.WasSuccessful == true))
                         {
                             // remote path can be empty, in which case files are uploaded to the user's home directory
-                            var remotePath = entry.Config.GetValue<string>("path", string.Empty);
+                            var remotePath = entry.Config.GetValue<string>("base_path", string.Empty);
                             foreach (var file in tempFilesTracker.GetLocalFiles())
                             {
                                 try

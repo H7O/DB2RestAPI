@@ -65,10 +65,10 @@
     -->
     <local_file_store>
       <site1>
-        <path><![CDATA[c:\myfiles\]]></path>
+        <base_path><![CDATA[c:\myfiles\]]></base_path>
       </site1>
       <site2>
-        <path><![CDATA[g:\site4\]]></path>
+        <base_path><![CDATA[g:\site4\]]></base_path>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request.
         default is `false` if tag is not present
@@ -84,8 +84,7 @@
         <port>3333</port>
         <username><![CDATA[t]]></username>
         <password><![CDATA[123]]></password>
-        <path><![CDATA[/site3/]]></path>
-        <enabled><![CDATA[true]]></enabled>
+        <base_path><![CDATA[/site3/]]></base_path>
         <!-- if optional is set to `true`, it means if the file failed to be copied to this location (for any reason), 
         it will be ignored and the process will continue without failing the entire request
         default is `false` if tag is not present
@@ -97,8 +96,7 @@
         <port>3333</port>
         <username><![CDATA[t]]></username>
         <password><![CDATA[123]]></password>
-        <path><![CDATA[/site3/]]></path>
-        <enabled><![CDATA[true]]></enabled>
+        <base_path><![CDATA[/site3/]]></base_path>
       </site4>
 
 
