@@ -191,7 +191,7 @@ namespace DB2RestAPI.Middlewares
                     {
                         foreach (var file in tempFilesTracker.GetLocalFiles())
                         {
-                            var destinationPath = Path.Combine(localPath, Path.GetFileName(file.Value.RelativePath));
+                            var destinationPath = Path.Combine(localPath, file.Value.RelativePath);
                             // see if the parent directory exists, if not create it
                             var parentDir = Path.GetDirectoryName(destinationPath);
                             if (!string.IsNullOrWhiteSpace(parentDir))
@@ -255,7 +255,7 @@ namespace DB2RestAPI.Middlewares
                         {
                             foreach (var file in tempFilesTracker.GetLocalFiles())
                             {
-                                var destinationPath = Path.Combine(remotePath, Path.GetFileName(file.Value.RelativePath))
+                                var destinationPath = Path.Combine(remotePath, file.Value.RelativePath)
                                     .UnifyPathSeperator().Replace("\\", "/");
                                 using (var fileStream = new FileStream(file.Key, FileMode.Open))
                                 {

@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using DB2RestAPI.Settings;
 using Microsoft.Data.SqlClient;
 using Com.H.IO;
+using System.ComponentModel.DataAnnotations;
 
 namespace DB2RestAPI.Controllers
 {
@@ -585,19 +586,19 @@ namespace DB2RestAPI.Controllers
             #region determine content type
             // if not provided in the result set, try to determine the content type from file extension
             // and if that fails, use application/octet-stream as the default content type
-            string contentType = string.Empty;
-            if (dictResult.ContainsKey("content_type")
-                && dictResult["content_type"] != null
-                && !string.IsNullOrWhiteSpace(dictResult["content_type"]?.ToString()))
+            string mimeType = string.Empty;
+            if (dictResult.ContainsKey("mime_type")
+                && dictResult["mime_type"] != null
+                && !string.IsNullOrWhiteSpace(dictResult["mime_type"]?.ToString()))
             {
-                contentType = dictResult["content_type"]!.ToString()!;
+                mimeType = dictResult["mime_type"]!.ToString()!;
             }
-            if (string.IsNullOrWhiteSpace(contentType))
+            if (string.IsNullOrWhiteSpace(mimeType))
             {
                 var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
-                if (!provider.TryGetContentType(fileName, out contentType!))
+                if (!provider.TryGetContentType(fileName, out mimeType!))
                 {
-                    contentType = "application/octet-stream";
+                    mimeType = "application/octet-stream";
                 }
             }
 
@@ -605,24 +606,28 @@ namespace DB2RestAPI.Controllers
 
             #region base64 content source handling
 
-            if (dictResult.ContainsKey("base64_content"))
+            
+            if (dictResult.ContainsKey("base64_content")
+                && dictResult.TryGetValue("base64_content", out object value) && value is string base64Content
+                && !string.IsNullOrWhiteSpace(base64Content)
+                )
             {
-                var base64Content = dictResult["base64_content"]?.ToString() ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(base64Content))
-                {
-                    return NotFound(new
-                    {
-                        success = false,
-                        message = $"No file content found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
-                    });
-                }
+                // var base64Content = dictResult["base64_content"]?.ToString() ?? string.Empty;
+                //if (string.IsNullOrWhiteSpace(base64Content))
+                //{
+                //    return NotFound(new
+                //    {
+                //        success = false,
+                //        message = $"No file content found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                //    });
+                //}
                 var fileBytes = Convert.FromBase64String(base64Content);
-                return File(fileBytes, contentType, fileName);
+                return File(fileBytes, mimeType, fileName);
             }
             #endregion
             else if (dictResult.ContainsKey("relative_path"))
             {
-                var relativePath = dictResult["relative_path"]?.ToString() ?? string.Empty;
+                var relativePath = dictResult["relative_path"] as string;
                 if (string.IsNullOrWhiteSpace(relativePath))
                 {
                     relativePath = fileName;
@@ -638,7 +643,7 @@ namespace DB2RestAPI.Controllers
                         if (string.IsNullOrWhiteSpace(basePath)) basePath = AppContext.BaseDirectory;
                         if (!string.IsNullOrWhiteSpace(basePath))
                         {
-                            relativePath = Path.Combine(basePath, relativePath);
+                            relativePath = Path.Combine(basePath, relativePath).UnifyPathSeperator();
                         }
                         if (!System.IO.File.Exists(relativePath))
                         {
@@ -649,7 +654,7 @@ namespace DB2RestAPI.Controllers
                             });
                         }
                         var fileStream = new FileStream(relativePath, FileMode.Open, FileAccess.Read);
-                        return File(fileStream, contentType, fileName);
+                        return File(fileStream, mimeType, fileName);
                     }
                 }
                 if (HttpContext.Items.ContainsKey("sftp_file_store_section"))
@@ -658,9 +663,9 @@ namespace DB2RestAPI.Controllers
                     if (sftpStoreSection != null
                          && sftpStoreSection.Exists())
                     {
-                        var basePath = sftpStoreSection.GetValue<string>("base_path") ?? string.Empty;
+                        var basePath = HttpContext.Items["base_path"] as string;
                         if (string.IsNullOrWhiteSpace(basePath)) basePath = "";
-                        if (!string.IsNullOrWhiteSpace(basePath))
+                        else
                         {
                             relativePath = Path.Combine(basePath, relativePath)
                                 .UnifyPathSeperator()
@@ -713,7 +718,7 @@ namespace DB2RestAPI.Controllers
                                 message = $"File not found at relative path `{relativePath}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
                             });
                         }
-                        return File(stream, contentType, fileName);
+                        return File(stream, mimeType, fileName);
 
 
                     }
@@ -747,8 +752,8 @@ namespace DB2RestAPI.Controllers
                         });
                     }
                     var fileBytes = await response.Content.ReadAsByteArrayAsync();
-                    contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                    return File(fileBytes, contentType, fileName);
+                    mimeType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+                    return File(fileBytes, mimeType, fileName);
                 }
             }
             return NotFound(new

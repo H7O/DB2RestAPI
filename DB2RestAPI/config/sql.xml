@@ -1134,6 +1134,8 @@
 
     </create_contact_with_files>
 
+    
+    
     <download_document_example>
       <route>documents/{{id}}</route>
       <verb>get</verb>
@@ -1170,7 +1172,7 @@
         -->
         
 
-        <store>site1</store>
+        <store>site3</store>
         
       </file_management>
 
@@ -1199,6 +1201,7 @@
               relative_path
           from 
             files
+          where id = @id;
           -- throw 50404 (which translates to http 404) if no record found with a message indicating that
           if ((select count(*) from @file_record) = 0)
           begin

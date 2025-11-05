@@ -152,20 +152,20 @@ namespace DB2RestAPI.Middlewares
             else
             {
                 context.Items["local_file_store_section"] = fileStoreSection;
-
-                var path = fileStoreSection.GetValue<string>("path");
-                if (!string.IsNullOrWhiteSpace(path))
-                {
-                    dataModel["base_path"] = path;
-                }
-
-                #endregion
-
-
-                // Proceed to the next middleware
-                await _next(context);
-
             }
+            var path = fileStoreSection.GetValue<string>("base_path");
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                dataModel["base_path"] = path;
+                context.Items["base_path"] = path;
+            }
+
+
+            #endregion
+
+            // Proceed to the next middleware
+            await _next(context);
+
         }
 
     }
