@@ -547,8 +547,6 @@ namespace DB2RestAPI.Controllers
             #endregion
 
 
-
-
             // check if any of the following fields are present in the singleResult:
             /*
                 file_name,
@@ -604,7 +602,6 @@ namespace DB2RestAPI.Controllers
             }
 
             #endregion
-
 
             #region base64 content source handling
 
@@ -700,14 +697,30 @@ namespace DB2RestAPI.Controllers
                             );
                         // register sftpClient for disposal
                         HttpContext.Response.RegisterForDisposeAsync(sftpClient);
+
+
                         var stream = await sftpClient.DownloadAsStreamAsync(
                             relativePath,
                             HttpContext.RequestAborted
                             );
 
 
+                        if (stream == null)
+                        {
+                            return NotFound(new
+                            {
+                                success = false,
+                                message = $"File not found at relative path `{relativePath}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                            });
+                        }
+                        return File(stream, contentType, fileName);
+
+
                     }
                 }
+
+
+
             }
             else if (dictResult.ContainsKey("http"))
             {
@@ -734,7 +747,7 @@ namespace DB2RestAPI.Controllers
                         });
                     }
                     var fileBytes = await response.Content.ReadAsByteArrayAsync();
-                    contentType = response.Content.Headers.ContentType?.MediaType ?? contentType; // "application/octet-stream";
+                    contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
                     return File(fileBytes, contentType, fileName);
                 }
             }
@@ -744,6 +757,7 @@ namespace DB2RestAPI.Controllers
                 message = $"No valid file content source found to download for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
             });
         }
-
     }
+
 }
+        
