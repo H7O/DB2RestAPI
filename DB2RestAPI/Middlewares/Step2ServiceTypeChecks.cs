@@ -102,25 +102,25 @@ public class Step2ServiceTypeChecks(
 
         // string? mediaType = contentType?.Split(';')[0].Trim().ToLowerInvariant();
 
-        if (
-            !(contentType!=null && _acceptableContentTypes.Contains(contentType.ToLower())
-            || route?.StartsWith("json/") == true
-            )
-        )
-        {
+        //if (
+        //    !(contentType!=null && _acceptableContentTypes.Contains(contentType.ToLower())
+        //    || route?.StartsWith("json/") == true
+        //    )
+        //)
+        //{
 
-            await context.Response.DeferredWriteAsJsonAsync(
-                new ObjectResult(
-                    new
-                    {
-                        success = false,
-                        message = "`Content-Type` header must be set to `application/json` or `multipart/form-data, or endpoint should start with `json/`"
-                    })
-                {
-                    StatusCode = 400
-                });
-            return;
-        }
+        //    await context.Response.DeferredWriteAsJsonAsync(
+        //        new ObjectResult(
+        //            new
+        //            {
+        //                success = false,
+        //                message = "`Content-Type` header must be set to `application/json` or `multipart/form-data, or endpoint should start with `json/`"
+        //            })
+        //        {
+        //            StatusCode = 400
+        //        });
+        //    return;
+        //}
 
         // if the route starts with `json/`, remove the `json/` prefix
         if (route?.StartsWith("json/") == true)
@@ -128,6 +128,9 @@ public class Step2ServiceTypeChecks(
             route = DefaultRegex.DefaultRemoveJsonPrefixFromRouteCompiledRegex.Replace(route, string.Empty);
             contentType = "application/json";
         }
+
+        if (string.IsNullOrWhiteSpace(contentType))
+            contentType = "application/json";
 
         if (string.IsNullOrWhiteSpace(route))
         {

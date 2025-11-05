@@ -1113,8 +1113,8 @@
     --    as a json string (json array)
     
     -- debug : delete the entries (so you could keep rerunning the test)
-    delete from [contacts] where id in (select id from @new_contact);
-    delete from [files] where contact_id in (select id from @new_contact);
+    -- delete from [contacts] where id in (select id from @new_contact);
+    -- delete from [files] where contact_id in (select id from @new_contact);
 
     select 
         nc.id,
@@ -1135,7 +1135,7 @@
     </create_contact_with_files>
 
     <download_document_example>
-      <route>documents</route>
+      <route>documents/{{id}}</route>
       <verb>get</verb>
       <response_structure>file</response_structure>
 
@@ -1176,6 +1176,7 @@
 
       <query>
         <![CDATA[
+
           declare @id uniqueidentifier = {{id}};
           
           declare @file_record table
@@ -1189,27 +1190,34 @@
           
           -- select top 1 from `files` table into @file_record
           
-          insert into @file_record (id, file_name, base64_content, relative_path, content_type)
+          insert into 
+          @file_record (id, file_name, base64_content, relative_path)
           select top 1 
               id,
               file_name,
               null as base64_content, -- assuming file is stored in file store
-              relative_path,
-              content_type
+              relative_path
+          from 
+            files
           -- throw 50404 (which translates to http 404) if no record found with a message indicating that
-          if (select count(*) from @file_record) = 0)
+          if ((select count(*) from @file_record) = 0)
           begin
-              throw 50404, 'No document found with id ' + convert(nvarchar(50), @id), 1;
+              declare @err nvarchar(200);
+              set @err = 'No document found with id ' + convert(nvarchar(50), @id);
+              throw 50404, @err, 1;
               return;
           end
           
           -- else return the file record
           select 
               file_name,
-              base64_content,
-              relative_path,
-              content_type
+              -- base64_content,
+              relative_path
+              
           from @file_record
+          
+          
+        
           
           
         ]]>
