@@ -113,6 +113,7 @@ app.MapControllers();
 
 app.UseMiddleware<Step1GlobalApiKeysCheck>();
 app.UseMiddleware<Step2ServiceTypeChecks>();
+app.UseMiddleware<Step2_5_CorsCheck>();
 app.UseMiddleware<Step3LocalApiKeysCheck>();
 app.UseMiddleware<Step4APIGatewayProcess>();
 app.UseMiddleware<Step5MandatoryFieldsCheck>();
