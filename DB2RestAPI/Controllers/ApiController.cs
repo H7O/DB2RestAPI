@@ -653,7 +653,9 @@ namespace DB2RestAPI.Controllers
                                 message = $"File not found at relative path `{relativePath}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
                             });
                         }
-                        var fileStream = new FileStream(relativePath, FileMode.Open, FileAccess.Read);
+                        
+                        // Use async file stream with proper buffering
+                        var fileStream = new FileStream(relativePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
                         return File(fileStream, mimeType, fileName);
                     }
                 }
@@ -740,9 +742,10 @@ namespace DB2RestAPI.Controllers
 
                     });
                 }
+                
                 using (HttpClient httpClient = new HttpClient())
                 {
-                    var response = await httpClient.GetAsync(httpUrl);
+                    var response = await httpClient.GetAsync(httpUrl, HttpCompletionOption.ResponseHeadersRead, HttpContext.RequestAborted);
                     if (!response.IsSuccessStatusCode)
                     {
                         return StatusCode((int)response.StatusCode, new
@@ -751,9 +754,11 @@ namespace DB2RestAPI.Controllers
                             message = $"Failed to download file from `{httpUrl}` for route `{HttpContext.Items["route"]}` (Contact your service provider support and provide them with error code `{_errorCode}`)"
                         });
                     }
-                    var fileBytes = await response.Content.ReadAsByteArrayAsync();
+                    
+                    // Stream the content instead of loading into memory
+                    var stream = await response.Content.ReadAsStreamAsync(HttpContext.RequestAborted);
                     mimeType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                    return File(fileBytes, mimeType, fileName);
+                    return File(stream, mimeType, fileName);
                 }
             }
             return NotFound(new

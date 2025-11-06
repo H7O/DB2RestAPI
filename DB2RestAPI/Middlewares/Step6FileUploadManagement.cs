@@ -198,7 +198,14 @@ namespace DB2RestAPI.Middlewares
                             {
                                 Directory.CreateDirectory(parentDir!);
                             }
-                            File.Copy(file.Key, destinationPath, true);
+                            
+                            // Use async file copy
+                            using (var sourceStream = new FileStream(file.Key, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true))
+                            using (var destStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true))
+                            {
+                                await sourceStream.CopyToAsync(destStream, context.RequestAborted);
+                            }
+                            
                             entry.WasSuccessful = true;
                             this._logger.LogDebug("{time}: Copied temp file '{tempFile}' to local store ({local_store_name})  at '{destinationPath}' in Step6FileManagement middleware",
                                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),
@@ -257,10 +264,13 @@ namespace DB2RestAPI.Middlewares
                             {
                                 var destinationPath = Path.Combine(remotePath, file.Value.RelativePath)
                                     .UnifyPathSeperator().Replace("\\", "/");
-                                using (var fileStream = new FileStream(file.Key, FileMode.Open))
+                                
+                                // Use async file stream with proper buffering
+                                using (var fileStream = new FileStream(file.Key, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true))
                                 {
                                     await sftpClient.UploadAsync(fileStream, destinationPath);
                                 }
+                                
                                 entry.WasSuccessful = true;
                                 this._logger.LogDebug("{time}: Uploaded temp file '{tempFile}' to SFTP store ({sftp_store_name}) at '{destinationPath}' in Step6FileManagement middleware",
                                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),
