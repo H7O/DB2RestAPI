@@ -1230,7 +1230,45 @@
 
     </download_document_example>
 
+    <hello_world_cors_example>
+      <!-- 
+      if `cors` not defined here, the system will look for a default cors configuration
+      in main settings under files (e.g., settings.xml or cors_settings.xml, etc..) 
+      under `settings` node, and if not found there also, 
+      it will default to allowing all origins (i.e., `*`)
+      -->
+      <cors>
+        <!-- regex pattern for localhost or *.example.com -->
+        <pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+        
+        <!-- 
+        fallback_origin: default cors value if the caller's origin domain doesn't match the regex pattern above,
+        this value will be used as the `Access-Control-Allow-Origin` header in the response.
+        If the caller's origin domain matches the regex pattern above, 
+        the CORS headers will be set to match the caller's origin domain.
+        -->
+        <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+      </cors>
+      <route>cors/hello_world</route>
+      <query>
+        <![CDATA[
+        
+        declare @name nvarchar(500) = {{name}};
 
+
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 
+        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
+        
+        
+        ]]>
+      </query>
+
+    </hello_world_cors_example>
+    
   </queries>
 
 </settings>

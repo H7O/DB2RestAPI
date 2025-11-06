@@ -77,7 +77,26 @@
   <max_payload_size_in_bytes>367001600</max_payload_size_in_bytes>
 
 
-  
+
+<!--
+  if `cors` not defined in `settings` -> `queries` -> `query node name goes here` or in 
+  `settings` -> `routes` -> `api gateway node name goes here`, 
+  the system will look for a default cors configuration here, 
+  and if not found here also (i.e., not defined, or left empty),
+  it will default to allowing all origins (i.e., `*`)
+  -->
+  <cors>
+    <!-- regex pattern for localhost or *.example.com -->
+    <pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+
+    <!-- 
+        fallback_origin: default cors value if the caller's origin domain doesn't match the regex pattern above,
+        this value will be used as the `Access-Control-Allow-Origin` header in the response.
+        If the caller's origin domain matches the regex pattern above, 
+        the CORS headers will be set to match the caller's origin domain.
+        -->
+    <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+  </cors>
 
 
 </settings>
