@@ -42,31 +42,50 @@ public class Step2_5_CorsCheck(
         // Get the origin from the request
         var origin = context.Request.Headers["Origin"].ToString();
 
+        // Try to get route-specific CORS config first
+        IConfigurationSection? corsConfig = null;
+
+        // Check if we have a section from previous middleware
+        if (context.Items.TryGetValue("section", out var sectionValue) 
+            && sectionValue is IConfigurationSection section)
+        {
+            corsConfig = section.GetSection("cors");
+        }
+
+        // Fall back to global CORS config if route-specific config not found or doesn't exist
+        if (corsConfig == null || !corsConfig.Exists())
+        {
+            corsConfig = _configuration.GetSection("cors");
+        }
+
         if (!string.IsNullOrWhiteSpace(origin))
         {
-            // Try to get route-specific CORS config first
-            IConfigurationSection? corsConfig = null;
-
-            // Check if we have a section from previous middleware
-            if (context.Items.TryGetValue("section", out var sectionValue) 
-                && sectionValue is IConfigurationSection section)
-            {
-                corsConfig = section.GetSection("cors");
-            }
-
-            // Fall back to global CORS config if route-specific config not found or doesn't exist
-            if (corsConfig == null || !corsConfig.Exists())
-            {
-                corsConfig = _configuration.GetSection("cors");
-            }
-
-            // Apply CORS headers
+            // Apply CORS headers for browser requests (with Origin header)
             ApplyCorsHeaders(context, origin, corsConfig);
         }
         else
         {
-            // No Origin header - still set CORS to allow all for non-browser requests
-            context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+            // No Origin header - non-browser request (e.g., Postman, curl, server-to-server)
+            // Use fallback_origin if available to avoid auditor complaints about "*"
+            string allowedOrigin = "*"; // Default
+            
+            if (corsConfig != null && corsConfig.Exists())
+            {
+                var fallbackOrigin = corsConfig.GetValue<string>("fallback_origin");
+                if (!string.IsNullOrWhiteSpace(fallbackOrigin))
+                {
+                    allowedOrigin = fallbackOrigin.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                        ? fallbackOrigin
+                        : $"https://{fallbackOrigin}";
+                    this._logger.LogDebug("CORS: No Origin header, using fallback_origin '{fallback}' for non-browser request", allowedOrigin);
+                }
+                else
+                {
+                    this._logger.LogDebug("CORS: No Origin header and no fallback_origin configured, using '*' for non-browser request");
+                }
+            }
+            
+            context.Response.Headers["Access-Control-Allow-Origin"] = allowedOrigin;
             context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
             context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
         }
