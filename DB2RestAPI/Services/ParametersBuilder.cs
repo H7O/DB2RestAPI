@@ -518,7 +518,7 @@ public class ParametersBuilder
             fileId = Guid.NewGuid();
         }
 
-        var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName);
+        var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName, fileId);
         var mimeType = GetMimeTypeFromFileName(fileName);
 
         // Get base64 content
@@ -637,7 +637,7 @@ public class ParametersBuilder
             fileId = Guid.NewGuid();
         }
 
-        var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName);
+        var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName, fileId);
         var mimeType = formFile.ContentType ?? GetMimeTypeFromFileName(fileName);
 
         // Write file object
@@ -841,10 +841,12 @@ public class ParametersBuilder
 
     public string BuildRelativeFilePath(
         string structure,
-        string fileName)
+        string fileName,
+        Guid? fileId = null
+        )
     {
         var now = DateTime.UtcNow;
-        var guid = Guid.NewGuid().ToString();
+        var guid = (fileId ?? Guid.NewGuid()).ToString();
 
         // regex to match {date{format}} patterns
         var regex = DefaultRegex.DefaultDateVariablesCompiledRegex;
