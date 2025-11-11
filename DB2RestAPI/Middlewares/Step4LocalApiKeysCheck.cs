@@ -26,16 +26,16 @@ namespace DB2RestAPI.Middlewares
     /// - 500 Internal Server Error: Required context items missing from previous middlewares
     /// - Passes to next middleware: No local API keys configured or validation successful
     /// </summary>
-    public class Step3LocalApiKeysCheck(
+    public class Step4LocalApiKeysCheck(
         RequestDelegate next,
         SettingsService settings,
-        ILogger<Step3LocalApiKeysCheck> logger)
+        ILogger<Step4LocalApiKeysCheck> logger)
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
-        private readonly ILogger<Step3LocalApiKeysCheck> _logger = logger;
+        private readonly ILogger<Step4LocalApiKeysCheck> _logger = logger;
         // private static int count = 0;
-        private static readonly string _errorCode = "Step 3 - Local API Keys Check Error";
+        private static readonly string _errorCode = "Step 4 - Local API Keys Check Error";
         public async Task InvokeAsync(HttpContext context)
         {
 

@@ -25,15 +25,15 @@ namespace DB2RestAPI.Middlewares;
 /// - Access-Control-Allow-Credentials
 /// - Access-Control-Max-Age
 /// </summary>
-public class Step2_5_CorsCheck(
+public class Step3CorsCheck(
     RequestDelegate next,
     IConfiguration configuration,
-    ILogger<Step2_5_CorsCheck> logger)
+    ILogger<Step3CorsCheck> logger)
 {
     private readonly RequestDelegate _next = next;
     private readonly IConfiguration _configuration = configuration;
-    private readonly ILogger<Step2_5_CorsCheck> _logger = logger;
-    private static readonly string _errorCode = "Step 2.5 - CORS Check Error";
+    private readonly ILogger<Step3CorsCheck> _logger = logger;
+    private static readonly string _errorCode = "Step 3 - CORS Check Error";
     private static readonly string _defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
     private static readonly string _defaultHeaders = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
 
@@ -41,7 +41,7 @@ public class Step2_5_CorsCheck(
     public async Task InvokeAsync(HttpContext context)
     {
         #region log the time and the middleware name
-        this._logger.LogDebug("{time}: in Step2_5_CorsCheck middleware",
+        this._logger.LogDebug("{time}: in Step3_CorsCheck middleware",
             DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
         #endregion
 
@@ -191,7 +191,7 @@ public class Step2_5_CorsCheck(
     private string GetAllowedHeaders(IConfigurationSection section)
     {
 
-        var headers = GetCorsValue(section,"allowed_headers");
+        var headers = GetCorsValue(section, "allowed_headers");
 
         if (string.IsNullOrWhiteSpace(headers))
         {

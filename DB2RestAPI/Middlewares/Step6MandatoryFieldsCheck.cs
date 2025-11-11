@@ -35,20 +35,20 @@ namespace DB2RestAPI.Middlewares
     /// - Passes to next middleware: All validations successful, parameters prepared
     /// </summary>
 
-    public class Step5MandatoryFieldsCheck(
+    public class Step6MandatoryFieldsCheck(
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
-        ILogger<Step5MandatoryFieldsCheck> logger,
+        ILogger<Step6MandatoryFieldsCheck> logger,
         ParametersBuilder paramsBuilder)
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
-        private readonly ILogger<Step5MandatoryFieldsCheck> _logger = logger;
+        private readonly ILogger<Step6MandatoryFieldsCheck> _logger = logger;
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         // private static int count = 0;
-        private static readonly string _errorCode = "Step 5 - Mandatory Fields Check Error";
+        private static readonly string _errorCode = "Step 6 - Mandatory Fields Check Error";
         public async Task InvokeAsync(HttpContext context)
         {
 

@@ -45,12 +45,12 @@ namespace DB2RestAPI.Middlewares
     /// - Passes to next middleware: Service type is not 'api_gateway'
     /// </summary>
 
-    public class Step4APIGatewayProcess(
+    public class Step5APIGatewayProcess(
         RequestDelegate next,
         IConfiguration configuration,
         SettingsService settings,
         IHttpClientFactory httpClientFactory,
-        ILogger<Step4APIGatewayProcess> logger,
+        ILogger<Step5APIGatewayProcess> logger,
         ParametersBuilder paramsBuilder
             )
     {
@@ -58,14 +58,14 @@ namespace DB2RestAPI.Middlewares
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
         private readonly IHttpClientFactory httpClientFactory = httpClientFactory;
-        private readonly ILogger<Step4APIGatewayProcess> _logger = logger;
+        private readonly ILogger<Step5APIGatewayProcess> _logger = logger;
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         /// <summary>
         /// Headers that should not be copied from the target response to the client response.
         /// These headers are managed by ASP.NET Core and manually setting them could cause issues.
         /// </summary>
         private static readonly string[] _excludedResponseHeaders = new string[] { "Transfer-Encoding", "Content-Length" };
-        private static readonly string _errorCode = "Step 4 - Gateway Process Error";
+        private static readonly string _errorCode = "Step 5 - Gateway Process Error";
 
         // List of headers that belong to Content, not to the request itself
         private static readonly HashSet<string> _contentHeaderNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

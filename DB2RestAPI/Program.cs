@@ -113,12 +113,12 @@ app.MapControllers();
 
 app.UseMiddleware<Step1GlobalApiKeysCheck>();
 app.UseMiddleware<Step2ServiceTypeChecks>();
-app.UseMiddleware<Step2_5_CorsCheck>();
-app.UseMiddleware<Step3LocalApiKeysCheck>();
-app.UseMiddleware<Step4APIGatewayProcess>();
-app.UseMiddleware<Step5MandatoryFieldsCheck>();
-app.UseMiddleware<Step6FileUploadManagement>();
-app.UseMiddleware<Step7FileDownloadManagement>();
+app.UseMiddleware<Step3CorsCheck>();
+app.UseMiddleware<Step4LocalApiKeysCheck>();
+app.UseMiddleware<Step5APIGatewayProcess>();
+app.UseMiddleware<Step6MandatoryFieldsCheck>();
+app.UseMiddleware<Step7FileUploadManagement>();
+app.UseMiddleware<Step8FileDownloadManagement>();
 
 
 
