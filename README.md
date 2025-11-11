@@ -1938,8 +1938,9 @@ FROM [files] WHERE id = @id;
 
 The system automatically:
 - Connects to the SFTP server using credentials from `file_management.xml`
-- Downloads the file as a stream
-- Streams it directly to the client
+- Locates the file by combining both `base_path` and `relative_path`
+- Opens a stream to the SFTP file
+- Streams it directly to the client with minimal memory usage (only an 81KB buffer)
 
 #### 3. Download from Database (Base64)
 
