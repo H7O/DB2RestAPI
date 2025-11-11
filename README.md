@@ -1819,6 +1819,9 @@ Let's create an endpoint to download files that were uploaded with the contact r
   
   <file_management>
     <!-- Specify which store to download from (must match upload store name) -->
+    <!-- Note: 'store' is only required when using 'relative_path' to locate files.
+         For 'base64_content' or 'http' sources, the store configuration is optional
+         and can be omitted entirely. -->
     <store>primary</store>
     <!-- Note: Unlike upload which uses 'stores' (plural) for multiple destinations,
          download uses 'store' (singular) as files are retrieved from one location -->
@@ -1944,11 +1947,13 @@ The system automatically:
 
 #### 3. Download from Database (Base64)
 
-For files stored directly in the database:
+For files stored directly in the database (no file store needed):
 
 ```xml
+<response_structure>file</response_structure>
+
 <file_management>
-  <store>primary</store> <!-- Still required but not used -->
+  <!-- Store configuration can be omitted entirely for base64 content -->
 </file_management>
 
 <!-- SQL Query returns base64 content -->
@@ -1965,7 +1970,14 @@ FROM [files] WHERE id = @id;
 
 Forward downloads from external URLs (useful for CDNs or external storage):
 
-```sql
+```xml
+<response_structure>file</response_structure>
+
+<file_management>
+  <!-- Store configuration can be omitted entirely for HTTP proxy -->
+</file_management>
+
+<!-- SQL Query returns HTTP URL -->
 SELECT 
     'external_document.pdf' AS file_name,
     'https://cdn.example.com/documents/file-12345.pdf' AS http
