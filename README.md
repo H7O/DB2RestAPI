@@ -1466,7 +1466,7 @@ Before using file upload endpoints, you need to configure your file stores in `/
       </backup>
     </local_file_store>
     
-    <!-- Configure SFTP file stores -->
+    <!-- Configure SFTP file stores (you can have multiple) -->
     <sftp_file_store>
       <remote_storage>
         <host><![CDATA[sftp.example.com]]></host>
@@ -1475,6 +1475,14 @@ Before using file upload endpoints, you need to configure your file stores in `/
         <password><![CDATA[your_password]]></password>
         <base_path><![CDATA[/uploads/]]></base_path>
       </remote_storage>
+      <offsite_backup>
+        <host><![CDATA[backup.example.com]]></host>
+        <port>2222</port>
+        <username><![CDATA[backup_user]]></username>
+        <password><![CDATA[backup_pass]]></password>
+        <base_path><![CDATA[/backups/documents/]]></base_path>
+        <optional>true</optional> <!-- Won't fail request if this store fails -->
+      </offsite_backup>
     </sftp_file_store>
   </file_management>
 </settings>
@@ -1512,7 +1520,7 @@ Let's create an endpoint that creates a contact record and attaches files (e.g.,
   
   <file_management>
     <!-- Reference the stores defined in file_management.xml -->
-    <stores>primary, backup, remote_storage</stores>
+    <stores>primary, backup, remote_storage, offsite_backup</stores>
     
     <!-- Override global settings for this endpoint -->
     <permitted_file_extensions>.txt,.pdf,.png,.jpg,.jpeg</permitted_file_extensions>
@@ -1740,7 +1748,7 @@ Content-Type: application/pdf
 
 ### Advanced Features
 
-**Optional Stores**: Mark stores as optional to prevent failures if a secondary storage location is unavailable:
+**Optional Stores**: Mark stores (local or SFTP) as optional to prevent failures if a secondary storage location is unavailable:
 ```xml
 <local_file_store>
   <backup>
