@@ -35,7 +35,7 @@ public class Step3CorsCheck(
     private readonly ILogger<Step3CorsCheck> _logger = logger;
     private static readonly string _errorCode = "Step 3 - CORS Check Error";
     private static readonly string _defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
-    private static readonly string _defaultHeaders = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
+    // private static readonly string _defaultHeaders = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
 
 
     public async Task InvokeAsync(HttpContext context)
@@ -98,12 +98,13 @@ public class Step3CorsCheck(
         string allowedMethods = GetAllowedMethods(section);
 
         // Get allowed headers (route-specific > global > default)
-        string allowedHeaders = GetAllowedHeaders(section);
+        string? allowedHeaders = GetAllowedHeaders(section);
 
         // Set all CORS headers
         context.Response.Headers["Access-Control-Allow-Origin"] = allowedOrigin;
         context.Response.Headers["Access-Control-Allow-Methods"] = allowedMethods;
-        context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders;
+        if (!string.IsNullOrWhiteSpace(allowedHeaders))
+            context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders;
         // todo: make this configurable
         context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
         context.Response.Headers["Access-Control-Max-Age"] = "7200"; // 2 hours
@@ -188,7 +189,7 @@ public class Step3CorsCheck(
     #endregion
 
     #region allowed headers determination
-    private string GetAllowedHeaders(IConfigurationSection section)
+    private string? GetAllowedHeaders(IConfigurationSection section)
     {
 
         var headers = GetCorsValue(section, "allowed_headers");
@@ -197,7 +198,7 @@ public class Step3CorsCheck(
         {
             // Default headers
             this._logger.LogDebug("CORS: Using default allowed headers");
-            return _defaultHeaders;
+            return null; // _defaultHeaders;
         }
 
         return headers;
