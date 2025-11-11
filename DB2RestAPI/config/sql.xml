@@ -1274,7 +1274,7 @@
       <!-- 
       if `cors` not defined here, the system will look for a default cors configuration
       in main settings under files (e.g., settings.xml or cors_settings.xml, etc..)
-      under `settings` node, and if not found there also,
+      under `settings` node, and if not found there
       it will default to allowing all origins (i.e., `*`)
       -->
       <cors>

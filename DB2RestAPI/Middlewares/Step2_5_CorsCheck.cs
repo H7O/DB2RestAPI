@@ -1,4 +1,6 @@
-﻿using System.Text.RegularExpressions;
+﻿using DB2RestAPI.Settings.Extensinos;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.RegularExpressions;
 
 namespace DB2RestAPI.Middlewares;
 
@@ -39,18 +41,43 @@ public class Step2_5_CorsCheck(
             DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
         #endregion
 
+
+        #region if no section passed from the previous middlewares, return 500
+        IConfigurationSection? section = context.Items.TryGetValue("section", out var sectionValue)
+            ? sectionValue as IConfigurationSection
+            : null;
+
+        if (section == null)
+        {
+
+            await context.Response.DeferredWriteAsJsonAsync(
+                new ObjectResult(
+                    new
+                    {
+                        success = false,
+                        message = $"Improper service setup. (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                    }
+                )
+                {
+                    StatusCode = 500
+                }
+            );
+            return;
+        }
+
+        #endregion
+
         // Get the origin from the request
         var origin = context.Request.Headers["Origin"].ToString();
+
+
+
 
         // Try to get route-specific CORS config first
         IConfigurationSection? corsConfig = null;
 
         // Check if we have a section from previous middleware
-        if (context.Items.TryGetValue("section", out var sectionValue) 
-            && sectionValue is IConfigurationSection section)
-        {
-            corsConfig = section.GetSection("cors");
-        }
+        corsConfig = section.GetSection("cors");
 
         // Fall back to global CORS config if route-specific config not found or doesn't exist
         if (corsConfig == null || !corsConfig.Exists())
@@ -85,9 +112,25 @@ public class Step2_5_CorsCheck(
                 }
             }
             
+            // Determine allowed methods from the section's verb configuration
+            string allowedMethods = GetAllowedMethods(context);
+            
             context.Response.Headers["Access-Control-Allow-Origin"] = allowedOrigin;
-            context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
-            context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
+            context.Response.Headers["Access-Control-Allow-Methods"] = allowedMethods;
+            // todo: consider making allowed headers configurable
+            string? allowedHeaders = section.GetValue<string>("allowed_headers");
+            if (string.IsNullOrWhiteSpace(allowedHeaders))
+                allowedHeaders = _configuration.GetValue<string>("allowed_headers");
+
+            if (!string.IsNullOrWhiteSpace(allowedHeaders))
+            {
+                context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders;
+            }
+            else
+            {
+                // do nothing for now, keep the default
+                // context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
+            }
         }
 
         // Handle preflight OPTIONS request
@@ -162,14 +205,53 @@ public class Step2_5_CorsCheck(
         }
         // else: no CORS config at all, keep default "*"
 
+        // Determine allowed methods from the section's verb configuration
+        string allowedMethods = GetAllowedMethods(context);
+
         // Set CORS headers
         context.Response.Headers["Access-Control-Allow-Origin"] = allowedOrigin;
-        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
+        context.Response.Headers["Access-Control-Allow-Methods"] = allowedMethods;
         context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
         context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
         context.Response.Headers["Access-Control-Max-Age"] = "7200"; // 2 hours
 
-        this._logger.LogDebug("CORS headers set: Access-Control-Allow-Origin = {allowedOrigin}", allowedOrigin);
+        this._logger.LogDebug("CORS headers set: Access-Control-Allow-Origin = {allowedOrigin}, Access-Control-Allow-Methods = {allowedMethods}", 
+            allowedOrigin, allowedMethods);
+    }
+
+    /// <summary>
+    /// Gets the allowed HTTP methods for CORS based on the route's verb configuration.
+    /// If verb is defined in the route config, uses those methods (uppercased).
+    /// Otherwise, defaults to allowing all common methods plus OPTIONS.
+    /// </summary>
+    private string GetAllowedMethods(HttpContext context)
+    {
+        // Try to get the section from context
+        if (context.Items.TryGetValue("section", out var sectionValue)
+            && sectionValue is IConfigurationSection section)
+        {
+            var verb = section.GetValue<string>("verb");
+            
+            if (!string.IsNullOrWhiteSpace(verb))
+            {
+                // Parse comma-separated verbs, trim, uppercase, and add OPTIONS
+                var verbs = verb.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(v => v.ToUpperInvariant())
+                    .ToHashSet(); // Use HashSet to avoid duplicates
+
+                // Always include OPTIONS for preflight requests
+                verbs.Add("OPTIONS");
+
+                var methods = string.Join(", ", verbs.OrderBy(v => v)); // Sort for consistency
+                this._logger.LogDebug("CORS: Using route-specific allowed methods: {methods}", methods);
+                return methods;
+            }
+        }
+
+        // Default to all common methods if no verb specified
+        const string defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
+        this._logger.LogDebug("CORS: No verb configuration found, using default allowed methods: {methods}", defaultMethods);
+        return defaultMethods;
     }
 }
 
