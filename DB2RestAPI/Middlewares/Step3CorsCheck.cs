@@ -35,7 +35,7 @@ public class Step3CorsCheck(
     private readonly ILogger<Step3CorsCheck> _logger = logger;
     private static readonly string _errorCode = "Step 3 - CORS Check Error";
     private static readonly string _defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
-    // private static readonly string _defaultHeaders = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
+    private static readonly string _defaultHeaders = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
 
 
     public async Task InvokeAsync(HttpContext context)
@@ -103,10 +103,21 @@ public class Step3CorsCheck(
         // Set all CORS headers
         context.Response.Headers["Access-Control-Allow-Origin"] = allowedOrigin;
         context.Response.Headers["Access-Control-Allow-Methods"] = allowedMethods;
-        if (!string.IsNullOrWhiteSpace(allowedHeaders))
-            context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders;
+        
         // todo: make this configurable
-        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+        // check if there is an `authorize` section in the route or global config
+        // and if there is set `Access-Control-Allow-Credentials` to true
+        var authorizeSection = section.GetSection("authorize");
+        if (authorizeSection.Exists() || _configuration.GetSection("authorize").Exists())
+        {
+            context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+            context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders ?? _defaultHeaders;
+        }
+        else
+        {
+            context.Response.Headers["Access-Control-Allow-Credentials"] = "false";
+            context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders ?? "*";
+        }
         context.Response.Headers["Access-Control-Max-Age"] = "7200"; // 2 hours
 
         this._logger.LogDebug("CORS headers set: Origin={origin}, Methods={methods}",
@@ -198,7 +209,8 @@ public class Step3CorsCheck(
         {
             // Default headers
             this._logger.LogDebug("CORS: Using default allowed headers");
-            return null; // _defaultHeaders;
+            return null; // Will be replaced with _defaultHeaders or "*" in ApplyCorsHeaders
+
         }
 
         return headers;
