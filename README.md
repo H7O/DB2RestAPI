@@ -1436,5 +1436,344 @@ curl "https://localhost:7054/weather/current?city=Paris&units=metric"
 > **Important**: Cache durations should be chosen based on how frequently the data changes and your performance requirements. Shorter durations mean more up-to-date data but more requests to the target API. Longer durations mean better performance but potentially stale data.
 
 
+## File Upload Feature
+
+The solution provides built-in support for file uploads with both `application/json` (base64-encoded files) and `multipart/form-data` content types. Files can be automatically stored in local file systems, SFTP servers, or both simultaneously.
+
+### Prerequisites - File Stores Configuration
+
+Before using file upload endpoints, you need to configure your file stores in `/config/file_management.xml`:
+
+```xml
+<settings>
+  <file_management>
+    <!-- Define the path structure for stored files -->
+    <relative_file_path_structure>{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}</relative_file_path_structure>
+    
+    <!-- Global file restrictions (can be overridden per endpoint) -->
+    <permitted_file_extensions>.txt,.pdf,.docx,.xlsx,.png,.jpg,.jpeg</permitted_file_extensions>
+    <max_number_of_files>5</max_number_of_files>
+    <max_file_size_in_bytes>314572800</max_file_size_in_bytes> <!-- 300 MB -->
+    
+    <!-- Configure local file stores -->
+    <local_file_store>
+      <primary>
+        <base_path><![CDATA[c:\myfiles\]]></base_path>
+      </primary>
+      <backup>
+        <base_path><![CDATA[d:\backup\]]></base_path>
+        <optional>true</optional> <!-- Won't fail request if this store fails -->
+      </backup>
+    </local_file_store>
+    
+    <!-- Configure SFTP file stores -->
+    <sftp_file_store>
+      <remote_storage>
+        <host><![CDATA[sftp.example.com]]></host>
+        <port>22</port>
+        <username><![CDATA[your_username]]></username>
+        <password><![CDATA[your_password]]></password>
+        <base_path><![CDATA[/uploads/]]></base_path>
+      </remote_storage>
+    </sftp_file_store>
+  </file_management>
+</settings>
+```
+
+### Database Schema for File Metadata
+
+Create a `files` table to store file metadata:
+
+```sql
+CREATE TABLE [dbo].[files] (
+    [id]            UNIQUEIDENTIFIER NOT NULL,
+    [contact_id]    UNIQUEIDENTIFIER NOT NULL,
+    [file_name]     NVARCHAR(255) NOT NULL,
+    [relative_path] NVARCHAR(1000) NOT NULL,
+    [description]   NVARCHAR(1000) NULL,
+    CONSTRAINT [PK_files] PRIMARY KEY CLUSTERED ([id] ASC),
+    CONSTRAINT [FK_files_contacts] FOREIGN KEY ([contact_id]) 
+        REFERENCES [dbo].[contacts] ([id]) ON DELETE CASCADE
+);
+```
+
+### Example - Creating a Contact with File Attachments
+
+Let's create an endpoint that creates a contact record and attaches files (e.g., ID documents, photos):
+
+**Configuration in `/config/sql.xml`:**
+
+```xml
+<create_contact_with_files>
+  <mandatory_parameters>name,phone</mandatory_parameters>
+  <route>v2/contacts</route>
+  <verb>POST</verb>
+  <success_status_code>201</success_status_code>
+  
+  <file_management>
+    <!-- Reference the stores defined in file_management.xml -->
+    <stores>primary, backup, remote_storage</stores>
+    
+    <!-- Override global settings for this endpoint -->
+    <permitted_file_extensions>.txt,.pdf,.png,.jpg,.jpeg</permitted_file_extensions>
+    <max_file_size_in_bytes>10485760</max_file_size_in_bytes> <!-- 10 MB -->
+    <max_number_of_files>3</max_number_of_files>
+    
+    <!-- Specify the JSON field/form field name for file metadata -->
+    <files_json_field_or_form_field_name>attachments</files_json_field_or_form_field_name>
+    
+    <!-- Set to false if you only need metadata in SQL (not file content) -->
+    <pass_files_content_to_query>false</pass_files_content_to_query>
+  </file_management>
+  
+  <query>
+  <![CDATA[
+    USE [test]
+    
+    DECLARE @name NVARCHAR(500) = {{name}};
+    DECLARE @phone NVARCHAR(100) = {{phone}};
+    DECLARE @active BIT = ISNULL({{active}}, 1);
+    DECLARE @files_json NVARCHAR(MAX) = {{attachments}};
+    
+    -- Check if contact already exists
+    IF EXISTS (SELECT 1 FROM [contacts] WHERE name = @name AND phone = @phone)
+    BEGIN
+        DECLARE @error_msg NVARCHAR(500) = 'Contact already exists';
+        THROW 50409, @error_msg, 1; -- Returns HTTP 409 Conflict
+        RETURN;
+    END
+    
+    -- Tables to hold results
+    DECLARE @new_contact TABLE (
+        id UNIQUEIDENTIFIER,
+        name NVARCHAR(500),
+        phone NVARCHAR(100),
+        active BIT
+    );
+    
+    DECLARE @files TABLE (
+        id UNIQUEIDENTIFIER,
+        contact_id UNIQUEIDENTIFIER,
+        file_name NVARCHAR(255),
+        relative_path NVARCHAR(1000),
+        description NVARCHAR(1000)
+    );
+    
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        -- Insert new contact
+        INSERT INTO [contacts] (id, name, phone, active)
+        OUTPUT inserted.id, inserted.name, inserted.phone, inserted.active
+        INTO @new_contact
+        VALUES (NEWID(), @name, @phone, @active);
+        
+        -- Parse file metadata from JSON
+        INSERT INTO @files (id, file_name, relative_path, description)
+        SELECT 
+            JSON_VALUE(value, '$.id'),
+            JSON_VALUE(value, '$.file_name'),
+            JSON_VALUE(value, '$.relative_path'),
+            JSON_VALUE(value, '$.description')
+        FROM OPENJSON(@files_json);
+        
+        -- Link files to contact
+        UPDATE @files 
+        SET contact_id = (SELECT id FROM @new_contact);
+        
+        -- Save file metadata to database
+        INSERT INTO [files] (id, contact_id, file_name, relative_path, description)
+        SELECT id, contact_id, file_name, relative_path, description
+        FROM @files;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+    
+    -- Return contact with attached files
+    SELECT 
+        nc.id,
+        nc.name,
+        nc.phone,
+        nc.active,
+        (
+            SELECT id, file_name, relative_path, description
+            FROM @files
+            FOR JSON PATH
+        ) AS {type{json{files}}}
+    FROM @new_contact nc;
+  ]]>
+  </query>
+</create_contact_with_files>
+```
+
+### Usage Examples
+
+#### Method 1: Using `application/json` with Base64-Encoded Files
+
+This method is ideal when you already have files as base64 strings (e.g., from a web form or mobile app):
+
+**Request:**
+```bash
+POST https://localhost:7054/v2/contacts
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "phone": "+1-555-0100",
+  "active": true,
+  "attachments": [
+    {
+      "file_name": "drivers_license.jpg",
+      "base64_content": "/9j/4AAQSkZJRgABAQEAYABgAAD...",
+      "description": "Driver's License - Front"
+    },
+    {
+      "file_name": "proof_of_address.pdf",
+      "base64_content": "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8P...",
+      "description": "Utility Bill"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "a3d5e7f9-1234-5678-90ab-cdef12345678",
+  "name": "John Doe",
+  "phone": "+1-555-0100",
+  "active": true,
+  "files": [
+    {
+      "id": "b1c2d3e4-5678-90ab-cdef-1234567890ab",
+      "file_name": "drivers_license.jpg",
+      "relative_path": "2025/Nov/11/b1c2d3e4-5678-90ab-cdef-1234567890ab/drivers_license.jpg",
+      "description": "Driver's License - Front"
+    },
+    {
+      "id": "c2d3e4f5-6789-01bc-def1-234567890abc",
+      "file_name": "proof_of_address.pdf",
+      "relative_path": "2025/Nov/11/c2d3e4f5-6789-01bc-def1-234567890abc/proof_of_address.pdf",
+      "description": "Utility Bill"
+    }
+  ]
+}
+```
+
+#### Method 2: Using `multipart/form-data`
+
+This method is better for traditional file uploads from HTML forms or when dealing with large files:
+
+**Request:**
+```bash
+POST https://localhost:7054/v2/contacts
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+John Doe
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="phone"
+
++1-555-0100
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="active"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="attachments"
+Content-Type: application/json
+
+[
+  {
+    "file_name": "drivers_license.jpg",
+    "description": "Driver's License - Front"
+  },
+  {
+    "file_name": "proof_of_address.pdf",
+    "description": "Utility Bill"
+  }
+]
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="drivers_license.jpg"
+Content-Type: image/jpeg
+
+[binary file content]
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="proof_of_address.pdf"
+Content-Type: application/pdf
+
+[binary file content]
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+```
+
+**Using Postman:**
+1. Set request method to `POST` and URL to `https://localhost:7054/v2/contacts`
+2. Select the **Body** tab
+3. Select **form-data** radio button
+4. Add text fields: `name`, `phone`, `active`
+5. Add a `attachments` field with value:
+   ```json
+   [
+     {"file_name": "drivers_license.jpg", "description": "Driver's License - Front"},
+     {"file_name": "proof_of_address.pdf", "description": "Utility Bill"}
+   ]
+   ```
+6. Add file fields by changing dropdown from "Text" to "File" and select files
+
+### How It Works
+
+1. **File Upload**: When you send the request, files are temporarily stored in the system's temp directory
+2. **Validation**: The system validates file extensions, sizes, and counts against your configuration
+3. **Storage**: Files are copied to all configured stores (local and/or SFTP) in parallel
+4. **Metadata Generation**: The system generates:
+   - A unique GUID for each file (if not provided)
+   - Relative path based on the configured structure (e.g., `2025/Nov/11/{guid}/filename.ext`)
+   - File extension and size information
+5. **SQL Processing**: Your SQL query receives the enriched metadata as JSON
+6. **Cleanup**: Temporary files are automatically cleaned up after the request completes
+7. **Transaction Safety**: If any mandatory store fails, the entire transaction rolls back
+
+### Advanced Features
+
+**Optional Stores**: Mark stores as optional to prevent failures if a secondary storage location is unavailable:
+```xml
+<local_file_store>
+  <backup>
+    <base_path><![CDATA[d:\backup\]]></base_path>
+    <optional>true</optional> <!-- Request won't fail if this store is unavailable -->
+  </backup>
+</local_file_store>
+```
+
+**Custom File Path Structure**: Customize how files are organized using date patterns and GUIDs:
+```xml
+<relative_file_path_structure>{date{yyyy}}/{date{MMM}}/{date{dd}}/{{guid}}/{file{name}}</relative_file_path_structure>
+<!-- Results in: 2025/Nov/11/a3d5e7f9-1234-5678-90ab-cdef12345678/document.pdf -->
+```
+
+**Pass File Content to SQL**: If you need file content in your SQL query (e.g., for virus scanning or database storage):
+```xml
+<pass_files_content_to_query>true</pass_files_content_to_query>
+```
+
+This adds a `base64_content` field to the JSON passed to your query.
+
+**Custom Field Names**: Match your existing API contracts:
+```xml
+<filename_field_in_payload>fileName</filename_field_in_payload>
+<base64_content_field_in_payload>fileContent</base64_content_field_in_payload>
+<files_json_field_or_form_field_name>documents</files_json_field_or_form_field_name>
+```
+
+> **Security Note**: The file upload feature includes built-in protection against path traversal attacks and validates file extensions to prevent malicious uploads. Always configure `permitted_file_extensions` to whitelist only the file types your application needs.
+
+> **Performance Note**: File uploads are processed asynchronously with optimized I/O operations. Large files are streamed rather than loaded entirely into memory. For production deployments, consider implementing virus scanning and additional validation in your SQL procedures.
+
+
 
 **documentation in progress - more examples to be added soon**
