@@ -986,22 +986,25 @@
     <download_document_example>
       <route>documents/{{id}}</route>
       <verb>get</verb>
+      <!-- 
+      setting the `response_structure` to file indicates to the app that 
+      the response is going to be a file download response
+      -->
       <response_structure>file</response_structure>
 
       <mandatory_parameters>id</mandatory_parameters>
       
       <file_management>
         <!-- 
-        default is `json` if not defined  
-        if set to `file`, the app will return the file as a download response
-        the query returned in this case should return a single row with the following fields:
+        if `response_structure` is set to `file`, the app will return the file as a download response
+        the query in this case should return a single row with the following fields:
         - `file_name`: the name of the file to be downloaded (e.g., document.pdf), 
             and if not returned (or returnd eempty) the app will attempt to pickup the name from the `relative_path` field.
             and if both are not available, it will default to `downloaded_file`
         - `base64_content` (optional): the base64 content of the file to be downloaded if the file is stored in the database
         - `relative_path` (optional): the relative path of the file in the file store if the file is stored in a file store (e.g., local file store or sftp store)
         - `content_type` (optional): the mime content type of the file (e.g., application/pdf, image/png, text/plain, etc..)
-        if not provided, the app will attempt to infer it from the file extension, and if not possible, it will default to `application/octet-stream`
+        if not provided, the app will attempt to infer the mime typefrom the file extension, and if not possible, it will default to `application/octet-stream`
         - `http` (optional): if provided, the app will route the download request to the provided http/s url to fetch the file content from there
         
         Note: if multiple fields are provided (e.g., both `base64_content`, `relative_path` and `http`),
@@ -1014,13 +1017,21 @@
         - `{fs{store}}`: which holds the name of the file store where the file is located (e.g., `local1`, `sftp_backup`, `site1`, etc..)
         - `{fs{base_path}}`: which holds the base path of the file store where the file is located 
         (e.g., `c:/filestore` for local store, or `/var/filestore`, `/home/user/filestore`, etc.. for sftp stores)
+        both variables above aren't that useful in majority of the cases as the app handles the file retrieval automatically
+        and all what it needs is just the `relative_path` to locate the file in the store. But its there for advanced use cases
+        where you might need to build the full path yourself in the query for logging or other purposes.
         - any parameters passed in the query string, json payload, form data, headers, route info, etc.. (similar to other examples above) 
         can be accessed via {{param_name}} notation
         -->
-        
 
         <store>site3</store>
-        
+        <!-- 
+        notice in the upload example we had the node `stores` to specify multiple stores,
+        however for download, its expected to have a single store only as the file is expected
+        to be picked up from a single store only despite that you might have uploaded it to multiple stores.
+        just keep in mind that the store specified here should match one of the stores used during upload.
+        -->
+
       </file_management>
 
       <query>
@@ -1065,10 +1076,6 @@
               relative_path
               
           from @file_record
-          
-          
-        
-          
           
         ]]>
       </query>
