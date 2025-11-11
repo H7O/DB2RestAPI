@@ -1783,5 +1783,316 @@ This adds a `base64_content` field to the JSON passed to your query.
 > **Performance Note**: File uploads are processed asynchronously with optimized I/O operations. Large files are streamed rather than loaded entirely into memory. For production deployments, consider implementing virus scanning and additional validation in your SQL procedures.
 
 
+## File Download Feature
+
+The solution provides seamless file download capabilities with support for multiple storage sources: database storage (base64), local file systems, SFTP servers, and HTTP/HTTPS URLs. Files are streamed efficiently to handle large downloads without consuming excessive memory.
+
+### How File Downloads Work
+
+When a request is made to a download endpoint:
+1. Your SQL query returns metadata about the file (name, location, content type)
+2. The system determines the file source (database, local store, SFTP, or HTTP)
+3. The file is streamed directly to the client with appropriate headers
+4. Large files are handled efficiently with async streaming
+
+### File Source Priority
+
+If multiple sources are provided, the system prioritizes in this order:
+1. **`base64_content`** - File content stored in the database
+2. **`relative_path`** - File stored in a file store (local or SFTP)
+3. **`http`** - File proxied from an HTTP/HTTPS URL
+
+### Example - Document Download Endpoint
+
+Let's create an endpoint to download files that were uploaded with the contact records:
+
+**Configuration in `/config/sql.xml`:**
+
+```xml
+<download_document>
+  <route>documents/{{id}}</route>
+  <verb>GET</verb>
+  <mandatory_parameters>id</mandatory_parameters>
+  
+  <!-- Setting response_structure to 'file' enables file download mode -->
+  <response_structure>file</response_structure>
+  
+  <file_management>
+    <!-- Specify which store to download from (must match upload store name) -->
+    <store>primary</store>
+    <!-- Note: Unlike upload which uses 'stores' (plural) for multiple destinations,
+         download uses 'store' (singular) as files are retrieved from one location -->
+  </file_management>
+  
+  <query>
+  <![CDATA[
+    USE [test]
+    
+    DECLARE @id UNIQUEIDENTIFIER = {{id}};
+    
+    -- Check if file exists
+    IF NOT EXISTS (SELECT 1 FROM [files] WHERE id = @id)
+    BEGIN
+        DECLARE @err NVARCHAR(200) = 'No document found with id ' + CONVERT(NVARCHAR(50), @id);
+        THROW 50404, @err, 1; -- Returns HTTP 404 Not Found
+        RETURN;
+    END
+    
+    -- Return file metadata
+    -- The system needs at least one of: base64_content, relative_path, or http
+    SELECT 
+        file_name,              -- Name for the downloaded file
+        relative_path,          -- Path in the file store
+        -- base64_content,      -- Uncomment if file content is stored in DB
+        -- 'application/pdf' AS content_type  -- Optional: specify MIME type
+        -- 'https://example.com/file.pdf' AS http  -- Optional: proxy from URL
+    FROM [files]
+    WHERE id = @id;
+  ]]>
+  </query>
+</download_document>
+```
+
+### SQL Query Response Fields
+
+Your query should return a single row with these fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `file_name` | Recommended | Filename for download. Falls back to filename from `relative_path` or "downloaded_file" |
+| `base64_content` | Conditional* | Base64-encoded file content (for database-stored files) |
+| `relative_path` | Conditional* | Path to file in the configured store |
+| `http` | Conditional* | HTTP/HTTPS URL to proxy the file from |
+| `content_type` | Optional | MIME type (e.g., `application/pdf`). Auto-detected from extension if omitted |
+
+*At least one content source (`base64_content`, `relative_path`, or `http`) must be provided.
+
+### Usage Examples
+
+#### Basic Download Request
+
+```bash
+GET https://localhost:7054/documents/b1c2d3e4-5678-90ab-cdef-1234567890ab
+```
+
+**Response Headers:**
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="drivers_license.pdf"
+```
+
+**Response:** Binary file content (streamed)
+
+#### Using cURL
+
+```bash
+# Download and save to file
+curl -o document.pdf "https://localhost:7054/documents/b1c2d3e4-5678-90ab-cdef-1234567890ab"
+
+# Download with custom filename from server
+curl -OJ "https://localhost:7054/documents/b1c2d3e4-5678-90ab-cdef-1234567890ab"
+```
+
+#### Using Postman
+
+1. Set request method to `GET`
+2. Set URL to `https://localhost:7054/documents/{file-id}`
+3. Click **Send and Download** button
+4. Choose save location
+
+### Download Source Examples
+
+#### 1. Download from Local File Store
+
+Most common scenario - files stored on local disk:
+
+```xml
+<file_management>
+  <store>primary</store>
+</file_management>
+
+<!-- SQL Query returns: -->
+SELECT 
+    'invoice_2025.pdf' AS file_name,
+    '2025/Nov/11/a3d5e7f9-1234-5678-90ab-cdef12345678/invoice_2025.pdf' AS relative_path
+FROM [files] WHERE id = @id;
+```
+
+The system combines the store's `base_path` (from `file_management.xml`) with `relative_path` to locate the file.
+
+#### 2. Download from SFTP Server
+
+For files stored on remote SFTP servers:
+
+```xml
+<file_management>
+  <store>remote_storage</store>
+</file_management>
+
+<!-- SQL Query returns the same relative_path -->
+SELECT 
+    'contract.docx' AS file_name,
+    '2025/Nov/11/b2c3d4e5-6789-01bc-def1-234567890abc/contract.docx' AS relative_path
+FROM [files] WHERE id = @id;
+```
+
+The system automatically:
+- Connects to the SFTP server using credentials from `file_management.xml`
+- Downloads the file as a stream
+- Streams it directly to the client
+
+#### 3. Download from Database (Base64)
+
+For files stored directly in the database:
+
+```xml
+<file_management>
+  <store>primary</store> <!-- Still required but not used -->
+</file_management>
+
+<!-- SQL Query returns base64 content -->
+SELECT 
+    'small_image.png' AS file_name,
+    'image/png' AS content_type,
+    base64_content  -- Column containing base64-encoded file
+FROM [files] WHERE id = @id;
+```
+
+> **Note**: Only suitable for small files (< 1MB). Large files should use file stores for better performance.
+
+#### 4. Proxy Download from HTTP/HTTPS URL
+
+Forward downloads from external URLs (useful for CDNs or external storage):
+
+```sql
+SELECT 
+    'external_document.pdf' AS file_name,
+    'https://cdn.example.com/documents/file-12345.pdf' AS http
+FROM [files] WHERE id = @id;
+```
+
+The system:
+- Fetches the file from the URL
+- Streams it to the client
+- Preserves the content type from the HTTP response
+
+### Advanced Download Scenarios
+
+#### Download with Access Control
+
+Combine with local API keys for secure downloads:
+
+```xml
+<download_protected_document>
+  <route>secure/documents/{{id}}</route>
+  <verb>GET</verb>
+  <response_structure>file</response_structure>
+  <mandatory_parameters>id</mandatory_parameters>
+  
+  <!-- Require API key authentication -->
+  <local_api_keys>
+    <key>secret-document-key-12345</key>
+  </local_api_keys>
+  
+  <file_management>
+    <store>primary</store>
+  </file_management>
+  
+  <query>
+  <![CDATA[
+    DECLARE @id UNIQUEIDENTIFIER = {{id}};
+    DECLARE @user_id UNIQUEIDENTIFIER = {{user_id}}; -- From authenticated context
+    
+    -- Verify user has access to this document
+    IF NOT EXISTS (
+        SELECT 1 FROM [files] f
+        INNER JOIN [contacts] c ON f.contact_id = c.id
+        WHERE f.id = @id AND c.user_id = @user_id
+    )
+    BEGIN
+        THROW 50403, 'Access denied to this document', 1; -- HTTP 403 Forbidden
+        RETURN;
+    END
+    
+    SELECT file_name, relative_path
+    FROM [files] WHERE id = @id;
+  ]]>
+  </query>
+</download_protected_document>
+```
+
+#### Download with Audit Logging
+
+Track who downloads what:
+
+```sql
+DECLARE @id UNIQUEIDENTIFIER = {{id}};
+DECLARE @downloaded_by NVARCHAR(100) = {{user_email}};
+
+-- Log the download
+INSERT INTO [download_audit] (file_id, downloaded_by, downloaded_at)
+VALUES (@id, @downloaded_by, GETDATE());
+
+-- Return file metadata
+SELECT file_name, relative_path
+FROM [files] WHERE id = @id;
+```
+
+#### Dynamic Content Type Based on Client
+
+Serve different file formats based on client preferences:
+
+```sql
+DECLARE @id UNIQUEIDENTIFIER = {{id}};
+DECLARE @accept_header NVARCHAR(500) = {{Accept}}; -- HTTP Accept header
+
+SELECT 
+    CASE 
+        WHEN @accept_header LIKE '%image/webp%' THEN 'image.webp'
+        WHEN @accept_header LIKE '%image/png%' THEN 'image.png'
+        ELSE 'image.jpg'
+    END AS file_name,
+    CASE 
+        WHEN @accept_header LIKE '%image/webp%' THEN webp_path
+        WHEN @accept_header LIKE '%image/png%' THEN png_path
+        ELSE jpg_path
+    END AS relative_path
+FROM [file_variants] WHERE id = @id;
+```
+
+### Error Handling
+
+The download feature handles common errors gracefully:
+
+| Error | HTTP Status | When It Occurs |
+|-------|-------------|----------------|
+| File not found in database | 404 | SQL query returns no rows or throws 50404 |
+| File not found in store | 404 | `relative_path` doesn't exist in the file store |
+| Access denied | 403 | SQL query throws 50403 |
+| Invalid store configuration | 500 | Store referenced but not configured in `file_management.xml` |
+| SFTP connection failure | 500 | Cannot connect to SFTP server |
+| HTTP proxy error | 502 | External URL returns error or is unreachable |
+
+### Performance Considerations
+
+**Streaming Architecture**: All download methods use async streaming:
+- Files are never fully loaded into memory
+- 81KB buffer size for optimal performance
+- Supports files of any size efficiently
+
+**SFTP Connection Pooling**: Multiple downloads from the same SFTP server reuse connections when possible.
+
+**Local File Caching**: Consider using a CDN or reverse proxy cache for frequently downloaded files.
+
+**HTTP Proxy Mode**: Best for files already hosted on high-performance CDNs. The API acts as a secure gateway.
+
+> **Production Tip**: For high-traffic scenarios with large files, consider implementing:
+> - Signed URLs with expiration (generate temporary direct download links)
+> - CDN integration for static files
+> - Range request support for resumable downloads (partially supported by ASP.NET Core automatically)
+
+> **Security Note**: Always validate user permissions in your SQL query before returning file metadata. Never expose internal file paths to clients. Use GUIDs for file IDs rather than sequential integers.
+
+
 
 **documentation in progress - more examples to be added soon**
