@@ -35,7 +35,7 @@ public class Step3CorsCheck(
     private readonly ILogger<Step3CorsCheck> _logger = logger;
     private static readonly string _errorCode = "Step 3 - CORS Check Error";
     private static readonly string _defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
-    private static readonly string _defaultHeaders = "Content-Type, Authorization, X-Api-Key, X-Requested-With";
+    private static readonly string _defaultHeaders = "Authorization, Content-Type, X-Requested-With, Accept, Origin, X-Api-Key";
 
 
     public async Task InvokeAsync(HttpContext context)

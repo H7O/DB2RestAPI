@@ -1120,10 +1120,12 @@
         <allow_headers>header1,header2</allow_headers>
         
         for the `allow_credentials`, if not defined anywhere but there is an `authorize` section defined (here in the API node level, not inside `cors` section, or globally),
-        then the app will default `allow_credentials` to true, otherwise it will default to false.
+        then the app will default `allow_credentials` to true, otherwise it will default to false (we'll discuss the `authorize` section in another example).
         
         And for the `allow_headers`, if not defined anywhere (here or globally), it will default to allowing all headers (i.e., `*`)
         if the `allow_credentials` is set to false, or `authorize` section is not defined (here or globally),
+        otherwise if `allow_credentials` is true (or not defined anywhere but `authorize` node exist here or globally), 
+        it will default to allowing only the following headers: `Authorization, Content-Type, X-Requested-With, Accept, Origin, X-Api-Key`
         -->
       </cors>
       <route>cors/hello_world</route>
