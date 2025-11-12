@@ -2107,5 +2107,376 @@ The download feature handles common errors gracefully:
 > **Security Note**: Always validate user permissions in your SQL query before returning file metadata. Never expose internal file paths to clients. Use GUIDs for file IDs rather than sequential integers.
 
 
+## CORS (Cross-Origin Resource Sharing) Support
+
+The solution provides flexible and powerful CORS support with pattern matching, allowing you to control which origins can access your API. CORS configuration can be set globally or per-endpoint with a sophisticated fallback system.
+
+### How CORS Works in DB2RestAPI
+
+When a browser makes a request from a different origin:
+1. The browser sends an `Origin` header with the request
+2. The system checks for CORS configuration (endpoint-specific → global → defaults)
+3. If a regex pattern is defined, it matches the origin domain against the pattern
+4. If matched, the origin is allowed; otherwise, the fallback origin is used
+5. For requests without an `Origin` header (non-browser clients), the fallback origin is used
+6. CORS headers are automatically added to the response
+
+### Configuration Hierarchy
+
+CORS settings follow this priority order:
+1. **Endpoint-specific** - Defined in the endpoint's `<cors>` section in `sql.xml`
+2. **Global** - Defined in `settings.xml` under `<cors>`
+3. **Default** - Allows all origins (`*`) if nothing is configured
+
+### Example - Basic CORS Configuration
+
+Let's create an endpoint with CORS enabled:
+
+**Configuration in `/config/sql.xml`:**
+
+```xml
+<api_with_cors>
+  <route>api/public/data</route>
+  <verb>GET</verb>
+  
+  <cors>
+    <!-- Regex pattern to match allowed origins -->
+    <!-- This pattern allows localhost and any subdomain of example.com -->
+    <pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+    
+    <!-- Fallback origin for non-matching origins or non-browser requests -->
+    <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+    
+    <!-- Optional: Maximum age for preflight cache (default: 86400 = 1 day) -->
+    <max_age>3600</max_age>
+    
+    <!-- Optional: Allow credentials (default: false unless 'authorize' is configured) -->
+    <allow_credentials>true</allow_credentials>
+    
+    <!-- Optional: Specific headers to allow (default: * or standard headers if credentials enabled) -->
+    <allowed_headers>Content-Type, Authorization, X-Api-Key</allowed_headers>
+  </cors>
+  
+  <query>
+  <![CDATA[
+    SELECT 
+      'Public data accessible from allowed origins' AS message,
+      GETDATE() AS timestamp;
+  ]]>
+  </query>
+</api_with_cors>
+```
+
+### CORS Pattern Matching
+
+The `pattern` setting uses regular expressions to match origin domains:
+
+**Example Patterns:**
+
+```xml
+<!-- Allow only localhost -->
+<pattern><![CDATA[^localhost$]]></pattern>
+
+<!-- Allow localhost with any port -->
+<pattern><![CDATA[^localhost(:\d+)?$]]></pattern>
+
+<!-- Allow any subdomain of example.com -->
+<pattern><![CDATA[^.*\.example\.com$]]></pattern>
+
+<!-- Allow multiple specific domains -->
+<pattern><![CDATA[^(example\.com|another-domain\.com)$]]></pattern>
+
+<!-- Allow localhost OR any subdomain of example.com -->
+<pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+
+<!-- Allow any subdomain of multiple domains -->
+<pattern><![CDATA[^.*\.(example\.com|myapp\.io|partner\.net)$]]></pattern>
+```
+
+### CORS Behavior Examples
+
+#### Scenario 1: Origin Matches Pattern
+
+**Request from `https://app.example.com`:**
+```http
+GET /api/public/data
+Origin: https://app.example.com
+```
+
+**Response Headers:**
+```http
+Access-Control-Allow-Origin: https://app.example.com
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+```
+
+#### Scenario 2: Origin Doesn't Match Pattern
+
+**Request from `https://unauthorized-site.com`:**
+```http
+GET /api/public/data
+Origin: https://unauthorized-site.com
+```
+
+**Response Headers:**
+```http
+Access-Control-Allow-Origin: https://www.example.com
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+```
+
+The browser will block the response since the origin doesn't match.
+
+#### Scenario 3: Non-Browser Request (No Origin Header)
+
+**Request from Postman/cURL:**
+```http
+GET /api/public/data
+```
+
+**Response Headers:**
+```http
+Access-Control-Allow-Origin: https://www.example.com
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+```
+
+### Global CORS Configuration
+
+Define default CORS settings in `/config/settings.xml` that apply to all endpoints unless overridden:
+
+```xml
+<settings>
+  <cors>
+    <pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+    <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+    <max_age>86400</max_age>
+  </cors>
+</settings>
+```
+
+**Endpoints without CORS configuration will inherit these global settings.**
+
+### CORS Configuration Options
+
+| Setting | Required | Default | Description |
+|---------|----------|---------|-------------|
+| `pattern` | No | None | Regex pattern to match allowed origin domains |
+| `fallback_origin` | No | `*` | Origin used when pattern doesn't match or no Origin header |
+| `max_age` | No | `86400` | Preflight cache duration in seconds |
+| `allow_credentials` | No | `false`* | Whether to allow credentials (cookies, auth headers) |
+| `allowed_headers` | No | `*`** | Comma-separated list of allowed headers |
+
+*Automatically set to `true` if an `authorize` section exists (will be covered in authentication examples)
+
+**Defaults to `*` when `allow_credentials` is false, or to a standard list when true: `Authorization, Content-Type, X-Requested-With, Accept, Origin, X-Api-Key`
+
+### Allowed Methods
+
+The `Access-Control-Allow-Methods` header is **automatically determined** from the endpoint's `verb` configuration:
+
+```xml
+<api_endpoint>
+  <verb>GET, POST</verb>
+  <!-- CORS will automatically allow: GET, POST, OPTIONS -->
+</api_endpoint>
+```
+
+If no `verb` is specified, defaults to: `GET, POST, PUT, DELETE, PATCH, OPTIONS`
+
+### Preflight Requests
+
+CORS automatically handles preflight `OPTIONS` requests:
+
+**Preflight Request:**
+```http
+OPTIONS /api/public/data
+Origin: https://app.example.com
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Content-Type, X-Api-Key
+```
+
+**Preflight Response:**
+```http
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: https://app.example.com
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type, X-Api-Key
+Access-Control-Max-Age: 3600
+```
+
+The browser caches this for the duration specified in `max_age`.
+
+### Real-World CORS Scenarios
+
+#### Scenario 1: Public API for Any Origin
+
+Allow all origins without restrictions:
+
+```xml
+<public_api>
+  <route>api/public/weather</route>
+  <cors>
+    <!-- Omit pattern to allow any origin -->
+    <fallback_origin>*</fallback_origin>
+  </cors>
+  <query>SELECT 'Public weather data' AS data;</query>
+</public_api>
+```
+
+Or simply omit the `<cors>` section entirely - defaults to `*`.
+
+#### Scenario 2: Multiple Development Environments
+
+Allow localhost and development/staging subdomains:
+
+```xml
+<cors>
+  <!-- Allow localhost, dev.example.com, staging.example.com, etc. -->
+  <pattern><![CDATA[^(localhost|dev\.example\.com|staging\.example\.com)$]]></pattern>
+  <fallback_origin>https://example.com</fallback_origin>
+</cors>
+```
+
+#### Scenario 3: Production with Specific Subdomains
+
+Allow only production domains:
+
+```xml
+<cors>
+  <!-- Allow www.example.com and app.example.com -->
+  <pattern><![CDATA[^(www|app)\.example\.com$]]></pattern>
+  <fallback_origin>https://www.example.com</fallback_origin>
+  <allow_credentials>true</allow_credentials>
+</cors>
+```
+
+#### Scenario 4: Multi-Tenant Application
+
+Allow any subdomain for a multi-tenant SaaS:
+
+```xml
+<cors>
+  <!-- Allow any subdomain like tenant1.myapp.com, tenant2.myapp.com, etc. -->
+  <pattern><![CDATA[^.*\.myapp\.com$]]></pattern>
+  <fallback_origin>https://www.myapp.com</fallback_origin>
+</cors>
+```
+
+#### Scenario 5: Partner API Integration
+
+Allow specific partner domains:
+
+```xml
+<cors>
+  <!-- Allow requests from multiple partner domains -->
+  <pattern><![CDATA[^(partner1\.com|partner2\.net|client\.io)$]]></pattern>
+  <fallback_origin>https://partners.myapi.com</fallback_origin>
+  <allowed_headers>Content-Type, Authorization, X-Partner-Key</allowed_headers>
+</cors>
+```
+
+### Testing CORS Configuration
+
+#### Using cURL
+
+```bash
+# Test with Origin header (simulating browser request)
+curl -i -H "Origin: https://app.example.com" \
+  https://localhost:7054/api/public/data
+
+# Test preflight OPTIONS request
+curl -i -X OPTIONS \
+  -H "Origin: https://app.example.com" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Content-Type" \
+  https://localhost:7054/api/public/data
+```
+
+#### Using JavaScript (Browser)
+
+```javascript
+// This will trigger CORS validation in the browser
+fetch('https://localhost:7054/api/public/data', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Api-Key': 'your-key-here'
+  },
+  credentials: 'include' // Send cookies if allow_credentials is true
+})
+.then(response => response.json())
+.then(data => console.log(data))
+.catch(error => console.error('CORS Error:', error));
+```
+
+### CORS Configuration Per Endpoint vs Global
+
+You can mix and match CORS configurations:
+
+```xml
+<!-- settings.xml - Global default -->
+<cors>
+  <pattern><![CDATA[^localhost$]]></pattern>
+  <fallback_origin>*</fallback_origin>
+</cors>
+
+<!-- sql.xml - Endpoint-specific override -->
+<strict_api>
+  <route>api/sensitive/data</route>
+  <cors>
+    <!-- This endpoint has stricter CORS rules -->
+    <pattern><![CDATA[^app\.example\.com$]]></pattern>
+    <fallback_origin>https://www.example.com</fallback_origin>
+    <allow_credentials>true</allow_credentials>
+  </cors>
+  <query>SELECT 'Sensitive data' AS data;</query>
+</strict_api>
+
+<public_api>
+  <route>api/public/data</route>
+  <!-- No CORS config - inherits global settings -->
+  <query>SELECT 'Public data' AS data;</query>
+</public_api>
+```
+
+### Troubleshooting CORS Issues
+
+**Issue**: CORS error in browser console
+
+**Solutions:**
+1. Check that the `Origin` header matches your pattern
+2. Verify `allow_credentials` is `true` if sending cookies/auth headers
+3. Ensure `allowed_headers` includes all headers you're sending
+4. Check browser console for specific CORS error messages
+
+**Issue**: Preflight OPTIONS returns 404
+
+**Solution:** The CORS middleware handles OPTIONS automatically. Ensure your route configuration is correct.
+
+**Issue**: Works in Postman but not in browser
+
+**Explanation:** Postman doesn't enforce CORS. Browsers do. Test with actual Origin headers in Postman or use browser testing.
+
+### Security Best Practices
+
+1. **Use Specific Patterns**: Avoid overly broad patterns like `.*` in production
+2. **Validate Fallback Origins**: Don't use `*` for APIs requiring authentication
+3. **Limit Credentials**: Only set `allow_credentials: true` when necessary
+4. **Restrict Headers**: Specify only required headers instead of `*`
+5. **Monitor Origins**: Log blocked origins to detect potential security issues
+6. **Environment-Specific**: Use different patterns for dev/staging/production
+
+> **Security Note**: When `allow_credentials` is `true`, you cannot use `*` for `Access-Control-Allow-Origin`. The system automatically uses either the matched origin or the fallback origin to comply with CORS security requirements.
+
+> **Performance Tip**: Set a reasonable `max_age` (default: 1 day) to reduce preflight requests. Browsers cache the preflight response for this duration, improving performance for repeated requests.
+
+
 
 **documentation in progress - more examples to be added soon**
