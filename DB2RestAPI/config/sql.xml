@@ -1097,9 +1097,10 @@
         
         <!-- 
         fallback_origin: default cors value if the caller's origin domain doesn't match the regex pattern above,
-        this value will be used as the `Access-Control-Allow-Origin` header in the response.
-        If the caller's origin domain matches the regex pattern above, 
-        the CORS headers will be set to match the caller's origin domain.
+        or the caller never set the `Origin` header in the request.
+        This value will be used as the `Access-Control-Allow-Origin` header in the response.
+        And if the caller's origin domain matches the regex pattern above, 
+        the CORS headers will be set to match the caller's origin header.
         -->
         <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
       </cors>
