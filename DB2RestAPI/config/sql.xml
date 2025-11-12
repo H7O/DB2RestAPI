@@ -1103,6 +1103,15 @@
         the CORS headers will be set to match the caller's origin header.
         -->
         <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+        <!-- if any of the settings in cors section here is not defined (or the whole section of `cors` is not defined)
+        , the app will attempt to find if there is global `cors` section that have the same settings under `settings` node
+        so if `fallback_origin` is not defined here, it will look for it in the global cors settings, 
+        and if it's not defined there also, it will default to `*` (allow all origins).
+        And if `pattern` is not defined here, it will look for it in the global cors settings,
+        and if it's not defined there also, it will default to `fallback_origin` if `fallback_origin` is defined (here or globally) or `*` if not defined anywhere.
+        if the caller doesn't send the `Origin` header in the request, the `fallback_origin` value will be used as the `Access-Control-Allow-Origin` header in the response.
+        and if the `fallback_origin` is not defined anywhere (here or globally), it will default to `*` (allow all origins).
+        -->
       </cors>
       <route>cors/hello_world</route>
       <query>
