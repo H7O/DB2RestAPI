@@ -129,10 +129,10 @@ public class Step3CorsCheck(
 
 
 
-        string maxAge = GetCorsValue(section, "max_age") ?? "7200";
+        string maxAge = GetCorsValue(section, "max_age") ?? "86400";
         if (!long.TryParse(maxAge, out var maxAgeInt) || maxAgeInt < 0)
         {
-            maxAgeInt = 7200; // default to 2 hours
+            maxAgeInt = 86400; // default to 1 day
         }
 
         context.Response.Headers["Access-Control-Max-Age"] = maxAgeInt.ToString();

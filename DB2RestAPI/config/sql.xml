@@ -1126,6 +1126,13 @@
         if the `allow_credentials` is set to false, or `authorize` section is not defined (here or globally),
         otherwise if `allow_credentials` is true (or not defined anywhere but `authorize` node exist here or globally), 
         it will default to allowing only the following headers: `Authorization, Content-Type, X-Requested-With, Accept, Origin, X-Api-Key`
+        
+        And for `max-age`, if not defined anywhere (here or globally), it will default to 86400 seconds (1 day)
+        
+        And as for other CORS settings such as `allow_methods` (i.e., `Access-Control-Allow-Methods`),
+        there is no specific local or global setting for it under `cors` node, 
+        but it gets automatically set by the app based on the `verb` defined for the API endpoint.
+        and if no `verb` is defined, it will default to allowing all methods (i.e., `GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD`)
         -->
       </cors>
       <route>cors/hello_world</route>
