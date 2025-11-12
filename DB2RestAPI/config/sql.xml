@@ -1112,6 +1112,19 @@
         if the caller doesn't send the `Origin` header in the request, the `fallback_origin` value will be used as the `Access-Control-Allow-Origin` header in the response.
         and if the `fallback_origin` is not defined anywhere (here or globally), it will default to `*` (allow all origins).
         -->
+        
+        <!--
+        also there are other optional cors settings that can be defined here or globally such as:
+        <max_age>3600</max_age>
+        <allow_credentials>true</allow_credentials>
+        <allow_headers>header1,header2</allow_headers>
+        
+        for the `allow_credentials`, if not defined anywhere but there is an `authorize` section defined (here in the API node level, not inside `cors` section, or globally),
+        then the app will default `allow_credentials` to true, otherwise it will default to false.
+        
+        And for the `allow_headers`, if not defined anywhere (here or globally), it will default to allowing all headers (i.e., `*`)
+        if the `allow_credentials` is set to false, or `authorize` section is not defined (here or globally),
+        -->
       </cors>
       <route>cors/hello_world</route>
       <query>

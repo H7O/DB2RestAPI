@@ -103,22 +103,39 @@ public class Step3CorsCheck(
         // Set all CORS headers
         context.Response.Headers["Access-Control-Allow-Origin"] = allowedOrigin;
         context.Response.Headers["Access-Control-Allow-Methods"] = allowedMethods;
+
+        // first see if the user has set `allow_credentials` in the cors config
+        var allowCredentials = GetCorsValue(section, "allow_credentials");
         
-        // todo: make this configurable
-        // check if there is an `authorize` section in the route or global config
-        // and if there is set `Access-Control-Allow-Credentials` to true
-        var authorizeSection = section.GetSection("authorize");
-        if (authorizeSection.Exists() || _configuration.GetSection("authorize").Exists())
+        if (!string.IsNullOrWhiteSpace(allowCredentials)
+            && bool.TryParse(allowCredentials, out var allowCredentialsBool))
         {
-            context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-            context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders ?? _defaultHeaders;
+            allowCredentials = allowCredentialsBool.ToString().ToLowerInvariant();
         }
         else
+        // if not then see if the user has `authorize` section in the route or global config
         {
-            context.Response.Headers["Access-Control-Allow-Credentials"] = "false";
-            context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders ?? "*";
+            // check if there is an `authorize` section in the route or global config
+            // and if there is set `Access-Control-Allow-Credentials` to true
+            var authorizeSection = section.GetSection("authorize");
+            if (authorizeSection.Exists() || _configuration.GetSection("authorize").Exists())
+                allowCredentials = "true";
+            else
+                allowCredentials = "false";
         }
-        context.Response.Headers["Access-Control-Max-Age"] = "7200"; // 2 hours
+
+        context.Response.Headers["Access-Control-Allow-Credentials"] = allowCredentials;
+        context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders ?? (allowCredentials == "true" ? _defaultHeaders : "*");
+
+
+
+        string maxAge = GetCorsValue(section, "max_age") ?? "7200";
+        if (!long.TryParse(maxAge, out var maxAgeInt) || maxAgeInt < 0)
+        {
+            maxAgeInt = 7200; // default to 2 hours
+        }
+
+        context.Response.Headers["Access-Control-Max-Age"] = maxAgeInt.ToString();
 
         this._logger.LogDebug("CORS headers set: Origin={origin}, Methods={methods}",
             allowedOrigin, allowedMethods);
