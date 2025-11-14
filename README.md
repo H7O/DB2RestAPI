@@ -552,14 +552,12 @@ Now, let's try to delete a record in the `contacts` table.
 
 3. Send the request and you should see the following JSON respons: 
 ```json
-[
-	{
-		"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
-		"name": "John Update 1",
-		"phone": "1234567890",
-		"active": 1
-	}
-]
+{
+	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
+	"name": "John Update 1",
+	"phone": "1234567890",
+	"active": 1
+}
 ```
 > **Note**: If the record doesn't exist, you'll get an error message from the database saying that the record doesn't exist.
 The error will be returned to the client as HTTP error code 404 (not found error).
