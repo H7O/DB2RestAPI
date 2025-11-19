@@ -1,0 +1,158 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<settings>
+  <authorize>
+    <!-- ========================================= -->
+    <!-- OIDC Provider Configurations              -->
+    <!-- ========================================= -->
+    <!-- 
+      Multiple providers can be configured here.
+      Each provider represents an OIDC identity provider (Azure B2C, Google, Facebook, etc.)
+      
+      Key Concepts:
+      - Access tokens are validated and used for API authorization
+      - ID tokens should NOT be sent to APIs (anti-pattern)
+      - UserInfo endpoint is called when access token lacks user claims
+      - Results are cached for performance
+    -->
+
+    <providers>
+
+      <!-- ========================================= -->
+      <!-- Azure AD B2C Configuration                -->
+      <!-- ========================================= -->
+      <azure_b2c>
+        <!-- OIDC authority URL -->
+        <authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/v2.0/</authority>
+
+        <!-- Expected audience (your API's client ID in Azure B2C) -->
+        <audience>api://db2restapi-12345678-abcd-1234-abcd-123456789abc</audience>
+
+        <!-- Optional: Issuer (defaults to authority if not set) -->
+        <issuer>https://yourb2c.b2clogin.com/87654321-dcba-4321-dcba-987654321cba/v2.0/</issuer>
+
+        <!-- Token Validation Settings -->
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+
+        <!-- Clock skew allowance (seconds) for token expiration -->
+        <clock_skew_seconds>300</clock_skew_seconds>
+
+        <!-- ========================================= -->
+        <!-- UserInfo Fallback Configuration           -->
+        <!-- ========================================= -->
+        <!-- 
+          When these claims are missing from the access token,
+          the middleware will call the UserInfo endpoint to fetch them.
+          This is common when using social logins (Google, Facebook, etc.)
+          where the access token might be opaque or have minimal claims.
+        -->
+        <userinfo_fallback_claims>email,name,given_name,family_name</userinfo_fallback_claims>
+
+        <!-- How long to cache UserInfo responses (seconds) -->
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+
+        <!-- Optional: Global scope/role requirements -->
+        <required_scopes></required_scopes>
+        <required_roles></required_roles>
+      </azure_b2c>
+
+      <!-- ========================================= -->
+      <!-- Google OIDC Configuration                 -->
+      <!-- ========================================= -->
+      <google>
+        <authority>https://accounts.google.com</authority>
+        <audience>your-google-client-id.apps.googleusercontent.com</audience>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <clock_skew_seconds>300</clock_skew_seconds>
+
+        <!-- Google access tokens are often opaque, so UserInfo is essential -->
+        <userinfo_fallback_claims>email,name,given_name,family_name,picture</userinfo_fallback_claims>
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+      </google>
+
+      <!-- ========================================= -->
+      <!-- Facebook OIDC Configuration               -->
+      <!-- ========================================= -->
+      <facebook>
+        <authority>https://www.facebook.com</authority>
+        <audience>your-facebook-app-id</audience>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <clock_skew_seconds>300</clock_skew_seconds>
+
+        <!-- Facebook also uses opaque tokens -->
+        <userinfo_fallback_claims>email,name,first_name,last_name,picture</userinfo_fallback_claims>
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+      </facebook>
+
+      <!-- ========================================= -->
+      <!-- Azure AD (Corporate/Work Accounts)        -->
+      <!-- ========================================= -->
+      <azure_ad>
+        <!-- For multi-tenant: https://login.microsoftonline.com/common/v2.0 -->
+        <!-- For single tenant: https://login.microsoftonline.com/{tenant-id}/v2.0 -->
+        <authority>https://login.microsoftonline.com/your-tenant-id/v2.0</authority>
+        <audience>api://db2restapi</audience>
+        <issuer>https://login.microsoftonline.com/your-tenant-id/v2.0</issuer>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <clock_skew_seconds>300</clock_skew_seconds>
+
+        <!-- Azure AD tokens usually have most claims, but fallback is good for consistency -->
+        <userinfo_fallback_claims>email,name,given_name,family_name</userinfo_fallback_claims>
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+      </azure_ad>
+
+      <!-- ========================================= -->
+      <!-- Auth0 Configuration                       -->
+      <!-- ========================================= -->
+      <auth0>
+        <authority>https://your-domain.auth0.com/</authority>
+        <audience>https://your-api-identifier</audience>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <clock_skew_seconds>300</clock_skew_seconds>
+        <userinfo_fallback_claims>email,name,given_name,family_name,picture</userinfo_fallback_claims>
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+      </auth0>
+
+      <!-- ========================================= -->
+      <!-- Okta Configuration                        -->
+      <!-- ========================================= -->
+      <okta>
+        <authority>https://your-domain.okta.com/oauth2/default</authority>
+        <audience>api://default</audience>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <clock_skew_seconds>300</clock_skew_seconds>
+        <userinfo_fallback_claims>email,name,given_name,family_name</userinfo_fallback_claims>
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+      </okta>
+
+    </providers>
+
+    <!-- ========================================= -->
+    <!-- Global Fallback Configuration             -->
+    <!-- ========================================= -->
+    <!-- 
+      These values are used when no provider is specified.
+      Route-specific config > Provider config > Global config
+    -->
+    <authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/v2.0/</authority>
+    <audience>api://db2restapi</audience>
+    <validate_issuer>true</validate_issuer>
+    <validate_audience>true</validate_audience>
+    <validate_lifetime>true</validate_lifetime>
+    <clock_skew_seconds>300</clock_skew_seconds>
+    <userinfo_fallback_claims>email,name</userinfo_fallback_claims>
+    <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+
+  </authorize>
+</settings>

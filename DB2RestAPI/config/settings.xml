@@ -16,6 +16,7 @@
     <path>config/global_api_keys.xml</path>
     <path>config/file_management.xml</path>
     <path>config/regex.xml</path>
+    <path>config/auth_providers.xml</path>
     
     <!-- 
     Controls whether the application automatically restarts when configuration file paths are added or removed.

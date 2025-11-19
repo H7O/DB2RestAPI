@@ -1190,6 +1190,30 @@
     </hello_world>
 
 
-    </queries>
+    <hello_world>
+      <authorize>
+        <provider>azure_btc</provider>
+      </authorize>
+      <route>auth/hello_world</route>
+      <query>
+        <![CDATA[
+        
+        declare @name nvarchar(500) = {oidc{name}};
+
+
+        if (@name is null or ltrim(rtrim(@name)) = '')
+        begin
+            set @name = 'world';
+        end
+        select 
+        'hello ' + @name + '! Time now is ' + convert(nvarchar(50), getdate(), 121) as message_from_db;
+        
+        
+        ]]>
+      </query>
+    </hello_world>
+
+
+  </queries>
 
 </settings>

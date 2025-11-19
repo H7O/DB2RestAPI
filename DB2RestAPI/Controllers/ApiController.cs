@@ -205,7 +205,7 @@ namespace DB2RestAPI.Controllers
             try
             {
                 var response = await _settings.CacheService
-                    .Get<IActionResult>(
+                    .GetQueryResultAsync<IActionResult>(
                     section,
                     qParams,
                     disableDiffered => GetResultFromDbAsync(section, connection, query, qParams, disableDiffered),

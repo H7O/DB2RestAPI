@@ -107,18 +107,21 @@ var app = builder.Build();
 
 app.UseHttpsRedirection();
 
+app.UseHsts();
+
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.UseMiddleware<Step1GlobalApiKeysCheck>();
-app.UseMiddleware<Step2ServiceTypeChecks>();
-app.UseMiddleware<Step3CorsCheck>();
-app.UseMiddleware<Step4LocalApiKeysCheck>();
-app.UseMiddleware<Step5APIGatewayProcess>();
-app.UseMiddleware<Step6MandatoryFieldsCheck>();
-app.UseMiddleware<Step7FileUploadManagement>();
-app.UseMiddleware<Step8FileDownloadManagement>();
+app.UseMiddleware<Step1GlobalApiKeysCheck>();       // 1. Global API key validation (if enabled)
+app.UseMiddleware<Step2ServiceTypeChecks>();        // 2. Route resolution & service type determination
+app.UseMiddleware<Step3CorsCheck>();                // 3. CORS headers (must be before auth for preflight)
+app.UseMiddleware<Step4LocalApiKeysCheck>();        // 4. Local API key validation
+app.UseMiddleware<Step5JwtAuthorization>();         // 5. JWT/OAuth 2.0 validation
+app.UseMiddleware<Step6APIGatewayProcess>();        // 6. API Gateway proxy
+app.UseMiddleware<Step7MandatoryFieldsCheck>();     // 7. Parameter validation
+app.UseMiddleware<Step8FileUploadManagement>();     // 8. File upload processing
+app.UseMiddleware<Step9FileDownloadManagement>();   // 9. File download processing
 
 
 
