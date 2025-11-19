@@ -3,8 +3,13 @@ using DB2RestAPI.Settings;
 using DB2RestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DB2RestAPI.Middlewares
 {
@@ -231,17 +236,322 @@ namespace DB2RestAPI.Middlewares
             #endregion
 
 
+            #region Validate JWT access token
+            ClaimsPrincipal principal;
+            SecurityToken validatedToken;
+            OpenIdConnectConfiguration? discoveryDocument;
+            try
+            {
+                // Get or fetch discovery document (with caching)
+                discoveryDocument = await GetDiscoveryDocumentAsync(authority, context.RequestAborted);
+
+                var validationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKeys = discoveryDocument.SigningKeys,
+                    ValidateIssuer = validateIssuer,
+                    ValidIssuer = issuer,
+                    ValidateAudience = validateAudience,
+                    ValidAudience = audience,
+                    ValidateLifetime = validateLifetime,
+                    ClockSkew = TimeSpan.FromSeconds(clockSkewSeconds)
+                };
+
+                var tokenHandler = new JwtSecurityTokenHandler();
+                principal = tokenHandler.ValidateToken(accessToken, validationParameters, out validatedToken);
+
+                _logger.LogDebug("Access token validation successful");
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                _logger.LogDebug("Access token expired");
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = "Token has expired"
+                        }
+                    )
+                    {
+                        StatusCode = 401
+                    }
+                );
+                return;
+            }
+            catch (SecurityTokenInvalidSignatureException)
+            {
+                _logger.LogWarning("Access token has invalid signature");
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = "Invalid token signature"
+                        }
+                    )
+                    {
+                        StatusCode = 401
+                    }
+                );
+                return;
+            }
+            catch (SecurityTokenException ex)
+            {
+                _logger.LogWarning(ex, "Access token validation failed");
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = "Invalid token"
+                        }
+                    )
+                    {
+                        StatusCode = 401
+                    }
+                );
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during token validation");
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = $"Authorization error. (Contact your service provider support and provide them with error code `{_errorCode}`)"
+                        }
+                    )
+                    {
+                        StatusCode = 500
+                    }
+                );
+                return;
+            }
+            #endregion
+
+
+            #region Extract basic claims from access token
+            //Dictionary<string, object> claimsDict = validatedToken is JwtSecurityToken jwtToken
+            //    ? jwtToken.Payload.ToDictionary()
+            //    : principal.Claims.ToDictionary(c => c.Type, c => (object)c.Value);
+            
+            Dictionary<string, object> claimsDict = new Dictionary<string, object>();
+
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                         ?? principal.FindFirst("sub")?.Value
+                         ?? principal.FindFirst("oid")?.Value;
+            //if (!string.IsNullOrWhiteSpace(userId))
+            //    claimsDict["user_id"] = userId;
+
+            var userEmail = principal.FindFirst(ClaimTypes.Email)?.Value
+                            ?? principal.FindFirst("email")?.Value
+                            ?? principal.FindFirst("emails")?.Value;
+            //if (!string.IsNullOrWhiteSpace(userEmail))
+            //    claimsDict["email"] = userEmail;
+
+            var userName = principal.FindFirst(ClaimTypes.Name)?.Value
+                           ?? principal.FindFirst("name")?.Value;
+            //if (!string.IsNullOrWhiteSpace(userName))
+            //    claimsDict["name"] = userName;
+
+            var userRoles = principal.FindAll(ClaimTypes.Role)
+                .Concat(principal.FindAll("roles"))
+                .Select(c => c.Value)
+                .Distinct()
+                .ToList();
+            //if (userRoles?.Any() == true)
+            //    claimsDict["roles"] = string.Join("|", userRoles);
+            #endregion
+
+
+
+            #region UserInfo endpoint fallback for missing claims
+            var fallbackClaimsList = userInfoFallbackClaims
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
+            var missingClaims = new List<string>();
+
+            if (fallbackClaimsList.Contains("email") && string.IsNullOrWhiteSpace(userEmail))
+                missingClaims.Add("email");
+
+            if (fallbackClaimsList.Contains("name") && string.IsNullOrWhiteSpace(userName))
+                missingClaims.Add("name");
+
+            if (fallbackClaimsList.Contains("given_name") && !principal.HasClaim(c => c.Type == "given_name"))
+                missingClaims.Add("given_name");
+
+            if (fallbackClaimsList.Contains("family_name") && !principal.HasClaim(c => c.Type == "family_name"))
+                missingClaims.Add("family_name");
+
+            if (missingClaims.Any())
+            {
+                _logger.LogDebug("Missing claims in access token: {claims}. Calling UserInfo endpoint...",
+                    string.Join(", ", missingClaims));
+
+                // var discoveryDoc = await GetDiscoveryDocumentAsync(authority, context.RequestAborted);
+                var userInfoClaims = await GetUserInfoAsync(
+                    accessToken,
+                    discoveryDocument,
+                    userInfoCacheDuration,
+                    validatedToken.ValidTo,  // Pass token expiration
+                    context.RequestAborted);
+
+                if (userInfoClaims != null && userInfoClaims.Any())
+                {
+                    // Add UserInfo claims to principal
+                    var identity = principal.Identity as ClaimsIdentity;
+                    foreach (var claim in userInfoClaims)
+                    {
+                        // Only add if not already present
+                        if (!principal.HasClaim(c => c.Type == claim.Key))
+                        {
+                            identity?.AddClaim(new Claim(claim.Key, claim.Value?.ToString() ?? string.Empty));
+                            if (!string.IsNullOrWhiteSpace(claim.Value?.ToString()))
+                                claimsDict[claim.Key] = claim.Value;
+                        }
+                    }
+
+                    // Re-extract claims after UserInfo merge
+                    userEmail ??= userInfoClaims.TryGetValue("email", out var emailObj)
+                        ? emailObj?.ToString()
+                        : null;
+                    if (!string.IsNullOrWhiteSpace(userEmail))
+                        claimsDict["email"] = userEmail;
+
+                    userName ??= userInfoClaims.TryGetValue("name", out var nameObj)
+                        ? nameObj?.ToString()
+                        : null;
+                    if (!string.IsNullOrWhiteSpace(userName))
+                        claimsDict["name"] = userName;
+
+                    _logger.LogDebug("UserInfo claims added successfully");
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to retrieve UserInfo claims");
+                }
+            }
+            #endregion
+
+
+            #region Store claims in context for downstream use
+            // context.Items["user_claims"] = principal;
+            context.User = principal;
+
+            if (!string.IsNullOrWhiteSpace(userId))
+                claimsDict["user_id"] = userId;
+
+            if (!string.IsNullOrWhiteSpace(userEmail))
+                claimsDict["email"] = userEmail;
+
+            if (!string.IsNullOrWhiteSpace(userName))
+                claimsDict["name"] = userName;
+
+            if (userRoles?.Any() == true)
+                claimsDict["roles"] = string.Join("|", userRoles);
+
+            
+
+            // Store all OIDC claims with oidc_ prefix for SQL access
+            foreach (var claim in principal.Claims)
+            {
+                if (!claimsDict.ContainsKey(claim.Type))
+                    claimsDict[claim.Type] = claim.Value;
+            }
+
+            context.Items["user_claims"] = claimsDict;
+
+            _logger.LogDebug("User context set successfully. UserId: {userId}, Email: {email}",
+                userId ?? "unknown", userEmail ?? "unknown");
+            #endregion
+
+
+            #region Check required scopes
+            var requiredScopes = routeAuthorizeSection.GetValue<string>("required_scopes")
+                                 ?? providerSection?.GetValue<string>("required_scopes");
+
+            if (!string.IsNullOrWhiteSpace(requiredScopes))
+            {
+                var scopes = principal.FindAll("scp")
+                    .Concat(principal.FindAll("scope"))
+                    .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    .Distinct()
+                    .ToHashSet();
+
+                var required = requiredScopes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                if (!required.All(r => scopes.Contains(r)))
+                {
+                    _logger.LogWarning("Missing required scopes. Required: {required}, Found: {scopes}",
+                        string.Join(", ", required), string.Join(", ", scopes));
+
+                    await context.Response.DeferredWriteAsJsonAsync(
+                        new ObjectResult(
+                            new
+                            {
+                                success = false,
+                                message = "Insufficient permissions"
+                            }
+                        )
+                        {
+                            StatusCode = 403
+                        }
+                    );
+                    return;
+                }
+            }
+            #endregion
+
+            #region Check required roles
+            var requiredRoles = routeAuthorizeSection.GetValue<string>("required_roles")
+                                ?? providerSection?.GetValue<string>("required_roles");
+
+            if (!string.IsNullOrWhiteSpace(requiredRoles))
+            {
+                var required = requiredRoles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                if (!required.All(r => userRoles.Contains(r, StringComparer.OrdinalIgnoreCase)))
+                {
+                    _logger.LogWarning("Missing required roles. Required: {required}, Found: {roles}",
+                        string.Join(", ", required), string.Join(", ", userRoles));
+
+                    await context.Response.DeferredWriteAsJsonAsync(
+                        new ObjectResult(
+                            new
+                            {
+                                success = false,
+                                message = "Insufficient permissions"
+                            }
+                        )
+                        {
+                            StatusCode = 403
+                        }
+                    );
+                    return;
+                }
+            }
+            #endregion
+
+            // Validation successful, proceed to next middleware
+            await _next(context);
+
 
         }
 
-
+        /// <summary>
+        /// Gets the OIDC discovery document with caching.
+        /// </summary>
         private async Task<OpenIdConnectConfiguration> GetDiscoveryDocumentAsync(
             string authority,
             CancellationToken cancellationToken)
         {
             var normalizedAuthority = authority.TrimEnd('/');
             var cacheKey = $"oidc_discovery:{normalizedAuthority}";
-            
+
             // Cache discovery documents for 24 hours (common practice for OIDC metadata)
             var cacheDuration = TimeSpan.FromHours(24);
 
@@ -260,9 +570,74 @@ namespace DB2RestAPI.Middlewares
                 cancellationToken);
         }
 
+        /// <summary>
+        /// Calls the UserInfo endpoint with the access token to retrieve additional user claims.
+        /// Results are cached using SHA-256 hash of the access token.
+        /// 
+        /// Smart Caching Strategy:
+        /// - If userInfoCacheDuration is configured, it acts as the MAXIMUM cache duration
+        /// - Cache NEVER outlives the access token's expiration
+        /// - If userInfoCacheDuration is null/0, defaults to token's expiration time
+        /// - Example: Token expires in 3600s, max cache is 300s → cache for 300s
+        /// - Example: Token expires in 120s, max cache is 300s → cache for 120s (token expiry wins)
+        /// - Example: Token expires in 3600s, no max configured → cache for 3600s
+        /// </summary>
+        private async Task<Dictionary<string, object>?> GetUserInfoAsync(
+            string accessToken,
+            Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration discoveryDocument,
+            int? userInfoCacheDuration,
+            DateTime tokenExpiration,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(discoveryDocument.UserInfoEndpoint))
+            {
+                _logger.LogWarning("UserInfo endpoint not defined in discovery document");
+                return null;
+            }
+            // Compute SHA-256 hash of the access token for cache key
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var tokenHashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(accessToken));
+            var tokenHashString = Convert.ToBase64String(tokenHashBytes);
+            var cacheKey = $"userinfo_claims:{tokenHashString}";
+            // Determine cache duration
+            TimeSpan effectiveCacheDuration;
+            if (userInfoCacheDuration.HasValue && userInfoCacheDuration.Value > 0)
+            {
+                var maxCache = TimeSpan.FromSeconds(userInfoCacheDuration.Value);
+                var timeToTokenExpiry = tokenExpiration - DateTime.UtcNow;
+                effectiveCacheDuration = timeToTokenExpiry < maxCache ? timeToTokenExpiry : maxCache;
+            }
+            else
+            {
+                effectiveCacheDuration = tokenExpiration - DateTime.UtcNow;
+            }
+            if (effectiveCacheDuration <= TimeSpan.Zero)
+            {
+                _logger.LogDebug("Token already expired, skipping UserInfo call");
+                return null;
+            }
+            return await _cacheService.GetAsync(
+                cacheKey,
+                effectiveCacheDuration,
+                async (ct) =>
+                {
+                    using var httpClient = new HttpClient();
+                    var request = new HttpRequestMessage(HttpMethod.Get, discoveryDocument.UserInfoEndpoint);
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                    var response = await httpClient.SendAsync(request, ct);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogWarning("UserInfo endpoint returned non-success status: {status}", response.StatusCode);
+                        return null;
+                    }
+                    var content = await response.Content.ReadAsStringAsync(ct);
+                    var claims = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(content);
+                    return claims;
+                },
+                cancellationToken);
+        }
 
-
-
+        
 
     }
 }

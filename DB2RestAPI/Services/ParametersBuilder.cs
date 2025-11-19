@@ -183,6 +183,13 @@ public class ParametersBuilder
             qParams.Add(queryStringParams);
         #endregion
 
+        #region auth variables
+        var authParams = ExtractAuthParams();
+        if (authParams != null)
+            qParams.Add(authParams);
+
+        #endregion
+
 
         #region route variables
 
@@ -195,6 +202,34 @@ public class ParametersBuilder
         context.Items["parameters"] = qParams;
         return qParams;
 
+    }
+
+    private DbQueryParams? ExtractAuthParams()
+    {
+        var section = Section;
+        var context = Context;
+        // add auth claims to qParams
+        var authVarPattern = section.GetValue<string>("auth_variables_pattern");
+        if (string.IsNullOrWhiteSpace(authVarPattern))
+            authVarPattern = _config.GetValue<string>("regex:auth_variables_pattern");
+        if (string.IsNullOrWhiteSpace(authVarPattern))
+            authVarPattern = DefaultRegex.DefaultAuthVariablesPattern;
+        if (context.Items.TryGetValue("user_claims", out var claimsObj)
+            && claimsObj is Dictionary<string, string> claimsDict
+            && claimsDict.Count > 0)
+        {
+            return new DbQueryParams()
+            {
+                DataModel = claimsDict,
+                QueryParamsRegex = authVarPattern
+            };
+        }
+        // return default to avoid null reference issues downstream
+        return new DbQueryParams()
+        {
+            DataModel = new Dictionary<string, string> { { "unlikely_header_to_be_passed", "123" } },
+            QueryParamsRegex = authVarPattern
+        };
     }
 
 

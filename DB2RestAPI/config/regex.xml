@@ -70,9 +70,14 @@
     <form_variables_pattern>
       <![CDATA[(?<open_marker>\{\{|\{f\{)(?<param>.*?)?(?<close_marker>\}\})]]>
     </form_variables_pattern>
-  
-    
-    
+
+
+    <auth_variables_pattern>
+      <![CDATA[(?<open_marker>\{\{|\{auth\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+    </auth_variables_pattern>
+
+
+
     <!--
     NOTE: the variable pattern in default regex strings allows for using 
     variable names in your query in a generic decorator
