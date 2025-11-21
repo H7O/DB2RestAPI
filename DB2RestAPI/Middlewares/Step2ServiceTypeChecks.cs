@@ -108,7 +108,7 @@ public class Step2ServiceTypeChecks(
 
         var contentType = context.Request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
 
-
+        // if the route starts with `json/`, remove the `json/` prefix
         if (route?.StartsWith("json/") == true)
         {
             route = DefaultRegex.DefaultRemoveJsonPrefixFromRouteCompiledRegex.Replace(route, string.Empty);
@@ -201,18 +201,36 @@ public class Step2ServiceTypeChecks(
 
         if (serviceQuerySection == null || !serviceQuerySection.Exists())
         {
-
-            await context.Response.DeferredWriteAsJsonAsync(
-                new ObjectResult(
-                    new
-                    {
-                        success = false,
-                        message = $"API Endpoint `{route}` not found"
-                    })
+            // For OPTIONS preflight, route resolution might fail because OPTIONS isn't in the verb list
+            // But we still want CORS to respond. Try to find the route with any verb for CORS purposes
+            if (context.Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
+            {
+                // Try to find the section for CORS configuration, trying common verbs
+                var tryVerbs = new[] { "GET", "POST", "PUT", "DELETE", "PATCH" };
+                foreach (var verb in tryVerbs)
                 {
-                    StatusCode = 404
-                });
-            return;
+                    serviceQuerySection = this._queryRouteResolver.ResolveRoute(route, verb);
+                    if (serviceQuerySection != null && serviceQuerySection.Exists())
+                    {
+                        this._logger.LogDebug("OPTIONS preflight: Found route config using verb {verb} for CORS", verb);
+                        break;
+                    }
+                }
+            }
+            if (serviceQuerySection == null || !serviceQuerySection.Exists())
+            {
+                await context.Response.DeferredWriteAsJsonAsync(
+                    new ObjectResult(
+                        new
+                        {
+                            success = false,
+                            message = $"API Endpoint `{route}` not found"
+                        })
+                    {
+                        StatusCode = 404
+                    });
+                return;
+            }
         }
 
         var routeParameters = this._queryRouteResolver.GetRouteParametersIfAny(serviceQuerySection, route);
