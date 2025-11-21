@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Identity" Version="1.17.0" />
+    <PackageReference Include="Azure.Identity" Version="1.17.1" />
     <PackageReference Include="Com.H" Version="10.0.0" />
     <PackageReference Include="Com.H.Data.Common" Version="10.0.0" />
     <PackageReference Include="Com.H.Net.Ssh" Version="10.0.0" />
