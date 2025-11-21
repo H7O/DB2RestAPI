@@ -201,24 +201,6 @@ public class Step2ServiceTypeChecks(
 
         if (serviceQuerySection == null || !serviceQuerySection.Exists())
         {
-            // For OPTIONS preflight, route resolution might fail because OPTIONS isn't in the verb list
-            // But we still want CORS to respond. Try to find the route with any verb for CORS purposes
-            if (context.Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
-            {
-                // Try to find the section for CORS configuration, trying common verbs
-                var tryVerbs = new[] { "GET", "POST", "PUT", "DELETE", "PATCH" };
-                foreach (var verb in tryVerbs)
-                {
-                    serviceQuerySection = this._queryRouteResolver.ResolveRoute(route, verb);
-                    if (serviceQuerySection != null && serviceQuerySection.Exists())
-                    {
-                        this._logger.LogDebug("OPTIONS preflight: Found route config using verb {verb} for CORS", verb);
-                        break;
-                    }
-                }
-            }
-            if (serviceQuerySection == null || !serviceQuerySection.Exists())
-            {
                 await context.Response.DeferredWriteAsJsonAsync(
                     new ObjectResult(
                         new
@@ -230,7 +212,6 @@ public class Step2ServiceTypeChecks(
                         StatusCode = 404
                     });
                 return;
-            }
         }
 
         var routeParameters = this._queryRouteResolver.GetRouteParametersIfAny(serviceQuerySection, route);

@@ -34,9 +34,9 @@ using System.Text.RegularExpressions;
 public class QueryRouteResolver
 {
 
-    private List<(string NormalizedRoute, string Verb, IConfigurationSection Config)> _exactRoutes = new();
-    private List<(string NormalizedRoute, string Verb, IConfigurationSection Config)> _routesWithVariables = new();
-    private Dictionary<string, HashSet<string>> _exactRouteVerbs = new();
+    private List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)> _exactRoutes = new();
+    private List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)> _routesWithVariables = new();
+    // private Dictionary<string, HashSet<string>> _exactRouteVerbs = new();
     private readonly IConfiguration _configuration;
 
 
@@ -51,6 +51,10 @@ public class QueryRouteResolver
             LoadRoutes);
     }
 
+    private static readonly HashSet<string> _allVerbs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"
+    };
 
     private void LoadRoutes()
     {
@@ -62,8 +66,8 @@ public class QueryRouteResolver
             if (querySections == null || !querySections.Exists())
                 return;
 
-            var newExactRoutes = new List<(string NormalizedRoute, string Verb, IConfigurationSection Config)>();
-            var newRoutesWithVariables = new List<(string NormalizedRoute, string Verb, IConfigurationSection Config)>();
+            var newExactRoutes = new List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)>();
+            var newRoutesWithVariables = new List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)>();
             var newExactRouteVerbs = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             
             foreach (var querySection in querySections.GetChildren())
@@ -72,6 +76,23 @@ public class QueryRouteResolver
                 if (string.IsNullOrWhiteSpace(route)) continue;
                 var normalizedRoute = NormalizeRoute(route);
                 if (string.IsNullOrWhiteSpace(normalizedRoute)) continue;
+                
+                var verbString = querySection.GetValue<string>("verb");
+                var verbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                
+                if (!string.IsNullOrWhiteSpace(verbString))
+                {
+                    var splitVerbs = verbString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    foreach (var v in splitVerbs) verbs.Add(v);
+                    // Ensure OPTIONS is present if specific verbs are defined
+                    verbs.Add("OPTIONS");
+                }
+                else
+                {
+                    // No verb defined -> implies all verbs
+                    foreach (var v in _allVerbs) verbs.Add(v);
+                }
+
                 var routeParameterPattern = 
                 querySection.GetValue<string>("route_variable_pattern")
                 ??_configuration.GetValue<string>("route_variable_pattern");
@@ -82,28 +103,29 @@ public class QueryRouteResolver
 
                 if (routeParametersRegex.IsMatch(normalizedRoute))
                 {
-                    var verb = querySection.GetValue<string>("verb") ?? string.Empty;
                     // Store routes with variables separately
-                    newRoutesWithVariables.Add((normalizedRoute, verb, querySection));
+                    newRoutesWithVariables.Add((normalizedRoute, verbs, querySection));
                 }
                 else
                 {
-                    var verb = querySection.GetValue<string>("verb") ?? string.Empty;
                     // Store exact routes separately
-                    newExactRoutes.Add((normalizedRoute, verb, querySection));
+                    newExactRoutes.Add((normalizedRoute, verbs, querySection));
 
                     if (!newExactRouteVerbs.ContainsKey(normalizedRoute))
                     {
                         newExactRouteVerbs[normalizedRoute] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     }
-                    // Add the verb even if it is empty (which means any verb)
-                    newExactRouteVerbs[normalizedRoute].Add(verb);
+                    
+                    foreach (var v in verbs)
+                    {
+                        newExactRouteVerbs[normalizedRoute].Add(v);
+                    }
                 }
             }
             
             _exactRoutes = newExactRoutes;
             _routesWithVariables = newRoutesWithVariables;
-            _exactRouteVerbs = newExactRouteVerbs;
+            // _exactRouteVerbs = newExactRouteVerbs;
         }
         finally
         {
@@ -120,83 +142,66 @@ public class QueryRouteResolver
         // with the normalized routes in the config
         urlRoute = NormalizeRoute(urlRoute);
         
-        // First, try exact match with both route and verb
+        // Try exact match with both route and verb
         var exactMatch = _exactRoutes.FirstOrDefault(rc => 
             string.Equals(rc.NormalizedRoute, urlRoute, StringComparison.OrdinalIgnoreCase) && 
-            string.Equals(rc.Verb, verb, StringComparison.OrdinalIgnoreCase));
+            rc.Verbs.Contains(verb));
         
         if (exactMatch.Config != null)
         {
             return exactMatch.Config;
         }
         
-        // If no exact route+verb match, try to find route match with null/empty verb
-        var routeMatchWithNullVerb = _exactRoutes.FirstOrDefault(rc => 
-            string.Equals(rc.NormalizedRoute, urlRoute, StringComparison.OrdinalIgnoreCase) && 
-            string.IsNullOrWhiteSpace(rc.Verb));
-        
-        if (routeMatchWithNullVerb.Config != null)
-        {
-            return routeMatchWithNullVerb.Config;
-        }
-        
         // If no exact match, try best matching route with variables
         return GetBestMatchingRouteConfig(urlRoute, verb);
     }
 
-    private static readonly HashSet<string> _allVerbs = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"
-    };
+    //public IEnumerable<string> GetPossibleVerbs(string urlRoute)
+    //{
+    //    if (string.IsNullOrWhiteSpace(urlRoute)) return Enumerable.Empty<string>();
 
-    public IEnumerable<string> GetPossibleVerbs(string urlRoute)
-    {
-        if (string.IsNullOrWhiteSpace(urlRoute)) return Enumerable.Empty<string>();
+    //    var normalizedUrlRoute = NormalizeRoute(urlRoute);
+    //    var verbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var normalizedUrlRoute = NormalizeRoute(urlRoute);
-        var verbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    //    // 1. Exact matches
+    //    if (_exactRouteVerbs.TryGetValue(normalizedUrlRoute, out var exactVerbs))
+    //    {
+    //        foreach (var verb in exactVerbs)
+    //        {
+    //            verbs.Add(verb);
+    //        }
+    //    }
 
-        // 1. Exact matches
-        if (_exactRouteVerbs.TryGetValue(normalizedUrlRoute, out var exactVerbs))
-        {
-            if (exactVerbs.Contains(string.Empty)) return _allVerbs;
-            foreach (var verb in exactVerbs)
-            {
-                verbs.Add(verb);
-            }
-        }
+    //    // 2. Variable matches
+    //    if (_routesWithVariables != null)
+    //    {
+    //        var urlSegments = normalizedUrlRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        // 2. Variable matches
-        if (_routesWithVariables != null)
-        {
-            var urlSegments = normalizedUrlRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    //        foreach (var (NormalizedConfigRoute, Verbs, Config) in _routesWithVariables)
+    //        {
+    //            // Optimization: check segment count first
+    //            var configSegments = NormalizedConfigRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    //            if (configSegments.Length != urlSegments.Length) continue;
 
-            foreach (var (NormalizedConfigRoute, Verb, Config) in _routesWithVariables)
-            {
-                // Optimization: check segment count first
-                var configSegments = NormalizedConfigRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                if (configSegments.Length != urlSegments.Length) continue;
+    //            var routeParameterPattern = Config.GetValue<string>("route_variable_pattern")
+    //               ?? _configuration.GetValue<string>("route_variable_pattern");
 
-                var routeParameterPattern = Config.GetValue<string>("route_variable_pattern")
-                   ?? _configuration.GetValue<string>("route_variable_pattern");
+    //            var routeParametersRegex = string.IsNullOrWhiteSpace(routeParameterPattern) ?
+    //               DefaultRegex.DefaultRouteVariablesCompiledRegex :
+    //               new Regex(routeParameterPattern, RegexOptions.Compiled);
 
-                var routeParametersRegex = string.IsNullOrWhiteSpace(routeParameterPattern) ?
-                   DefaultRegex.DefaultRouteVariablesCompiledRegex :
-                   new Regex(routeParameterPattern, RegexOptions.Compiled);
+    //            if (CalculateRouteMatchScore(urlSegments, NormalizedConfigRoute, routeParametersRegex) > 0)
+    //            {
+    //                foreach (var v in Verbs)
+    //                {
+    //                    verbs.Add(v);
+    //                }
+    //            }
+    //        }
+    //    }
 
-                if (CalculateRouteMatchScore(urlSegments, NormalizedConfigRoute, routeParametersRegex) > 0)
-                {
-                    if (string.IsNullOrWhiteSpace(Verb))
-                    {
-                        return _allVerbs;
-                    }
-                    verbs.Add(Verb);
-                }
-            }
-        }
-
-        return verbs;
-    }
+    //    return verbs;
+    //}
 
     public Dictionary<string, string> GetRouteParametersIfAny(
         IConfigurationSection configSection,
@@ -262,8 +267,7 @@ public class QueryRouteResolver
         
         // Filter by verb first for performance (case insensitive)
         var verbMatches = _routesWithVariables.Where(rc => 
-            string.IsNullOrWhiteSpace(rc.Verb) 
-            || string.Equals(rc.Verb, verb, StringComparison.OrdinalIgnoreCase));
+            rc.Verbs.Contains(verb));
 
         if (!verbMatches.Any())
             return null;
@@ -275,7 +279,7 @@ public class QueryRouteResolver
         var urlSegments = normalizedUrlRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
 
-        foreach (var (NormalizedConfigRoute, Verb, Config) in verbMatches)
+        foreach (var (NormalizedConfigRoute, Verbs, Config) in verbMatches)
         {
             // do a direct comparison first for performance
             if (string.Equals(normalizedUrlRoute, NormalizedConfigRoute, StringComparison.OrdinalIgnoreCase))
