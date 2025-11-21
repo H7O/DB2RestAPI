@@ -108,29 +108,7 @@ public class Step2ServiceTypeChecks(
 
         var contentType = context.Request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
 
-        // string? mediaType = contentType?.Split(';')[0].Trim().ToLowerInvariant();
 
-        //if (
-        //    !(contentType!=null && _acceptableContentTypes.Contains(contentType.ToLower())
-        //    || route?.StartsWith("json/") == true
-        //    )
-        //)
-        //{
-
-        //    await context.Response.DeferredWriteAsJsonAsync(
-        //        new ObjectResult(
-        //            new
-        //            {
-        //                success = false,
-        //                message = "`Content-Type` header must be set to `application/json` or `multipart/form-data, or endpoint should start with `json/`"
-        //            })
-        //        {
-        //            StatusCode = 400
-        //        });
-        //    return;
-        //}
-
-        // if the route starts with `json/`, remove the `json/` prefix
         if (route?.StartsWith("json/") == true)
         {
             route = DefaultRegex.DefaultRemoveJsonPrefixFromRouteCompiledRegex.Replace(route, string.Empty);
