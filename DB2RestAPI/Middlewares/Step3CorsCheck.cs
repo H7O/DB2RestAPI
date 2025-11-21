@@ -124,7 +124,8 @@ public class Step3CorsCheck(
                 allowCredentials = "false";
         }
 
-        context.Response.Headers["Access-Control-Allow-Credentials"] = allowCredentials;
+        if (allowCredentials.Equals("true"))
+            context.Response.Headers["Access-Control-Allow-Credentials"] = allowCredentials;
         context.Response.Headers["Access-Control-Allow-Headers"] = allowedHeaders ?? (allowCredentials == "true" ? _defaultHeaders : "*");
 
 

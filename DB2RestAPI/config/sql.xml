@@ -1155,7 +1155,7 @@
 
     </hello_world_cors_example>
 
-    <hello_world>
+    <hello_world_cors>
       <route>cors/hello_world</route>
       <!-- 
       if `cors` not defined here, the system will look for a default cors configuration
@@ -1165,7 +1165,7 @@
       -->
       <cors>
         <!-- regex pattern for localhost or *.example.com -->
-        <pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+        <pattern><![CDATA[^(localhost|.*\.dfm\.ae)$]]></pattern>
         <!-- 
         fallback_origin: default cors value if the caller's origin domain doesn't match the regex pattern above
         -->
@@ -1187,14 +1187,25 @@
         
         ]]>
       </query>
-    </hello_world>
+    </hello_world_cors>
 
 
-    <hello_world>
+    <hello_world_auth>
       <authorize>
         <provider>azure_btc</provider>
       </authorize>
       <route>auth/hello_world</route>
+
+      <cors>
+        <!-- regex pattern for localhost or *.example.com -->
+        <pattern><![CDATA[^(localhost|.*\.dfm\.ae)$]]></pattern>
+        <!-- 
+        fallback_origin: default cors value if the caller's origin domain doesn't match the regex pattern above
+        -->
+        <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+      </cors>
+
+
       <query>
         <![CDATA[
         
@@ -1211,7 +1222,7 @@
         
         ]]>
       </query>
-    </hello_world>
+    </hello_world_auth>
 
 
   </queries>
