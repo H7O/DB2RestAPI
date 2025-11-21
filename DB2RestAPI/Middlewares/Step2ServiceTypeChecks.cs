@@ -43,7 +43,7 @@ public class Step2ServiceTypeChecks(
         "multipart/form-data",
         "application/x-www-form-urlencoded"
     };
-    
+
     // private static int count = 0;
     private static readonly string _errorCode = "Step 2 - Service Type Check Error";
 
@@ -55,36 +55,30 @@ public class Step2ServiceTypeChecks(
             DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
         #endregion
 
-        //// Check if this is a CORS preflight OPTIONS request
-        //var isPreflightRequest = context.Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase);
-
         // Retrieve the route data
         var routeData = context.GetRouteData();
 
-        object? routeValue = null;
 
         #region if route is null, return 404
         if (routeData == null
             ||
-            !routeData.Values.TryGetValue("route", out routeValue)
+            !routeData.Values.TryGetValue("route", out var routeValue)
             )
         {
+
             // Try to extract route from the request path directly
             // This handles cases where routing hasn't populated RouteData yet (like OPTIONS preflight)
-            var path = context.Request.Path.Value?.TrimStart('/');
-            if (!string.IsNullOrWhiteSpace(path))
+            routeValue = context.Request.Path.Value?.TrimStart('/');
+
+            if (routeValue == null)
             {
-                routeValue = path;
-                this._logger.LogDebug("Extracted route from request path: {route}", path);
-            }
-            else
-            {
+
                 await context.Response.DeferredWriteAsJsonAsync(
                     new ObjectResult(
                         new
                         {
                             success = false,
-                            message = $"Missing API endpoint"
+                            message = $"Missing endpoint"
                         })
                     {
                         StatusCode = 404
@@ -229,40 +223,6 @@ public class Step2ServiceTypeChecks(
 
         if (serviceQuerySection == null || !serviceQuerySection.Exists())
         {
-            // For OPTIONS preflight, route resolution might fail because OPTIONS isn't in the verb list
-            // But we still want CORS to respond. Try to find the route with any verb for CORS purposes
-            if (isPreflightRequest)
-            {
-                // Try to find the section for CORS configuration, trying common verbs
-                var tryVerbs = new[] { "GET", "POST", "PUT", "DELETE", "PATCH" };
-                foreach (var verb in tryVerbs)
-                {
-                    serviceQuerySection = this._queryRouteResolver.ResolveRoute(route, verb);
-                    if (serviceQuerySection != null && serviceQuerySection.Exists())
-                    {
-                        this._logger.LogDebug("OPTIONS preflight: Found route config using verb {verb} for CORS", verb);
-                        break;
-                    }
-                }
-
-                // If still not found, create a minimal context for CORS to use global settings
-                if (serviceQuerySection == null || !serviceQuerySection.Exists())
-                {
-                    this._logger.LogDebug("OPTIONS preflight: No route config found, using global CORS settings");
-                    // Create a dummy section - CORS will fall back to global settings
-                    serviceQuerySection = this._configuration.GetSection("queries:_preflight_dummy");
-                }
-
-                // Set minimal context for CORS
-                context.Items["route"] = route;
-                context.Items["section"] = serviceQuerySection;
-                context.Items["service_type"] = "db_query";
-                context.Items["content_type"] = contentType;
-
-                // Pass to CORS middleware which will handle OPTIONS and return 204
-                await _next(context);
-                return;
-            }
 
             await context.Response.DeferredWriteAsJsonAsync(
                 new ObjectResult(
