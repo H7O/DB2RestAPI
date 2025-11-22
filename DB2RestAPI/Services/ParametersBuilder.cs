@@ -215,7 +215,7 @@ public class ParametersBuilder
         if (string.IsNullOrWhiteSpace(authVarPattern))
             authVarPattern = DefaultRegex.DefaultAuthVariablesPattern;
         if (context.Items.TryGetValue("user_claims", out var claimsObj)
-            && claimsObj is Dictionary<string, string> claimsDict
+            && claimsObj is Dictionary<string, object> claimsDict
             && claimsDict.Count > 0)
         {
             return new DbQueryParams()

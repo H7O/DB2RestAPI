@@ -1209,7 +1209,7 @@
       <query>
         <![CDATA[
         
-        declare @name nvarchar(500) = {auth{email}};
+        declare @name nvarchar(500) = {auth{name}};
 
 
         if (@name is null or ltrim(rtrim(@name)) = '')
