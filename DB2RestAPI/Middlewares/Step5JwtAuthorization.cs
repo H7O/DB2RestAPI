@@ -245,6 +245,18 @@ namespace DB2RestAPI.Middlewares
                 // Get or fetch discovery document (with caching)
                 discoveryDocument = await GetDiscoveryDocumentAsync(authority, context.RequestAborted);
 
+                // DEBUG: Log discovery document details
+                _logger.LogDebug("Discovery document loaded from: {authority}", authority);
+                _logger.LogDebug("Issuer from discovery: {issuer}", discoveryDocument.Issuer);
+                _logger.LogDebug("JWKS URI: {jwksUri}", discoveryDocument.JwksUri);
+                _logger.LogDebug("Number of signing keys: {count}", discoveryDocument.SigningKeys?.Count ?? 0);
+
+                if (discoveryDocument.SigningKeys == null || !discoveryDocument.SigningKeys.Any())
+                {
+                    _logger.LogError("No signing keys found in discovery document. JWKS URI: {jwksUri}", discoveryDocument.JwksUri);
+                    throw new InvalidOperationException("No signing keys available from OIDC provider");
+                }
+
                 var validationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
@@ -337,7 +349,7 @@ namespace DB2RestAPI.Middlewares
             //Dictionary<string, object> claimsDict = validatedToken is JwtSecurityToken jwtToken
             //    ? jwtToken.Payload.ToDictionary()
             //    : principal.Claims.ToDictionary(c => c.Type, c => (object)c.Value);
-            
+
             Dictionary<string, object> claimsDict = new Dictionary<string, object>();
 
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -454,7 +466,7 @@ namespace DB2RestAPI.Middlewares
             if (userRoles?.Any() == true)
                 claimsDict["roles"] = string.Join("|", userRoles);
 
-            
+
 
             // Store all OIDC claims for SQL access
             foreach (var claim in principal.Claims)
@@ -637,7 +649,7 @@ namespace DB2RestAPI.Middlewares
                 cancellationToken);
         }
 
-        
+
 
     }
 }
