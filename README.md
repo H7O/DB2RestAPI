@@ -6,7 +6,7 @@ All you need to have is knowledge in writing basic SQL queries and you'll hopefu
 
 And although not required, but if you happen to be a .NET developer, you can expand on this solution to add more features / customizations of your liking.
 
-However, for public APIs or B2B APIs with API keys, you can use this solution as is. You'll be surprised how easy it is to build a REST API from a database using the DB-First approach offered by this solution.
+Whether you're building public APIs, B2B APIs with API keys, or full-stack applications with JWT/OIDC authentication, you can use this solution as is. With built-in support for OAuth2.0/OIDC (Azure B2C, Google, Auth0, etc.), you can now build complete front-end applications (React, Angular, Vue) that directly communicate with your database through secure, authenticated REST APIs. You'll be surprised how easy it is to build a production-ready REST API from a database using the DB-First approach offered by this solution.
 
 ## How to use
 
