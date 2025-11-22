@@ -251,19 +251,7 @@ namespace DB2RestAPI.Middlewares
                 _logger.LogDebug("JWKS URI: {jwksUri}", discoveryDocument.JwksUri);
                 _logger.LogDebug("Number of signing keys: {count}", discoveryDocument.SigningKeys?.Count ?? 0);
 
-                // Also log JsonWebKeySet keys
-                var jwksKeyCount = discoveryDocument.JsonWebKeySet?.Keys?.Count ?? 0;
-                _logger.LogDebug("Number of keys in JsonWebKeySet: {count}", jwksKeyCount);
-
-                // Use keys from JsonWebKeySet if SigningKeys is empty but JsonWebKeySet has keys
-                ICollection<SecurityKey>? keysToUse = discoveryDocument.SigningKeys;
-                if ((!discoveryDocument.SigningKeys?.Any() ?? true) && jwksKeyCount > 0)
-                {
-                    _logger.LogDebug("Using keys from JsonWebKeySet instead of SigningKeys");
-                    keysToUse = discoveryDocument.JsonWebKeySet?.GetSigningKeys();
-                }
-
-                if (keysToUse == null || !keysToUse.Any())
+                if (discoveryDocument.SigningKeys == null || !discoveryDocument.SigningKeys.Any())
                 {
                     _logger.LogError("No signing keys found in discovery document. JWKS URI: {jwksUri}", discoveryDocument.JwksUri);
                     throw new InvalidOperationException("No signing keys available from OIDC provider");
@@ -272,7 +260,7 @@ namespace DB2RestAPI.Middlewares
                 var validationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKeys = keysToUse,
+                    IssuerSigningKeys = discoveryDocument.SigningKeys,
                     ValidateIssuer = validateIssuer,
                     ValidIssuer = issuer,
                     ValidateAudience = validateAudience,
