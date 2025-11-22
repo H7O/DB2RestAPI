@@ -9,8 +9,7 @@
       Each provider represents an OIDC identity provider (Azure B2C, Google, Facebook, etc.)
       
       Key Concepts:
-      - Access tokens are validated and used for API authorization
-      - ID tokens should NOT be sent to APIs (anti-pattern)
+      - Access tokens (or ID tokens) are validated and used for API authorization
       - UserInfo endpoint is called when access token lacks user claims
       - Results are cached for performance
     -->
@@ -21,13 +20,13 @@
       <!-- Azure AD B2C Configuration                -->
       <!-- ========================================= -->
       <azure_b2c>
-        <!-- OIDC authority URL -->
-        <authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/v2.0/</authority>
+        <!-- OIDC authority URL (WITHOUT /v2.0/ at the end - discovery doc path is auto-appended) -->
+        <authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com</authority>
 
         <!-- Expected audience (your API's client ID in Azure B2C) -->
-        <audience>api://db2restapi-12345678-abcd-1234-abcd-123456789abc</audience>
+        <audience>db2restapi-12345678-abcd-1234-abcd-123456789abc</audience>
 
-        <!-- Optional: Issuer (defaults to authority if not set) -->
+        <!-- Optional: Issuer (must match 'iss' claim in token exactly) -->
         <issuer>https://yourb2c.b2clogin.com/87654321-dcba-4321-dcba-987654321cba/v2.0/</issuer>
 
         <!-- Token Validation Settings -->
@@ -93,10 +92,10 @@
       <!-- Azure AD (Corporate/Work Accounts)        -->
       <!-- ========================================= -->
       <azure_ad>
-        <!-- For multi-tenant: https://login.microsoftonline.com/common/v2.0 -->
-        <!-- For single tenant: https://login.microsoftonline.com/{tenant-id}/v2.0 -->
-        <authority>https://login.microsoftonline.com/your-tenant-id/v2.0</authority>
-        <audience>api://db2restapi</audience>
+        <!-- For multi-tenant: https://login.microsoftonline.com/common/ -->
+        <!-- For single tenant: https://login.microsoftonline.com/{tenant-id}/ -->
+        <authority>https://login.microsoftonline.com/your-tenant-id/</authority>
+        <audience>db2restapi</audience>
         <issuer>https://login.microsoftonline.com/your-tenant-id/v2.0</issuer>
         <validate_issuer>true</validate_issuer>
         <validate_audience>true</validate_audience>
@@ -127,7 +126,7 @@
       <!-- ========================================= -->
       <okta>
         <authority>https://your-domain.okta.com/oauth2/default</authority>
-        <audience>api://default</audience>
+        <audience>default</audience>
         <validate_issuer>true</validate_issuer>
         <validate_audience>true</validate_audience>
         <validate_lifetime>true</validate_lifetime>
@@ -146,8 +145,8 @@
       These values are used when no provider is specified.
       Route-specific config > Provider config > Global config
     -->
-    <!--<authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/v2.0/</authority>
-    <audience>api://db2restapi</audience>
+    <!--<authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/</authority>
+    <audience>db2restapi</audience>
     <validate_issuer>true</validate_issuer>
     <validate_audience>true</validate_audience>
     <validate_lifetime>true</validate_lifetime>

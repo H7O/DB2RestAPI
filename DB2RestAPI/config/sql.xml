@@ -1192,7 +1192,7 @@
 
     <hello_world_auth>
       <authorize>
-        <provider>my_custom_provider</provider>
+        <provider>azure_b2c</provider>
       </authorize>
       <route>auth/hello_world</route>
 
@@ -1210,6 +1210,11 @@
         <![CDATA[
         
         declare @name nvarchar(500) = {auth{name}};
+        -- you can lookup other user info from your user db table using the {auth{email}} or other auth variables
+        -- auth variables can be the name of the claim, and if the claim has special characters (e.g., dot), you can use underscore instead
+        -- e.g., if the claim is `user.email`, you can access it via {auth{user_email}}
+        -- authorization to be done in query by having a user table and checking if the user exist, is active, what roles they have, etc.
+        -- if the user is not authorized, you can throw 50401 to return http 401 error, or throw 50403 to return http 403 error
 
 
         if (@name is null or ltrim(rtrim(@name)) = '')
