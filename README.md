@@ -2476,5 +2476,654 @@ You can mix and match CORS configurations:
 > **Performance Tip**: Set a reasonable `max_age` (default: 1 day) to reduce preflight requests. Browsers cache the preflight response for this duration, improving performance for repeated requests.
 
 
+## OIDC/JWT Authorization
+
+The solution provides enterprise-grade JWT (JSON Web Token) authentication with support for multiple OIDC (OpenID Connect) providers including Azure B2C, Azure AD, Google, Facebook, Auth0, Okta, and any OIDC-compliant identity provider.
+
+### Key Features
+
+- ✅ **Multi-Provider Support** - Configure multiple identity providers (Azure B2C, Google, Auth0, etc.)
+- ✅ **Automatic Token Validation** - Validates JWT signatures, issuer, audience, and expiration
+- ✅ **UserInfo Fallback** - Automatically fetches missing claims from OIDC UserInfo endpoint
+- ✅ **Claims in SQL** - Access user claims directly in SQL queries (e.g., `{auth{email}}`, `{auth{sub}}`)
+- ✅ **Role & Scope Enforcement** - Require specific roles or scopes for endpoints
+- ✅ **Smart Caching** - Caches OIDC discovery documents and UserInfo responses
+- ✅ **Flexible Configuration** - Global, provider-level, and endpoint-level settings
+- ✅ **Automatic CORS Integration** - Sets `Access-Control-Allow-Credentials: true` when auth is enabled
+
+### How JWT Authorization Works
+
+1. **Client Authentication**: User signs in via your identity provider (Azure B2C, Google, etc.)
+2. **Token Acquisition**: Client receives a JWT access token or ID token
+3. **API Request**: Client sends token in `Authorization: Bearer {token}` header
+4. **Token Validation**: 
+   - System fetches OIDC discovery document (cached)
+   - Validates token signature using provider's public keys
+   - Verifies issuer, audience, and expiration
+5. **Claims Extraction**: User claims (email, name, roles, etc.) are extracted
+6. **UserInfo Fallback** (if configured): Missing claims are fetched from UserInfo endpoint (cached)
+7. **SQL Access**: Claims become available in SQL as `{auth{claim_name}}` parameters
+8. **Authorization**: Your SQL query can check user roles, permissions, etc.
+
+### Prerequisites - Provider Configuration
+
+Configure your identity providers in `/config/auth_providers.xml`:
+
+```xml
+<settings>
+  <authorize>
+    <providers>
+      
+      <!-- Azure AD B2C Configuration -->
+      <azure_b2c>
+        <!-- OIDC authority URL (discovery document at /.well-known/openid-configuration) -->
+        <authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/B2C_1_signupsignin</authority>
+        
+        <!-- Expected audience (your API's client ID in Azure B2C) -->
+        <audience>your-api-client-id</audience>
+        
+        <!-- Optional: Issuer (must match 'iss' claim exactly) -->
+        <issuer>https://yourb2c.b2clogin.com/tenant-id/v2.0/</issuer>
+        
+        <!-- Token Validation Settings -->
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <clock_skew_seconds>300</clock_skew_seconds>
+        
+        <!-- UserInfo Fallback: fetch these claims if missing from token -->
+        <userinfo_fallback_claims>email,name,given_name,family_name</userinfo_fallback_claims>
+        <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+      </azure_b2c>
+      
+      <!-- Google OIDC Configuration -->
+      <google>
+        <authority>https://accounts.google.com</authority>
+        <audience>your-google-client-id.apps.googleusercontent.com</audience>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+        <validate_lifetime>true</validate_lifetime>
+        <userinfo_fallback_claims>email,name,picture</userinfo_fallback_claims>
+      </google>
+      
+      <!-- Auth0 Configuration -->
+      <auth0>
+        <authority>https://your-domain.auth0.com/</authority>
+        <audience>https://your-api-identifier</audience>
+        <validate_issuer>true</validate_issuer>
+        <validate_audience>true</validate_audience>
+      </auth0>
+      
+    </providers>
+  </authorize>
+</settings>
+```
+
+### Example - Protected Endpoint with JWT
+
+Let's create an endpoint that requires authentication and uses claims in the SQL query:
+
+**Configuration in `/config/sql.xml`:**
+
+```xml
+<hello_world_auth>
+  <route>auth/hello_world</route>
+  <verb>GET</verb>
+  
+  <!-- Enable JWT authorization using the 'azure_b2c' provider -->
+  <authorize>
+    <provider>azure_b2c</provider>
+  </authorize>
+  
+  <!-- CORS automatically allows credentials when 'authorize' is present -->
+  <cors>
+    <pattern><![CDATA[^(localhost|.*\.example\.com)$]]></pattern>
+    <fallback_origin>https://www.example.com</fallback_origin>
+  </cors>
+  
+  <query>
+  <![CDATA[
+    -- Access JWT claims using {auth{claim_name}} syntax
+    DECLARE @user_name NVARCHAR(500) = {auth{name}};
+    DECLARE @user_email NVARCHAR(500) = {auth{email}};
+    DECLARE @user_id NVARCHAR(100) = {auth{sub}};
+    
+    -- You can also access claims with dots using underscores
+    -- e.g., if claim is 'user.email', use {auth{user_email}}
+    
+    -- Example: Look up user in your database
+    DECLARE @is_active BIT;
+    SELECT @is_active = active FROM users WHERE email = @user_email;
+    
+    -- Authorization: Check if user is active
+    IF @is_active IS NULL OR @is_active = 0
+    BEGIN
+        THROW 50403, 'User account is inactive', 1; -- Returns HTTP 403 Forbidden
+        RETURN;
+    END
+    
+    IF @user_name IS NULL OR LTRIM(RTRIM(@user_name)) = ''
+    BEGIN
+        SET @user_name = 'authenticated user';
+    END
+    
+    SELECT 
+        'Hello ' + @user_name + '! Your email is ' + @user_email AS message,
+        @user_id AS user_id,
+        GETDATE() AS timestamp;
+  ]]>
+  </query>
+</hello_world_auth>
+```
+
+### Usage - Making Authenticated Requests
+
+#### Using JavaScript (React/Angular/Vue)
+
+```javascript
+// After user signs in, you'll have an access token
+const accessToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...';
+
+fetch('https://localhost:7054/auth/hello_world', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  credentials: 'include' // Important for CORS with credentials
+})
+.then(response => response.json())
+.then(data => console.log(data))
+.catch(error => console.error('Auth Error:', error));
+```
+
+#### Using cURL
+
+```bash
+# Replace TOKEN with your actual JWT
+curl -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  https://localhost:7054/auth/hello_world
+```
+
+#### Using Postman
+
+1. Select **Authorization** tab
+2. Choose **Type**: Bearer Token
+3. Paste your JWT in the **Token** field
+4. Send the request
+
+**Successful Response:**
+```json
+{
+  "message": "Hello John Doe! Your email is john@example.com",
+  "user_id": "a3d5e7f9-1234-5678-90ab-cdef12345678",
+  "timestamp": "2025-11-21T10:30:45.123"
+}
+```
+
+**Error Response (Missing/Invalid Token):**
+```json
+{
+  "success": false,
+  "message": "Authorization header is required"
+}
+```
+HTTP Status: `401 Unauthorized`
+
+### Available JWT Claims in SQL
+
+All claims from the JWT are accessible using the `{auth{claim_name}}` syntax. Common claims include:
+
+| Claim | Example Usage | Description |
+|-------|---------------|-------------|
+| `sub` | `{auth{sub}}` | Subject - unique user identifier |
+| `email` | `{auth{email}}` | User's email address |
+| `name` | `{auth{name}}` | User's full name |
+| `given_name` | `{auth{given_name}}` | First name |
+| `family_name` | `{auth{family_name}}` | Last name |
+| `oid` | `{auth{oid}}` | Object ID (Azure AD) |
+| `roles` | `{auth{roles}}` | User roles (pipe-delimited if multiple) |
+| `scp` / `scope` | `{auth{scope}}` | Scopes/permissions |
+| `tfp` | `{auth{tfp}}` | Trust Framework Policy (Azure B2C user flow) |
+| `idp` | `{auth{idp}}` | Identity Provider (Google, Facebook, etc.) |
+| `extension_*` | `{auth{extension_SubscriptionLevel}}` | Custom attributes |
+
+**Handling Claims with Special Characters:**
+- Claim: `user.email` → Use: `{auth{user_email}}`
+- Claim: `https://schemas.example.com/role` → Use: `{auth{https___schemas_example_com_role}}`
+
+All dots, slashes, and special characters are replaced with underscores.
+
+### Authorization Configuration Options
+
+#### Endpoint-Level Configuration
+
+Override provider settings for specific endpoints:
+
+```xml
+<sensitive_endpoint>
+  <route>api/admin/users</route>
+  
+  <authorize>
+    <!-- Use a different provider for this endpoint -->
+    <provider>azure_ad</provider>
+    
+    <!-- Override token validation settings -->
+    <validate_issuer>true</validate_issuer>
+    <validate_audience>true</validate_audience>
+    <validate_lifetime>true</validate_lifetime>
+    <clock_skew_seconds>60</clock_skew_seconds>
+    
+    <!-- Require specific scopes (comma-separated) -->
+    <required_scopes>api.read, api.write</required_scopes>
+    
+    <!-- Require specific roles (comma-separated) -->
+    <required_roles>admin, superuser</required_roles>
+    
+    <!-- UserInfo fallback settings -->
+    <userinfo_fallback_claims>email,name</userinfo_fallback_claims>
+    <userinfo_cache_duration_seconds>600</userinfo_cache_duration_seconds>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @user_email NVARCHAR(500) = {auth{email}};
+    -- Admin operations here
+    SELECT * FROM sensitive_data WHERE owner = @user_email;
+  ]]>
+  </query>
+</sensitive_endpoint>
+```
+
+#### Disable Authorization for Specific Endpoint
+
+```xml
+<public_endpoint>
+  <route>api/public/data</route>
+  
+  <!-- Explicitly disable authorization -->
+  <authorize>
+    <enabled>false</enabled>
+  </authorize>
+  
+  <query>SELECT 'Public data' AS data;</query>
+</public_endpoint>
+```
+
+#### Provider-Level Configuration
+
+Define settings in `auth_providers.xml` that apply to all endpoints using that provider:
+
+```xml
+<azure_b2c>
+  <authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/B2C_1_signupsignin</authority>
+  <audience>your-api-client-id</audience>
+  
+  <!-- Global scope/role requirements for this provider -->
+  <required_scopes>api.read</required_scopes>
+  <required_roles>user</required_roles>
+  
+  <!-- These settings apply to all endpoints using azure_b2c -->
+  <validate_issuer>true</validate_issuer>
+  <validate_lifetime>true</validate_lifetime>
+  <clock_skew_seconds>300</clock_skew_seconds>
+</azure_b2c>
+```
+
+### Configuration Hierarchy
+
+Settings follow this priority order:
+1. **Endpoint-specific** - `<authorize>` section in `sql.xml`
+2. **Provider-level** - Provider configuration in `auth_providers.xml`
+3. **Global fallback** - Global `<authorize>` section in `auth_providers.xml`
+
+### Advanced Authorization Scenarios
+
+#### Scenario 1: Role-Based Access Control
+
+```xml
+<admin_users_endpoint>
+  <route>api/admin/users</route>
+  
+  <authorize>
+    <provider>azure_b2c</provider>
+    <!-- Only users with 'admin' role can access -->
+    <required_roles>admin</required_roles>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @user_email NVARCHAR(500) = {auth{email}};
+    DECLARE @user_roles NVARCHAR(1000) = {auth{roles}};
+    
+    -- Additional role checks in SQL if needed
+    IF @user_roles NOT LIKE '%superadmin%' AND @user_roles NOT LIKE '%admin%'
+    BEGIN
+        THROW 50403, 'Admin privileges required', 1;
+        RETURN;
+    END
+    
+    -- Log admin action
+    INSERT INTO audit_log (user_email, action, timestamp)
+    VALUES (@user_email, 'viewed_users', GETDATE());
+    
+    SELECT * FROM users;
+  ]]>
+  </query>
+</admin_users_endpoint>
+```
+
+**Response when role check fails:**
+```json
+{
+  "success": false,
+  "message": "Insufficient permissions"
+}
+```
+HTTP Status: `403 Forbidden`
+
+#### Scenario 2: Scope-Based Access
+
+```xml
+<user_profile_endpoint>
+  <route>api/profile</route>
+  
+  <authorize>
+    <provider>azure_b2c</provider>
+    <!-- Require both read and write scopes -->
+    <required_scopes>profile.read, profile.write</required_scopes>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @user_id NVARCHAR(100) = {auth{sub}};
+    SELECT * FROM user_profiles WHERE user_id = @user_id;
+  ]]>
+  </query>
+</user_profile_endpoint>
+```
+
+#### Scenario 3: Row-Level Security with JWT Claims
+
+```xml
+<my_orders_endpoint>
+  <route>api/orders</route>
+  
+  <authorize>
+    <provider>azure_b2c</provider>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @user_id NVARCHAR(100) = {auth{sub}};
+    DECLARE @tenant_id NVARCHAR(100) = {auth{extension_TenantId}};
+    
+    -- Users can only see their own orders within their tenant
+    SELECT * FROM orders 
+    WHERE user_id = @user_id AND tenant_id = @tenant_id
+    ORDER BY order_date DESC;
+  ]]>
+  </query>
+</my_orders_endpoint>
+```
+
+#### Scenario 4: Audit Logging with User Context
+
+```xml
+<update_contact_auth>
+  <route>api/contacts/{{id}}</route>
+  <verb>PUT</verb>
+  
+  <authorize>
+    <provider>azure_b2c</provider>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @id UNIQUEIDENTIFIER = {{id}};
+    DECLARE @name NVARCHAR(500) = {{name}};
+    DECLARE @phone NVARCHAR(100) = {{phone}};
+    
+    -- Get user info from JWT claims
+    DECLARE @updated_by NVARCHAR(500) = {auth{email}};
+    DECLARE @updated_by_name NVARCHAR(500) = {auth{name}};
+    
+    -- Update contact with audit trail
+    UPDATE contacts 
+    SET 
+      name = @name,
+      phone = @phone,
+      updated_at = GETDATE(),
+      updated_by = @updated_by,
+      updated_by_name = @updated_by_name
+    WHERE id = @id;
+    
+    -- Log the change
+    INSERT INTO contact_audit (
+      contact_id, action, performed_by, performed_at
+    )
+    VALUES (
+      @id, 'update', @updated_by, GETDATE()
+    );
+    
+    SELECT * FROM contacts WHERE id = @id;
+  ]]>
+  </query>
+</update_contact_auth>
+```
+
+#### Scenario 5: Multi-Tenant SaaS with JWT Claims
+
+```xml
+<tenant_data_endpoint>
+  <route>api/tenants/{{tenant_id}}/data</route>
+  
+  <authorize>
+    <provider>azure_b2c</provider>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @requested_tenant_id NVARCHAR(100) = {{tenant_id}};
+    DECLARE @user_tenant_id NVARCHAR(100) = {auth{extension_TenantId}};
+    DECLARE @user_role NVARCHAR(100) = {auth{roles}};
+    
+    -- Verify user belongs to the requested tenant
+    IF @requested_tenant_id != @user_tenant_id
+    BEGIN
+        -- Unless they're a superadmin
+        IF @user_role NOT LIKE '%superadmin%'
+        BEGIN
+            THROW 50403, 'Access denied to this tenant', 1;
+            RETURN;
+        END
+    END
+    
+    SELECT * FROM tenant_data 
+    WHERE tenant_id = @requested_tenant_id;
+  ]]>
+  </query>
+</tenant_data_endpoint>
+```
+
+### UserInfo Endpoint Fallback
+
+Some OIDC providers (Google, Facebook, social logins) issue access tokens that don't contain all user claims. The system automatically fetches missing claims from the provider's UserInfo endpoint.
+
+**How it works:**
+1. System checks if configured claims (e.g., `email`, `name`) are missing from the token
+2. If missing, calls the UserInfo endpoint with the access token
+3. Merges UserInfo claims with token claims
+4. Caches the result based on token hash and expiration
+
+**Configuration:**
+
+```xml
+<azure_b2c>
+  <authority>https://yourb2c.b2clogin.com/...</authority>
+  <audience>your-api-client-id</audience>
+  
+  <!-- Claims to fetch from UserInfo if missing from token -->
+  <userinfo_fallback_claims>email,name,given_name,family_name</userinfo_fallback_claims>
+  
+  <!-- Cache UserInfo responses for 5 minutes (or token expiry, whichever is shorter) -->
+  <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>
+</azure_b2c>
+```
+
+**Smart Caching:**
+- Cache duration never exceeds token expiration
+- If `userinfo_cache_duration_seconds` = 300 and token expires in 120 seconds → cache for 120 seconds
+- If `userinfo_cache_duration_seconds` = 300 and token expires in 3600 seconds → cache for 300 seconds
+- If `userinfo_cache_duration_seconds` not configured → cache until token expiry
+
+### Token Validation Details
+
+The system performs comprehensive JWT validation:
+
+1. **Signature Validation**: Verifies token was signed by the identity provider using JWKS (JSON Web Key Set)
+2. **Issuer Validation**: Ensures `iss` claim matches configured issuer
+3. **Audience Validation**: Ensures `aud` claim matches configured audience
+4. **Expiration Validation**: Checks `exp` claim with configurable clock skew
+5. **Not Before Validation**: Checks `nbf` claim if present
+
+**Clock Skew:**
+Accounts for time differences between servers (default: 5 minutes):
+
+```xml
+<clock_skew_seconds>300</clock_skew_seconds>
+```
+
+If token expires at 10:00:00 with 5-minute skew, it's accepted until 10:05:00.
+
+### Error Responses
+
+| Error | HTTP Status | When It Occurs |
+|-------|-------------|----------------|
+| Missing Authorization header | 401 | Request doesn't include `Authorization: Bearer {token}` |
+| Invalid token format | 401 | Header doesn't start with "Bearer " |
+| Empty token | 401 | Token is blank or whitespace only |
+| Token validation failed | 401 | Invalid signature, expired, wrong issuer/audience |
+| Missing required scopes | 403 | User doesn't have required scopes |
+| Missing required roles | 403 | User doesn't have required roles |
+| Provider not found | 500 | Referenced provider doesn't exist in config |
+| Authority not configured | 500 | Provider missing `authority` setting |
+
+### Real-World Integration Example - React with Azure B2C
+
+**React Client Code:**
+
+```jsx
+import { PublicClientApplication } from '@azure/msal-browser';
+
+const msalConfig = {
+  auth: {
+    clientId: 'your-client-id',
+    authority: 'https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/B2C_1_signupsignin',
+    knownAuthorities: ['yourb2c.b2clogin.com']
+  }
+};
+
+const msalInstance = new PublicClientApplication(msalConfig);
+
+// Sign in
+async function signIn() {
+  const response = await msalInstance.loginPopup({
+    scopes: ['openid', 'profile', 'email']
+  });
+  return response.accessToken;
+}
+
+// Call protected API
+async function getHelloWorld() {
+  const accounts = msalInstance.getAllAccounts();
+  const response = await msalInstance.acquireTokenSilent({
+    scopes: ['openid'],
+    account: accounts[0]
+  });
+  
+  const apiResponse = await fetch('https://localhost:7054/auth/hello_world', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${response.accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include'
+  });
+  
+  return await apiResponse.json();
+}
+```
+
+### Testing JWT Authentication
+
+#### Using jwt.io
+
+1. Copy your JWT token
+2. Visit https://jwt.io
+3. Paste token in the "Encoded" section
+4. Verify claims in the "Decoded" section
+5. Check signature is valid (green checkmark)
+
+#### Using Postman
+
+1. Get a token from your identity provider
+2. In Postman, select **Authorization** tab
+3. Type: **Bearer Token**
+4. Paste token
+5. Send request
+
+#### Debugging Token Issues
+
+Enable debug logging in `appsettings.json`:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "DB2RestAPI.Middlewares.Step5JwtAuthorization": "Debug"
+    }
+  }
+}
+```
+
+This logs:
+- Token validation steps
+- Claims extracted
+- UserInfo endpoint calls
+- Scope/role validation results
+
+### Security Best Practices
+
+1. **Use HTTPS in Production**: Never send JWTs over unencrypted HTTP
+2. **Short Token Lifetimes**: Configure 1-hour or less token expiration
+3. **Validate Audience**: Always configure correct `audience` to prevent token reuse
+4. **Secure Secrets**: Never commit `auth_providers.xml` with real credentials to source control
+5. **Environment-Specific Config**: Use different providers/settings for dev/staging/production
+6. **Monitor Invalid Attempts**: Log failed authentication attempts
+7. **Implement Token Refresh**: Use refresh tokens in your client application
+8. **Scope Principle of Least Privilege**: Only grant necessary scopes/roles
+9. **Regular Key Rotation**: Identity providers automatically rotate signing keys - system handles this via JWKS
+
+### Performance Considerations
+
+**OIDC Discovery Caching:**
+- Discovery documents cached for 24 hours (or until server restart)
+- Reduces latency by 100-200ms per request
+- Automatically refreshes when cache expires
+
+**UserInfo Caching:**
+- Responses cached based on token hash
+- Respects token expiration time
+- Can save 50-100ms per request for social logins
+
+**Token Validation:**
+- Signature validation is CPU-intensive (~5-10ms)
+- Cached JWKS reduces validation to ~1-2ms after first request
+- Async processing doesn't block request pipeline
+
+> **Security Note**: JWT authorization works seamlessly with CORS - when an `authorize` section exists, `Access-Control-Allow-Credentials: true` is automatically set. Ensure your `cors:pattern` is restrictive and doesn't allow untrusted origins.
+
+
 
 **documentation in progress - more examples to be added soon**
