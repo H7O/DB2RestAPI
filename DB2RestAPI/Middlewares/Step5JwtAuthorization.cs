@@ -251,7 +251,19 @@ namespace DB2RestAPI.Middlewares
                 _logger.LogDebug("JWKS URI: {jwksUri}", discoveryDocument.JwksUri);
                 _logger.LogDebug("Number of signing keys: {count}", discoveryDocument.SigningKeys?.Count ?? 0);
 
-                if (discoveryDocument.SigningKeys == null || !discoveryDocument.SigningKeys.Any())
+                // Also log JsonWebKeySet keys
+                var jwksKeyCount = discoveryDocument.JsonWebKeySet?.Keys?.Count ?? 0;
+                _logger.LogDebug("Number of keys in JsonWebKeySet: {count}", jwksKeyCount);
+
+                // Use keys from JsonWebKeySet if SigningKeys is empty but JsonWebKeySet has keys
+                ICollection<SecurityKey>? keysToUse = discoveryDocument.SigningKeys;
+                if ((!discoveryDocument.SigningKeys?.Any() ?? true) && jwksKeyCount > 0)
+                {
+                    _logger.LogDebug("Using keys from JsonWebKeySet instead of SigningKeys");
+                    keysToUse = discoveryDocument.JsonWebKeySet?.GetSigningKeys();
+                }
+
+                if (keysToUse == null || !keysToUse.Any())
                 {
                     _logger.LogError("No signing keys found in discovery document. JWKS URI: {jwksUri}", discoveryDocument.JwksUri);
                     throw new InvalidOperationException("No signing keys available from OIDC provider");
@@ -260,7 +272,7 @@ namespace DB2RestAPI.Middlewares
                 var validationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKeys = discoveryDocument.SigningKeys,
+                    IssuerSigningKeys = keysToUse,
                     ValidateIssuer = validateIssuer,
                     ValidIssuer = issuer,
                     ValidateAudience = validateAudience,
@@ -556,6 +568,7 @@ namespace DB2RestAPI.Middlewares
 
         /// <summary>
         /// Gets the OIDC discovery document with caching.
+        /// Uses CachedOpenIdConnectConfiguration to properly serialize/deserialize signing keys through HybridCache.
         /// </summary>
         private async Task<OpenIdConnectConfiguration> GetDiscoveryDocumentAsync(
             string authority,
@@ -567,7 +580,7 @@ namespace DB2RestAPI.Middlewares
             // Cache discovery documents for 24 hours (common practice for OIDC metadata)
             var cacheDuration = TimeSpan.FromHours(24);
 
-            return await _cacheService.GetAsync(
+            var cachedConfig = await _cacheService.GetAsync(
                 cacheKey,
                 cacheDuration,
                 async (ct) =>
@@ -577,9 +590,20 @@ namespace DB2RestAPI.Middlewares
                         new OpenIdConnectConfigurationRetriever(),
                         new HttpDocumentRetriever());
 
-                    return await configurationManager.GetConfigurationAsync(ct);
+                    var config = await configurationManager.GetConfigurationAsync(ct);
+
+                    // Fetch JWKS JSON separately to ensure proper serialization through cache
+                    // (OpenIdConnectConfiguration.SigningKeys doesn't serialize properly with HybridCache)
+                    var jwksJson = await new HttpDocumentRetriever().GetDocumentAsync(config.JwksUri!, ct);
+                    _logger.LogDebug("Fetched JWKS from {uri}", config.JwksUri);
+
+                    // Create cacheable wrapper that stores JWKS as JSON string
+                    return CachedOpenIdConnectConfiguration.FromDiscoveryDocument(config, jwksJson);
                 },
                 cancellationToken);
+
+            // Convert cached wrapper back to OpenIdConnectConfiguration with signing keys properly populated
+            return cachedConfig.ToDiscoveryDocument();
         }
 
         /// <summary>
