@@ -456,7 +456,7 @@ namespace DB2RestAPI.Middlewares
 
             
 
-            // Store all OIDC claims with oidc_ prefix for SQL access
+            // Store all OIDC claims for SQL access
             foreach (var claim in principal.Claims)
             {
                 if (!claimsDict.ContainsKey(claim.Type))

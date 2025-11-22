@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Add any file named `test_auth_provider.xml` anywhere in the repository
+**/test_auth_provider.xml

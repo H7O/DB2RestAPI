@@ -1192,7 +1192,7 @@
 
     <hello_world_auth>
       <authorize>
-        <provider>azure_btc</provider>
+        <provider>my_custom_provider</provider>
       </authorize>
       <route>auth/hello_world</route>
 
@@ -1202,14 +1202,14 @@
         <!-- 
         fallback_origin: default cors value if the caller's origin domain doesn't match the regex pattern above
         -->
-        <fallback_origin><![CDATA[www.example.com]]></fallback_origin>
+        <fallback_origin><![CDATA[www.dfm.ae]]></fallback_origin>
       </cors>
 
 
       <query>
         <![CDATA[
         
-        declare @name nvarchar(500) = {oidc{name}};
+        declare @name nvarchar(500) = {auth{name}};
 
 
         if (@name is null or ltrim(rtrim(@name)) = '')
