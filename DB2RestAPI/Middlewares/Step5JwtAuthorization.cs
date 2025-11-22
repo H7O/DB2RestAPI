@@ -17,12 +17,14 @@ namespace DB2RestAPI.Middlewares
                 RequestDelegate next,
         IConfiguration configuration,
         ILogger<Step5JwtAuthorization> logger,
-        CacheService cacheService)
+        CacheService cacheService,
+        IHttpClientFactory httpClientFactory)
     {
         private readonly RequestDelegate _next = next;
         private readonly IConfiguration _configuration = configuration;
         private readonly ILogger<Step5JwtAuthorization> _logger = logger;
         private readonly CacheService _cacheService = cacheService;
+        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
         private static readonly string _errorCode = "Step 5 - JWT Authorization";
 
         public async Task InvokeAsync(HttpContext context)
@@ -645,7 +647,7 @@ namespace DB2RestAPI.Middlewares
                 effectiveCacheDuration,
                 async (ct) =>
                 {
-                    using var httpClient = new HttpClient();
+                    var httpClient = _httpClientFactory.CreateClient();
                     var request = new HttpRequestMessage(HttpMethod.Get, discoveryDocument.UserInfoEndpoint);
                     request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
                     var response = await httpClient.SendAsync(request, ct);
