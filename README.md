@@ -2781,7 +2781,6 @@ Define settings in `auth_providers.xml` that apply to all endpoints using that p
 Settings follow this priority order:
 1. **Endpoint-specific** - `<authorize>` section in `sql.xml`
 2. **Provider-level** - Provider configuration in `auth_providers.xml`
-3. **Global fallback** - Global `<authorize>` section in `auth_providers.xml`
 
 ### Advanced Authorization Scenarios
 
