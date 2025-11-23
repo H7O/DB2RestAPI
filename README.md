@@ -2737,12 +2737,19 @@ Override provider settings for specific endpoints:
 
 #### Disable Authorization for Specific Endpoint
 
+You can keep the provider configured but disable authorization for a specific endpoint when testing.
+Not having `<authorize>` section also disables authorization. This might come handy in two scenarious:
+1- During development where you want to temporarily toggle on/off authorization without removing the `<provider>` config.
+2- For authorization that rely on global settings only in `auth_providers.xml` under `<settings>` -> `<authorize>`. In this case, having `<authorize>` with `<enabled>false</enabled>` will disable authorization for that endpoint only.
+
+> Note: not having `<authorize>` section at all will disable authorization for that endpoint as well and won't use any global settings.
 ```xml
 <public_endpoint>
   <route>api/public/data</route>
   
   <!-- Explicitly disable authorization -->
   <authorize>
+    <provider>azure_ad</provider>
     <enabled>false</enabled>
   </authorize>
   
