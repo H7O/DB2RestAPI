@@ -116,47 +116,56 @@ namespace DB2RestAPI.Middlewares
 
             #region Get JWT configuration (route > provider > global)
             var authority = routeAuthorizeSection.GetValue<string>("authority")
-                            ?? providerSection?.GetValue<string>("authority")
-                            ?? _configuration.GetValue<string>("authorize:authority");
+                            ?? providerSection?.GetValue<string>("authority");
+                            // global failover removed as it might be confusing for users to understand how to set it
+                            // ?? _configuration.GetValue<string>("authorize:authority");
 
             var audience = routeAuthorizeSection.GetValue<string>("audience")
-                           ?? providerSection?.GetValue<string>("audience")
-                           ?? _configuration.GetValue<string>("authorize:audience");
+                           ?? providerSection?.GetValue<string>("audience");
+                            // global failover removed as it might be confusing for users to understand how to set it
+                            //?? _configuration.GetValue<string>("authorize:audience");
 
             var issuer = routeAuthorizeSection.GetValue<string>("issuer")
                          ?? providerSection?.GetValue<string>("issuer")
-                         ?? _configuration.GetValue<string>("authorize:issuer")
+                            // global failover removed as it might be confusing for users to understand how to set it
+                            // ?? _configuration.GetValue<string>("authorize:issuer")
                          ?? authority;
 
             var validateIssuer = routeAuthorizeSection.GetValue<bool?>("validate_issuer")
                                  ?? providerSection?.GetValue<bool?>("validate_issuer")
-                                 ?? _configuration.GetValue<bool?>("authorize:validate_issuer")
+                                 // global failover removed as it might be confusing for users to understand how to set it
+                                 // ?? _configuration.GetValue<bool?>("authorize:validate_issuer")
                                  ?? true;
 
             var validateAudience = routeAuthorizeSection.GetValue<bool?>("validate_audience")
                                    ?? providerSection?.GetValue<bool?>("validate_audience")
-                                   ?? _configuration.GetValue<bool?>("authorize:validate_audience")
+                                   // global failover removed as it might be confusing for users to understand how to set it
+                                   // ?? _configuration.GetValue<bool?>("authorize:validate_audience")
                                    ?? true;
 
             var validateLifetime = routeAuthorizeSection.GetValue<bool?>("validate_lifetime")
                                    ?? providerSection?.GetValue<bool?>("validate_lifetime")
-                                   ?? _configuration.GetValue<bool?>("authorize:validate_lifetime")
+                                   // global failover removed as it might be confusing for users to understand how to set it
+                                   // ?? _configuration.GetValue<bool?>("authorize:validate_lifetime")
                                    ?? true;
 
             var clockSkewSeconds = routeAuthorizeSection.GetValue<int?>("clock_skew_seconds")
                                    ?? providerSection?.GetValue<int?>("clock_skew_seconds")
-                                   ?? _configuration.GetValue<int?>("authorize:clock_skew_seconds")
+                                   // global failover removed as it might be confusing for users to understand how to set it
+                                   // ?? _configuration.GetValue<int?>("authorize:clock_skew_seconds")
                                    ?? 300;
 
             // Get UserInfo fallback configuration
             var userInfoFallbackClaims = routeAuthorizeSection.GetValue<string>("userinfo_fallback_claims")
                                          ?? providerSection?.GetValue<string>("userinfo_fallback_claims")
-                                         ?? _configuration.GetValue<string>("authorize:userinfo_fallback_claims")
+                                         // global failover removed as it might be confusing for users to understand how to set it
+                                         // ?? _configuration.GetValue<string>("authorize:userinfo_fallback_claims")
                                          ?? "email,name,given_name,family_name";
 
             var userInfoCacheDuration = routeAuthorizeSection.GetValue<int?>("userinfo_cache_duration_seconds")
-                                        ?? providerSection?.GetValue<int?>("userinfo_cache_duration_seconds")
-                                        ?? _configuration.GetValue<int?>("authorize:userinfo_cache_duration_seconds");
+                                        ?? providerSection?.GetValue<int?>("userinfo_cache_duration_seconds");
+                                        // global failover removed as it might be confusing for users to understand how to set it
+                                        // ?? _configuration.GetValue<int?>("authorize:userinfo_cache_duration_seconds");
             // Note: If null, cache will default to token expiration time
 
             if (string.IsNullOrWhiteSpace(authority))

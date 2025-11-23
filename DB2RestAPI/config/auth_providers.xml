@@ -138,25 +138,6 @@
       
     </providers>
 
-    <!-- ========================================= -->
-    <!-- Global Fallback Configuration             -->
-    <!-- ========================================= -->
-    <!-- 
-      These values are used when no provider is specified.
-      Route-specific config > Provider config > Global config
-    -->
-    <!--<authority>https://yourb2c.b2clogin.com/yourb2c.onmicrosoft.com/</authority>
-    <audience>db2restapi</audience>
-    <validate_issuer>true</validate_issuer>
-    <validate_audience>true</validate_audience>
-    <validate_lifetime>true</validate_lifetime>
-    <clock_skew_seconds>300</clock_skew_seconds>
-    <userinfo_fallback_claims>email,name</userinfo_fallback_claims>
-    <userinfo_cache_duration_seconds>300</userinfo_cache_duration_seconds>-->
-
-
-
-
 
 
   </authorize>
