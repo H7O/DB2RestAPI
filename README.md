@@ -2779,7 +2779,207 @@ Settings follow this priority order:
 
 ### Advanced Authorization Scenarios
 
-#### Scenario 1: Role-Based Access Control
+#### Scenario 1: Database-Driven Authorization (Most Common Pattern)
+
+**Use Case:** Social logins (Google, Facebook, Microsoft) or any OIDC provider that only returns basic identity claims (email, name, sub) without roles. Your application stores user roles and permissions in your own database.
+
+**Why This Pattern:**
+- ✅ OIDC providers (Google, Facebook, etc.) don't know your app's business logic
+- ✅ ID tokens provide identity proof, not authorization
+- ✅ Roles/permissions managed in your database (source of truth)
+- ✅ Instant role changes (no token refresh needed)
+- ✅ Supports complex authorization logic in SQL
+
+**Database Schema:**
+
+```sql
+-- User table with roles managed in your database
+CREATE TABLE [dbo].[app_users] (
+    [id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    [email] NVARCHAR(500) NOT NULL UNIQUE,
+    [name] NVARCHAR(500) NULL,
+    [role] NVARCHAR(100) NOT NULL, -- 'admin', 'user', 'manager', etc.
+    [subscription_tier] NVARCHAR(50) NULL, -- 'free', 'pro', 'enterprise'
+    [is_active] BIT NOT NULL DEFAULT 1,
+    [created_at] DATETIME2 NOT NULL DEFAULT GETDATE(),
+    [last_login] DATETIME2 NULL
+);
+
+CREATE INDEX IX_app_users_email ON [dbo].[app_users]([email]);
+```
+
+**Endpoint Configuration:**
+
+```xml
+<get_user_data>
+  <route>api/user/data</route>
+  <verb>GET</verb>
+  
+  <authorize>
+    <!-- Google only provides email, name, picture in ID token -->
+    <provider>google</provider>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    -- JWT only provides identity (email), lookup authorization in database
+    DECLARE @user_email NVARCHAR(500) = {auth{email}};
+    DECLARE @user_name NVARCHAR(500) = {auth{name}};
+    
+    -- Lookup user in database to get roles and permissions
+    DECLARE @user_id UNIQUEIDENTIFIER;
+    DECLARE @user_role NVARCHAR(100);
+    DECLARE @is_active BIT;
+    DECLARE @subscription_tier NVARCHAR(50);
+    
+    SELECT 
+        @user_id = id,
+        @user_role = role,
+        @is_active = is_active,
+        @subscription_tier = subscription_tier
+    FROM app_users 
+    WHERE email = @user_email;
+    
+    -- If user doesn't exist in database, create them (first-time login)
+    IF @user_id IS NULL
+    BEGIN
+        INSERT INTO app_users (email, name, role, is_active)
+        VALUES (@user_email, @user_name, 'user', 1); -- Default role: 'user'
+        
+        SET @user_id = SCOPE_IDENTITY();
+        SET @user_role = 'user';
+        SET @is_active = 1;
+        SET @subscription_tier = 'free';
+    END
+    ELSE
+    BEGIN
+        -- Update last login timestamp
+        UPDATE app_users 
+        SET last_login = GETDATE()
+        WHERE id = @user_id;
+    END
+    
+    -- Authorization: Check if user is active
+    IF @is_active = 0
+    BEGIN
+        THROW 50403, 'Your account has been deactivated. Please contact support.', 1;
+        RETURN;
+    END
+    
+    -- Authorization: Check subscription tier for premium features
+    IF @subscription_tier = 'free'
+    BEGIN
+        -- Return limited data for free users
+        SELECT 
+            'Welcome ' + @user_name AS message,
+            @user_role AS role,
+            'Upgrade to Pro for more features!' AS upgrade_prompt,
+            (SELECT TOP 10 * FROM user_data WHERE user_id = @user_id FOR JSON PATH) AS data;
+    END
+    ELSE
+    BEGIN
+        -- Return full data for paid users
+        SELECT 
+            'Welcome ' + @user_name AS message,
+            @user_role AS role,
+            @subscription_tier AS subscription,
+            (SELECT * FROM user_data WHERE user_id = @user_id FOR JSON PATH) AS data;
+    END
+  ]]>
+  </query>
+</get_user_data>
+```
+
+**Admin-Only Endpoint Example:**
+
+```xml
+<admin_dashboard>
+  <route>api/admin/dashboard</route>
+  <verb>GET</verb>
+  
+  <authorize>
+    <provider>google</provider>
+  </authorize>
+  
+  <query>
+  <![CDATA[
+    DECLARE @user_email NVARCHAR(500) = {auth{email}};
+    
+    -- Check if user has admin role in database
+    DECLARE @user_role NVARCHAR(100);
+    SELECT @user_role = role FROM app_users WHERE email = @user_email;
+    
+    IF @user_role IS NULL
+    BEGIN
+        THROW 50404, 'User not found in system', 1;
+        RETURN;
+    END
+    
+    IF @user_role NOT IN ('admin', 'superadmin')
+    BEGIN
+        THROW 50403, 'Admin access required', 1; -- HTTP 403 Forbidden
+        RETURN;
+    END
+    
+    -- Log admin access
+    INSERT INTO audit_log (user_email, action, timestamp)
+    VALUES (@user_email, 'accessed_admin_dashboard', GETDATE());
+    
+    -- Return admin dashboard data
+    SELECT 
+        (SELECT COUNT(*) FROM app_users) AS total_users,
+        (SELECT COUNT(*) FROM app_users WHERE is_active = 1) AS active_users,
+        (SELECT COUNT(*) FROM app_users WHERE role = 'admin') AS admin_count,
+        (SELECT TOP 10 * FROM audit_log ORDER BY timestamp DESC FOR JSON PATH) AS recent_activity;
+  ]]>
+  </query>
+</admin_dashboard>
+```
+
+**Client-Side (React with Google Sign-In):**
+
+```javascript
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
+
+function App() {
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      // Google returns ID token, not access token for user info
+      const idToken = tokenResponse.id_token;
+      
+      // Call your API with the ID token
+      const response = await fetch('https://api.example.com/api/user/data', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      const userData = await response.json();
+      console.log('User role from database:', userData.role);
+      console.log('Subscription tier:', userData.subscription);
+    }
+  });
+  
+  return <button onClick={() => login()}>Sign in with Google</button>;
+}
+```
+
+**Key Advantages of This Pattern:**
+
+1. **Instant Authorization Changes**: Update user roles in database, effective immediately (no token refresh)
+2. **Complex Business Logic**: Multi-tenant, subscription tiers, feature flags - all in SQL
+3. **Single Source of Truth**: Your database controls access, not OIDC provider
+4. **Onboarding**: Auto-create users on first login with default role
+5. **Audit Trail**: Track all authorization decisions in your database
+6. **Provider Agnostic**: Works with any OIDC provider (Google, Facebook, Microsoft, Apple, etc.)
+
+> **Note**: This pattern is recommended for most applications. The token proves identity (`{auth{email}}`), your database controls authorization (`SELECT role FROM app_users`).
+
+#### Scenario 2: Role-Based Access Control (Roles in Token)
+
+**Use Case:** When your OIDC provider (Azure B2C, Auth0, Okta) includes roles in the token claims.
 
 ```xml
 <admin_users_endpoint>
@@ -2822,7 +3022,7 @@ Settings follow this priority order:
 ```
 HTTP Status: `403 Forbidden`
 
-#### Scenario 2: Scope-Based Access
+#### Scenario 3: Scope-Based Access
 
 ```xml
 <user_profile_endpoint>
@@ -2843,7 +3043,7 @@ HTTP Status: `403 Forbidden`
 </user_profile_endpoint>
 ```
 
-#### Scenario 3: Row-Level Security with JWT Claims
+#### Scenario 4: Row-Level Security with JWT Claims
 
 ```xml
 <my_orders_endpoint>
@@ -2867,7 +3067,7 @@ HTTP Status: `403 Forbidden`
 </my_orders_endpoint>
 ```
 
-#### Scenario 4: Audit Logging with User Context
+#### Scenario 5: Audit Logging with User Context
 
 ```xml
 <update_contact_auth>
@@ -2912,7 +3112,7 @@ HTTP Status: `403 Forbidden`
 </update_contact_auth>
 ```
 
-#### Scenario 5: Multi-Tenant SaaS with JWT Claims
+#### Scenario 6: Multi-Tenant SaaS with JWT Claims
 
 ```xml
 <tenant_data_endpoint>
