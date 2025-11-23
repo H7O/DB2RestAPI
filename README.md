@@ -2741,7 +2741,7 @@ You can keep the provider configured but disable authorization for a specific en
 Not having `<authorize>` section also disables authorization. This might come handy during development where you want to temporarily toggle on/off authorization without removing the `<provider>` config tag. Default is `enabled=true`, so if it's not defined, authorization is enabled.
 
 
-> Note: not having `<authorize>` section at all will disable authorization for that endpoint as well and won't use any global settings.
+> Note: NOT having `<authorize>` section at all will be just as having it with `<enabled>false</enabled>`
 ```xml
 <public_endpoint>
   <route>api/public/data</route>
