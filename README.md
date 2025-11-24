@@ -1,4 +1,4 @@
-# No-Code Database-to-REST API generator
+# No-Code Database-to-REST API
 
 A no-code solution that automatically converts your SQL queries to RESTful APIs without API coding knowledge.
 
