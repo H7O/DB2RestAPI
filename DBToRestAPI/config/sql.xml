@@ -1192,7 +1192,7 @@
 
     <hello_world_auth>
       <authorize>
-        <provider>my_custom_provider</provider>
+        <provider>azure_b2c</provider>
       </authorize>
       <route>auth/hello_world</route>
 
