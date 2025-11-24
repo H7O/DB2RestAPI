@@ -2109,7 +2109,7 @@ The download feature handles common errors gracefully:
 
 The solution provides flexible and powerful CORS support with pattern matching, allowing you to control which origins can access your API. CORS configuration can be set globally or per-endpoint with a sophisticated fallback system.
 
-### How CORS Works in DB2RestAPI
+### How CORS Works in DBToRestAPI
 
 When a browser makes a request from a different origin:
 1. The browser sends an `Origin` header with the request
@@ -3286,7 +3286,7 @@ Enable debug logging in `appsettings.json`:
 {
   "Logging": {
     "LogLevel": {
-      "DB2RestAPI.Middlewares.Step5JwtAuthorization": "Debug"
+      "DBToRestAPI.Middlewares.Step5JwtAuthorization": "Debug"
     }
   }
 }

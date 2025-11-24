@@ -1,6 +1,6 @@
 ﻿using Com.H.Cache;
 
-namespace DB2RestAPI.Cache
+namespace DBToRestAPI.Cache
 {
     public class CacheInfo
     {

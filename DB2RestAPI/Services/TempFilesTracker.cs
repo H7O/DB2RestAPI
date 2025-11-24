@@ -1,4 +1,4 @@
-﻿namespace DB2RestAPI.Services
+﻿namespace DBToRestAPI.Services
 {
     public class TempFileInfo
     {

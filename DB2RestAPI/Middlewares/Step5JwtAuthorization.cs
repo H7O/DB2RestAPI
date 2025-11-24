@@ -1,6 +1,6 @@
-﻿using DB2RestAPI.Cache;
-using DB2RestAPI.Settings;
-using DB2RestAPI.Settings.Extensinos;
+﻿using DBToRestAPI.Cache;
+using DBToRestAPI.Settings;
+using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Protocols;
@@ -11,7 +11,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace DB2RestAPI.Middlewares
+namespace DBToRestAPI.Middlewares
 {
     public class Step5JwtAuthorization(
                 RequestDelegate next,

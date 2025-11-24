@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace DB2RestAPI.Settings
+namespace DBToRestAPI.Settings
 {
     public class DefaultRegex
     {

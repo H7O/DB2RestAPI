@@ -1,6 +1,6 @@
 using Com.H.Data.Common;
 using Com.H.IO;
-using DB2RestAPI.Settings;
+using DBToRestAPI.Settings;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Identity.Client;
@@ -15,7 +15,7 @@ using System.Text.RegularExpressions;
 using static System.Collections.Specialized.BitVector32;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace DB2RestAPI.Services;
+namespace DBToRestAPI.Services;
 
 /// <summary>
 /// Service responsible for extracting and validating JSON payloads from HTTP requests.

@@ -1,5 +1,5 @@
 using Com.H.Threading;
-using DB2RestAPI.Settings;
+using DBToRestAPI.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 using System.Text.RegularExpressions;

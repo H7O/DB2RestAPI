@@ -1,9 +1,9 @@
-﻿using DB2RestAPI.Settings;
-using DB2RestAPI.Settings.Extensinos;
+﻿using DBToRestAPI.Settings;
+using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 
-namespace DB2RestAPI.Middlewares
+namespace DBToRestAPI.Middlewares
 {
     /// <summary>
     /// Third middleware in the pipeline that validates route-specific (local) API keys.

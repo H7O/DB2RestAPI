@@ -1,17 +1,17 @@
 ﻿using Azure;
 using Azure.Core;
 using Com.H.Data;
-using DB2RestAPI.Cache;
-using DB2RestAPI.Services;
-using DB2RestAPI.Settings;
-using DB2RestAPI.Settings.Extensinos;
+using DBToRestAPI.Cache;
+using DBToRestAPI.Services;
+using DBToRestAPI.Settings;
+using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace DB2RestAPI.Middlewares
+namespace DBToRestAPI.Middlewares
 {
     /// <summary>
     /// Fourth middleware in the pipeline that processes API gateway routing requests.

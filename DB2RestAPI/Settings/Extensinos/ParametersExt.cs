@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace DB2RestAPI.Settings.Extensinos
+namespace DBToRestAPI.Settings.Extensinos
 {
     public static class ParametersExt
     {

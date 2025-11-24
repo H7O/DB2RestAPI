@@ -1,7 +1,7 @@
 # API Gateway Cache Implementation
 
 ## Overview
-This document describes the caching implementation for API Gateway routes in DB2RestAPI.
+This document describes the caching implementation for API Gateway routes in DBToRestAPI.
 
 ## Changes Made
 

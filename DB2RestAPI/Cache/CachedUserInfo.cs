@@ -1,4 +1,4 @@
-﻿namespace DB2RestAPI.Cache
+﻿namespace DBToRestAPI.Cache
 {
     public class CachedUserInfo
     {

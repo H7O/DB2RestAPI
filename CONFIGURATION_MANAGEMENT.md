@@ -1,7 +1,7 @@
 # Configuration Management Guide
 
 ## Overview
-DB2RestAPI supports dynamic configuration file loading with automatic reload capabilities.
+DBToRestAPI supports dynamic configuration file loading with automatic reload capabilities.
 
 ## Configuration Files Structure
 

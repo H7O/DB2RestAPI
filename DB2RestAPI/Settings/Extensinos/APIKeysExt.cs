@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 
-namespace DB2RestAPI.Settings.Extensinos
+namespace DBToRestAPI.Settings.Extensinos
 {
     public static class LocalAPIKeysCheck
     {

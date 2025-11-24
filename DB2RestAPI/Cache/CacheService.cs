@@ -5,7 +5,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace DB2RestAPI.Cache
+namespace DBToRestAPI.Cache
 {
     public class CacheService(
         IConfiguration configuration,

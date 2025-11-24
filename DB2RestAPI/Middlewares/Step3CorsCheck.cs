@@ -1,8 +1,8 @@
-﻿using DB2RestAPI.Settings.Extensinos;
+﻿using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.RegularExpressions;
 
-namespace DB2RestAPI.Middlewares;
+namespace DBToRestAPI.Middlewares;
 
 /// <summary>
 /// Middleware that handles Cross-Origin Resource Sharing (CORS) headers.

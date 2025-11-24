@@ -13,14 +13,14 @@ using System.Net.Http;
 using Azure;
 using System.Reflection.PortableExecutable;
 using Microsoft.Extensions.Http;
-using DB2RestAPI.Cache;
+using DBToRestAPI.Cache;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
-using DB2RestAPI.Settings;
+using DBToRestAPI.Settings;
 using Microsoft.Data.SqlClient;
 using Com.H.IO;
 using System.ComponentModel.DataAnnotations;
 
-namespace DB2RestAPI.Controllers
+namespace DBToRestAPI.Controllers
 {
 
     /// <summary>

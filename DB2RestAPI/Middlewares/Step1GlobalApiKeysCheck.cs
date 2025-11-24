@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using DB2RestAPI.Settings.Extensinos;
+using DBToRestAPI.Settings.Extensinos;
 
-namespace DB2RestAPI.Middlewares
+namespace DBToRestAPI.Middlewares
 {
     /// <summary>
     /// First middleware in the pipeline that validates global API keys for incoming requests.

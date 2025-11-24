@@ -1,9 +1,9 @@
 ﻿using Com.H.Data.Common;
-using DB2RestAPI.Settings;
-using DB2RestAPI.Settings.Extensinos;
+using DBToRestAPI.Settings;
+using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 
-namespace DB2RestAPI.Middlewares
+namespace DBToRestAPI.Middlewares
 {
     public class Step9FileDownloadManagement(
         RequestDelegate next,

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Primitives;
 
-namespace DB2RestAPI.Services;
+namespace DBToRestAPI.Services;
 
 /// <summary>
 /// Extension methods for enhanced configuration loading with support for dynamic additional configuration files.

@@ -1,9 +1,9 @@
-﻿using DB2RestAPI.Settings;
-using DB2RestAPI.Settings.Extensinos;
+﻿using DBToRestAPI.Settings;
+using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 
 
-namespace DB2RestAPI.Middlewares;
+namespace DBToRestAPI.Middlewares;
 
 /// <summary>
 /// This middleware determines the service type of the incoming request by analyzing the route.

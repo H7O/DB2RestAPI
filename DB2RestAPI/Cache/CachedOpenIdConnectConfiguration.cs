@@ -1,6 +1,6 @@
 ﻿using Microsoft.IdentityModel.Tokens;
 
-namespace DB2RestAPI.Cache
+namespace DBToRestAPI.Cache
 {
     /// <summary>
     /// Serializable wrapper for OpenIdConnectConfiguration that preserves signing keys across cache storage.

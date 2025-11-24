@@ -1,11 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using DB2RestAPI.Settings.Extensinos;
+using DBToRestAPI.Settings.Extensinos;
 
 using Com.H.Data.Common;
 using System.Text.Json;
-using DB2RestAPI.Cache;
-using DB2RestAPI.Services;
-namespace DB2RestAPI.Settings
+using DBToRestAPI.Cache;
+using DBToRestAPI.Services;
+namespace DBToRestAPI.Settings
 {
     public class SettingsService(
         IConfiguration configuration,
