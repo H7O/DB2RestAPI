@@ -13,11 +13,11 @@
   <additional_configurations>
     <path>config/sql.xml</path>
     <path>config/api_gateway.xml</path>
-    <path>config/global_api_keys.xml</path>
+    <path>config/api_keys.xml</path>
     <path>config/file_management.xml</path>
     <path>config/regex.xml</path>
     <path>config/auth_providers.xml</path>
-    <!--<path>config/test_auth_provider.xml</path>-->
+    <path>config/test_auth_provider.xml</path>
     
     <!-- 
     Controls whether the application automatically restarts when configuration file paths are added or removed.
@@ -28,15 +28,6 @@
     <restart_on_path_changes>false</restart_on_path_changes>
   </additional_configurations>
 
-
-  <!-- 
-  if 'true', the system will look for HTTP header 'x-api-key' for the key and try to find if it's available in config/api_keys.xml 
-  alternatively, you can skip this process if either you don't need to use API keys, 
-  you'd like to use local API keys in `sql.xml` or `routes.xml`, 
-  or you'd prefer to pass the API key to your query in sql.xml and implement your own check in SQL instead
-  -->
-  <enable_global_api_keys>false</enable_global_api_keys>
-  
 
   
   <!-- passing the value in the below `debug_mode_header_value` 

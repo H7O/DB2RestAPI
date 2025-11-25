@@ -18,32 +18,7 @@ namespace DBToRestAPI.Settings
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         public CacheService CacheService => _cacheService;
         
-
-
-        #region api keys
-
-        /// <summary>
-        /// Check if the request has an API key and if it is valid
-        /// </summary>
-        /// <param name="section"></param>
-        /// <returns>
-        /// If the request requires an API key before processing
-        /// and the API key is not provided or is invalid,
-        /// return a response with status code 401
-        /// </returns>
-        public ObjectResult? GetFailedAPIKeysCheckResponseIfAny(
-            IConfigurationSection section,
-            HttpRequest request
-            )
-        {
-            return section.GetFailedAPIKeysCheckResponseIfAny(_configuration, request);
-        }
-
-
-
-
-        #endregion
-
+        
         #region mandatory parameters
 
         /// <summary>

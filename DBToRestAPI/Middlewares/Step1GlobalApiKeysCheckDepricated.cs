@@ -20,19 +20,23 @@ namespace DBToRestAPI.Middlewares
     /// - 500 Internal Server Error: API keys configuration section not properly defined
     /// - Passes to next middleware: API key validation successful or global API keys disabled
     /// </summary>
-    public class Step1GlobalApiKeysCheck(
+    public class Step1GlobalApiKeysCheckDepricated(
         RequestDelegate next,
         IConfiguration configuration,
-        ILogger<Step1GlobalApiKeysCheck> logger)
+        ILogger<Step1GlobalApiKeysCheckDepricated> logger)
     {
         private readonly RequestDelegate _next = next;
         private readonly IConfiguration _configuration = configuration;
-        private readonly ILogger<Step1GlobalApiKeysCheck> _logger = logger;
+        private readonly ILogger<Step1GlobalApiKeysCheckDepricated> _logger = logger;
         const string APIKEY = "x-api-key";
 
         public async Task InvokeAsync(HttpContext context)
         {
-            this._logger.LogDebug("{time}: in Step1GlobalApiKeysCheck middleware", 
+            // Temporarily disable this middleware
+            await _next(context).ConfigureAwait(false);
+            return;
+            
+            this._logger.LogDebug("{time}: in Step1GlobalApiKeysCheckDepricated middleware", 
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"));
 
             if (bool.TryParse(_configuration.GetSection("enable_global_api_keys")?.Value, out bool checkAPIKeys)

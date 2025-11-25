@@ -1,0 +1,11 @@
+﻿<settings>
+  <api_keys_collections>
+    <external_vendors>
+      <key>api key 1</key>
+      <key>api key 2</key>
+    </external_vendors>
+    <internal_solutions>
+      <key>api key 3</key>
+    </internal_solutions>
+  </api_keys_collections>
+</settings>

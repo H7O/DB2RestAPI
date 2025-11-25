@@ -23,10 +23,10 @@ namespace DBToRestAPI.Middlewares;
 /// - `route_parameters` (for db_query only): Dictionary of route parameters if any exist
 /// - `content_type`: The content type of the request
 /// </summary>
-public class Step2ServiceTypeChecks(
+public class Step1ServiceTypeChecks(
     RequestDelegate next,
     IConfiguration configuration,
-    ILogger<Step2ServiceTypeChecks> logger,
+    ILogger<Step1ServiceTypeChecks> logger,
     RouteConfigResolver routeConfigResolver,
     QueryRouteResolver queryRouteResolver
         )
@@ -34,7 +34,7 @@ public class Step2ServiceTypeChecks(
 
     private readonly RequestDelegate _next = next;
     private readonly IConfiguration _configuration = configuration;
-    private readonly ILogger<Step2ServiceTypeChecks> _logger = logger;
+    private readonly ILogger<Step1ServiceTypeChecks> _logger = logger;
     private readonly RouteConfigResolver _routeConfigResolver = routeConfigResolver;
     private readonly QueryRouteResolver _queryRouteResolver = queryRouteResolver;
     private readonly HashSet<string> _acceptableContentTypes = new HashSet<string>

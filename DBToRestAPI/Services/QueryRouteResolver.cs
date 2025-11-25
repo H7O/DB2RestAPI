@@ -36,7 +36,6 @@ public class QueryRouteResolver
 
     private List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)> _exactRoutes = new();
     private List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)> _routesWithVariables = new();
-    // private Dictionary<string, HashSet<string>> _exactRouteVerbs = new();
     private readonly IConfiguration _configuration;
 
 
@@ -156,52 +155,6 @@ public class QueryRouteResolver
         return GetBestMatchingRouteConfig(urlRoute, verb);
     }
 
-    //public IEnumerable<string> GetPossibleVerbs(string urlRoute)
-    //{
-    //    if (string.IsNullOrWhiteSpace(urlRoute)) return Enumerable.Empty<string>();
-
-    //    var normalizedUrlRoute = NormalizeRoute(urlRoute);
-    //    var verbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-    //    // 1. Exact matches
-    //    if (_exactRouteVerbs.TryGetValue(normalizedUrlRoute, out var exactVerbs))
-    //    {
-    //        foreach (var verb in exactVerbs)
-    //        {
-    //            verbs.Add(verb);
-    //        }
-    //    }
-
-    //    // 2. Variable matches
-    //    if (_routesWithVariables != null)
-    //    {
-    //        var urlSegments = normalizedUrlRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-    //        foreach (var (NormalizedConfigRoute, Verbs, Config) in _routesWithVariables)
-    //        {
-    //            // Optimization: check segment count first
-    //            var configSegments = NormalizedConfigRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
-    //            if (configSegments.Length != urlSegments.Length) continue;
-
-    //            var routeParameterPattern = Config.GetValue<string>("route_variable_pattern")
-    //               ?? _configuration.GetValue<string>("route_variable_pattern");
-
-    //            var routeParametersRegex = string.IsNullOrWhiteSpace(routeParameterPattern) ?
-    //               DefaultRegex.DefaultRouteVariablesCompiledRegex :
-    //               new Regex(routeParameterPattern, RegexOptions.Compiled);
-
-    //            if (CalculateRouteMatchScore(urlSegments, NormalizedConfigRoute, routeParametersRegex) > 0)
-    //            {
-    //                foreach (var v in Verbs)
-    //                {
-    //                    verbs.Add(v);
-    //                }
-    //            }
-    //        }
-    //    }
-
-    //    return verbs;
-    //}
 
     public Dictionary<string, string> GetRouteParametersIfAny(
         IConfigurationSection configSection,

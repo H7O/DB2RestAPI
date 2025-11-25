@@ -509,15 +509,12 @@
 
 
     <!-- Protected endpoint with local API keys (for global keys, use global_api_keys.xml) -->
-    <protected_hello_world>
-      <api_keys>
-        <key>api key 1</key>
-        <key>api key 2</key>
-      </api_keys>
+    <hello_world_protected>
+      <api_keys_collections>external_vendors, internal_solutions</api_keys_collections>
       <!-- 
       API Key Configuration:
-      you can define per query api keys, 
-      if you don't specify it, the query will be publically accessible unless you define global api keys in /config/global_api_keys.xml
+      you can define per query api keys collection, each collection references a set of api keys defined in /config/api_keys_collections.xml 
+      if you don't specify it, the query will be publically accessible.
       -->
       <query>
         <![CDATA[
@@ -530,7 +527,7 @@
         select 'hello ' + @name + '!' as message_from_db;
         ]]>
       </query>
-    </protected_hello_world>
+    </hello_world_protected>
 
 
     <!-- Custom variable delimiters example -->
@@ -1192,7 +1189,7 @@
 
     <hello_world_auth>
       <authorize>
-        <provider>azure_b2c</provider>
+        <provider>my_custom_provider</provider>
       </authorize>
       <route>auth/hello_world</route>
 

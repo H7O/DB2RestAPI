@@ -45,12 +45,12 @@ namespace DBToRestAPI.Middlewares
     /// - Passes to next middleware: Service type is not 'api_gateway'
     /// </summary>
 
-    public class Step6APIGatewayProcess(
+    public class Step5APIGatewayProcess(
         RequestDelegate next,
         IConfiguration configuration,
         SettingsService settings,
         IHttpClientFactory httpClientFactory,
-        ILogger<Step6APIGatewayProcess> logger,
+        ILogger<Step5APIGatewayProcess> logger,
         ParametersBuilder paramsBuilder
             )
     {
@@ -58,7 +58,7 @@ namespace DBToRestAPI.Middlewares
         private readonly SettingsService _settings = settings;
         private readonly IConfiguration _configuration = configuration;
         private readonly IHttpClientFactory httpClientFactory = httpClientFactory;
-        private readonly ILogger<Step6APIGatewayProcess> _logger = logger;
+        private readonly ILogger<Step5APIGatewayProcess> _logger = logger;
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         /// <summary>
         /// Headers that should not be copied from the target response to the client response.

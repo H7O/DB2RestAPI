@@ -25,14 +25,14 @@ namespace DBToRestAPI.Middlewares;
 /// - Access-Control-Allow-Credentials
 /// - Access-Control-Max-Age
 /// </summary>
-public class Step3CorsCheck(
+public class Step2CorsCheck(
     RequestDelegate next,
     IConfiguration configuration,
-    ILogger<Step3CorsCheck> logger)
+    ILogger<Step2CorsCheck> logger)
 {
     private readonly RequestDelegate _next = next;
     private readonly IConfiguration _configuration = configuration;
-    private readonly ILogger<Step3CorsCheck> _logger = logger;
+    private readonly ILogger<Step2CorsCheck> _logger = logger;
     private static readonly string _errorCode = "Step 3 - CORS Check Error";
     private static readonly string _defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
     private static readonly string _defaultHeaders = "Authorization, Content-Type, X-Requested-With, Accept, Origin, X-Api-Key";

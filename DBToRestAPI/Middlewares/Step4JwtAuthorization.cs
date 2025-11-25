@@ -13,16 +13,16 @@ using System.Text;
 
 namespace DBToRestAPI.Middlewares
 {
-    public class Step5JwtAuthorization(
+    public class Step4JwtAuthorization(
                 RequestDelegate next,
         IConfiguration configuration,
-        ILogger<Step5JwtAuthorization> logger,
+        ILogger<Step4JwtAuthorization> logger,
         CacheService cacheService,
         IHttpClientFactory httpClientFactory)
     {
         private readonly RequestDelegate _next = next;
         private readonly IConfiguration _configuration = configuration;
-        private readonly ILogger<Step5JwtAuthorization> _logger = logger;
+        private readonly ILogger<Step4JwtAuthorization> _logger = logger;
         private readonly CacheService _cacheService = cacheService;
         private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
         private static readonly string _errorCode = "Step 5 - JWT Authorization";
