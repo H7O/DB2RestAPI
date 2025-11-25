@@ -1,4 +1,5 @@
-﻿using DBToRestAPI.Settings;
+﻿using DBToRestAPI.Services;
+using DBToRestAPI.Settings;
 using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -29,12 +30,14 @@ namespace DBToRestAPI.Middlewares
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
-        ILogger<Step3ApiKeysCheck> logger)
+        ILogger<Step3ApiKeysCheck> logger,
+        ApiKeysService apiKeysService)
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
         private readonly ILogger<Step3ApiKeysCheck> _logger = logger;
         private readonly IConfiguration _configuration = configuration;
+        private readonly ApiKeysService _apiKeysService = apiKeysService;
         // private static int count = 0;
         private static readonly string _errorCode = "Step 4 - API Keys Check Error";
         public async Task InvokeAsync(HttpContext context)
@@ -128,26 +131,11 @@ namespace DBToRestAPI.Middlewares
 
             #region lookup collections in the configuration and aggregate all api keys to see if any match
 
-            foreach (var apiKey in apiKeysCollections)
+            // Use the ApiKeysService for validation
+            if (_apiKeysService.IsValidApiKeyInCollections(apiKeysCollections, extractedKeyValue!))
             {
-                var collectionSection = _configuration.GetSection($"api_keys_collections:{apiKey}");
-                if (!collectionSection.Exists())
-                {
-                    this._logger.LogWarning("API keys collection '{collection}' defined in route configuration section does not exist in the settings.",
-                        apiKey);
-                    continue;
-                }
-
-                if (collectionSection.GetChildren()
-                    .Where(x =>
-                    !string.IsNullOrWhiteSpace(x.Value))
-                    .Select(x => x.Value).Contains(extractedKeyValue)
-                    )
-                {
-                    await _next(context);
-                    return;
-                }
-
+                await _next(context);
+                return;
             }
 
             // if reached here, no api key matched
