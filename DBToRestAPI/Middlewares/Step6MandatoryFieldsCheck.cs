@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace DBToRestAPI.Middlewares
 {
     /// <summary>
-    /// Fifth middleware in the pipeline that validates mandatory request parameters and prepares data for processing.
+    /// Validates mandatory request parameters and prepares data for processing.
     /// 
     /// This middleware parses the request body, validates that all mandatory fields are present,
     /// and prepares the parameters for subsequent middleware (typically database query execution).

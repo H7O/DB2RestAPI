@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 namespace DBToRestAPI.Middlewares
 {
     /// <summary>
-    /// Third middleware in the pipeline that validates route-specific API keys.
+    /// Validates route-specific API keys.
     /// 
     /// This middleware checks for API keys that are configured within individual route definitions,
     /// providing route-level access control.

@@ -14,7 +14,7 @@ using System.Text.Json;
 namespace DBToRestAPI.Middlewares
 {
     /// <summary>
-    /// Fourth middleware in the pipeline that processes API gateway routing requests.
+    /// Processes API gateway routing requests.
     /// 
     /// This middleware acts as a reverse proxy, forwarding requests to external APIs when the
     /// service type is 'api_gateway'. For other service types (e.g., 'db_query'), it passes 
