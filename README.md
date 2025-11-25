@@ -876,34 +876,39 @@ Callers of your API will have to handle both cases (single row and multiple rows
 
 ### Example 10 - Protecting your API from unauthorized access
 
-There are two ways to protect your API from unauthorized access:</br>
-**1-** Using local API keys (per endpoint)<br/>
-**2-** Using global API keys (for all endpoints)<br/>
+You can protect your API endpoints from unauthorized access by using **API key collections**. This centralized approach allows you to define API keys once in `/config/api_keys.xml` and reference them from multiple endpoints.
 
-For global API keys, you can set your API key in `/config/global_api_keys.xml` file.
+#### Setting up API key collections
 
-The `global_api_keys.xml` file structure is as follows:
+First, define your API key collections in `/config/api_keys.xml`:
 
 ```xml
 <settings>
-	<global_api_keys>
-		<key>api key 1</key>
-		<key>api key 2</key>
-	</global_api_keys>
+  <api_keys_collections>
+    <external_vendors>
+      <key>api key 1</key>
+      <key>api key 2</key>
+    </external_vendors>
+    <internal_solutions>
+      <key>api key 3</key>
+    </internal_solutions>
+  </api_keys_collections>
 </settings>
 ```
 
-For local API keys, you can set your API key in the `api_keys` tag in your API node in `/config/sql.xml` file.
+In the above example:
+- `external_vendors` and `internal_solutions` are collection names (you can name them whatever you like)
+- Each collection contains one or more API keys
+- The keys are automatically loaded and monitored for changes
 
-The below is an example of a local API key in the `/config/sql.xml` file:
+#### Protecting an endpoint
+
+To protect an endpoint, reference the collection name(s) in your API node in `/config/sql.xml`:
 
 ```xml
-    <!-- Protected endpoint with local API keys (for global keys, use global_api_keys.xml) -->
+    <!-- Protected endpoint using API key collections -->
     <protected_hello_world>
-      <api_keys>
-        <key>api key 1</key>
-        <key>api key 2</key>
-      </api_keys>
+      <api_keys_collections>external_vendors,internal_solutions</api_keys_collections>
       <query>
         <![CDATA[
         declare @name nvarchar(500) = {{name}};
@@ -918,11 +923,18 @@ The below is an example of a local API key in the `/config/sql.xml` file:
     </protected_hello_world>
 ```
 
-Callers of your API will have to send the API key in the `x-api-key` http header.
+The `api_keys_collections` tag accepts a comma-separated list of collection names. Any API key from any of the specified collections will be accepted.
 
-> **Note**: 
-- If you don't specify the `api_keys` tag in your API node, the query will be publically accessible unless you define global api keys in `/config/global_api_keys.xml` file.
-- Local API keys take precedence over global API keys if both (global and local) are defined.
+Callers of your API must send the API key in the `x-api-key` http header.
+
+#### Benefits of API key collections
+
+✅ **Centralized management** - Define keys once, use them across multiple endpoints  
+✅ **Flexible grouping** - Organize keys by vendor, client type, or any logical grouping  
+✅ **Easy rotation** - Update keys in one place without modifying individual endpoints  
+✅ **Automatic reload** - Changes to `api_keys.xml` are detected and applied automatically  
+
+> **Note**: If you don't specify the `api_keys_collections` tag in your API node, the endpoint will be publicly accessible.
 
 
 
@@ -1186,30 +1198,33 @@ By offering to exclude headers selectively, the solution safeguards against expo
 
 Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
 
-### Example 14 - Protecting your API routes from unauthorized access
+### Example 14 - Protecting your API gateway routes from unauthorized access
 
-You can protect your API routes from unauthorized access by adding the `api_keys` tag to your API node in `api_gateway.xml` file just as we did in example 10 with the `api_keys` tag in `sql.xml` file.
+You can protect your API gateway routes from unauthorized access by using the same **API key collections** system described in Example 10.
 
-Here is a sample of a protected route in `api_gateway.xml` file:
+Simply reference the collection name(s) in your API gateway route configuration in `api_gateway.xml`:
 
 ```xml
     <!-- 
-    adds API Keys protection to to the unprotected `catfact.ninja/fact` API
-    before routing
+    Adds API key protection to the unprotected `catfact.ninja/fact` API
+    before routing. Only clients with valid API keys from the specified
+    collections can access this endpoint.
     -->
     <locally_protected_cat_facts>
-      <api_keys>
-        <key>local api key 1</key>
-        <key>local api key 2</key>
-      </api_keys>
-
+      <api_keys_collections>external_vendors,internal_solutions</api_keys_collections>
       <url>https://catfact.ninja/fact</url>
       <excluded_headers>x-api-key,host</excluded_headers>
     </locally_protected_cat_facts>
 ```
-With the above configuration, callers to the `https://localhost:7054/locally_protected_cat_facts` API will have to send the API key in the `x-api-key` http header.
 
-> **Note**: If you don't specify the `api_keys` tag in your API node, the route will be publically accessible unless you define global api keys in `/config/global_api_keys.xml` file.
+With the above configuration:
+- Callers must send a valid API key in the `x-api-key` http header
+- The API key must exist in either the `external_vendors` or `internal_solutions` collection (defined in `/config/api_keys.xml`)
+- The `x-api-key` header is excluded from being forwarded to the destination API for security
+
+This approach allows you to add authentication to third-party APIs that don't have their own authentication, or to enforce your own API key standards across all routed services.
+
+> **Note**: If you don't specify the `api_keys_collections` tag in your API gateway route, the route will be publicly accessible.
 
 ### Example 15 - Custom endpoint path
 
