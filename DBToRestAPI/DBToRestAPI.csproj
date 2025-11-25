@@ -19,11 +19,9 @@
     <PackageReference Include="Com.H" Version="10.0.0" />
     <PackageReference Include="Com.H.Data.Common" Version="10.0.0" />
     <PackageReference Include="Com.H.Net.Ssh" Version="10.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="5.0.17" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Xml" Version="10.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.1" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.0" />
   </ItemGroup>

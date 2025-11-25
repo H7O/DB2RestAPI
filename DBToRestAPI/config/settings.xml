@@ -17,7 +17,7 @@
     <path>config/file_management.xml</path>
     <path>config/regex.xml</path>
     <path>config/auth_providers.xml</path>
-    <path>config/test_auth_provider.xml</path>
+    <!--<path>config/test_auth_provider.xml</path>-->
     
     <!-- 
     Controls whether the application automatically restarts when configuration file paths are added or removed.
