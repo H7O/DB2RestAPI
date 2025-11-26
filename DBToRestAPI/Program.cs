@@ -3,6 +3,8 @@ using DBToRestAPI.Cache;
 using DBToRestAPI.Middlewares;
 using DBToRestAPI.Services;
 using DBToRestAPI.Settings;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Data.SqlClient;
@@ -125,5 +127,36 @@ app.UseMiddleware<Step7FileUploadManagement>();     // 7. File upload processing
 app.UseMiddleware<Step8FileDownloadManagement>();   // 8. File download processing
 
 
+// Log the URLs/ports the server is listening on after startup
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    var addresses = app.Urls.ToList();
+    
+    if (!addresses.Any())
+    {
+        // Fallback: get from server features if app.Urls is empty
+        var serverAddresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses;
+        if (serverAddresses?.Any() == true)
+        {
+            addresses = serverAddresses.ToList();
+        }
+    }
+
+    if (addresses.Any())
+    {
+        logger.LogInformation("");
+        logger.LogInformation("╔════════════════════════════════════════════════════════════════╗");
+        logger.LogInformation("║  🚀 DB-to-REST API is up and running!                          ║");
+        logger.LogInformation("╠════════════════════════════════════════════════════════════════╣");
+        foreach (var address in addresses)
+        {
+            var paddedAddress = $"║  ➜  {address}".PadRight(65) + "║";
+            logger.LogInformation("{Address}", paddedAddress);
+        }
+        logger.LogInformation("╚════════════════════════════════════════════════════════════════╝");
+        logger.LogInformation("");
+    }
+});
 
 app.Run();
