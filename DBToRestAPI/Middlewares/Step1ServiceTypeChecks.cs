@@ -52,9 +52,10 @@ public class Step1ServiceTypeChecks(
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var val1 = this._settingsEncryptionService.GetValue<string>("secret_info");
+        //var val1 = this._settingsEncryptionService.GetValue<string>("secret_info");
+        // var secretSection = this._settingsEncryptionService.GetSection("nested_secret_data");
 
-        _logger.LogDebug("secret_info = {value}", val1);
+        // _logger.LogDebug("secret_info = {value}", val1);
 
 
 

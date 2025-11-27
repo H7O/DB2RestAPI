@@ -16,8 +16,9 @@ namespace DBToRestAPI.Services;
 /// This service:
 /// - Runs only on Windows (DPAPI is Windows-specific)
 /// - Automatically encrypts unencrypted sensitive values in XML config files on startup
-/// - Maintains decrypted values in memory for application use
+/// - Maintains decrypted values in an in-memory IConfiguration for seamless access
 /// - Monitors for configuration changes and reloads automatically
+/// - Provides GetSection() support just like IConfiguration
 /// 
 /// Configuration structure (in settings.xml):
 /// <code>
@@ -45,10 +46,11 @@ public class SettingsEncryptionService
     private readonly ILogger<SettingsEncryptionService> _logger;
     private readonly AtomicGate _reloadingGate = new();
     
-    // In-memory cache of decrypted values
-    // Key: configuration path (e.g., "ConnectionStrings:default")
-    // Value: decrypted value
-    private Dictionary<string, string> _decryptedValues = new(StringComparer.OrdinalIgnoreCase);
+    // In-memory IConfiguration containing only decrypted values
+    private IConfiguration _decryptedConfiguration;
+    
+    // Dictionary for quick key lookups (also used to build the in-memory config)
+    private Dictionary<string, string?> _decryptedValues = new(StringComparer.OrdinalIgnoreCase);
     
     // Tracks which sections are configured for encryption
     private HashSet<string> _sectionsToEncrypt = new(StringComparer.OrdinalIgnoreCase);
@@ -65,6 +67,11 @@ public class SettingsEncryptionService
     {
         _configuration = configuration;
         _logger = logger;
+        
+        // Initialize empty in-memory configuration
+        _decryptedConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>())
+            .Build();
         
         // Only activate on Windows (DPAPI is Windows-specific)
         _isActive = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -103,8 +110,9 @@ public class SettingsEncryptionService
             if (!encryptionSection.Exists())
             {
                 _logger.LogDebug("No settings_encryption section found, skipping encryption processing");
-                _decryptedValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 _sectionsToEncrypt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                RebuildInMemoryConfiguration();
                 return;
             }
             
@@ -147,7 +155,8 @@ public class SettingsEncryptionService
             if (_sectionsToEncrypt.Count == 0)
             {
                 _logger.LogDebug("No sections configured for encryption");
-                _decryptedValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                RebuildInMemoryConfiguration();
                 return;
             }
             
@@ -156,7 +165,7 @@ public class SettingsEncryptionService
             _logger.LogDebug("XML files to process: {Files}", string.Join(", ", xmlFilesToProcess));
             
             // Process each XML file
-            var newDecryptedValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var newDecryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             
             foreach (var xmlFile in xmlFilesToProcess)
             {
@@ -164,6 +173,10 @@ public class SettingsEncryptionService
             }
             
             _decryptedValues = newDecryptedValues;
+            
+            // Rebuild the in-memory IConfiguration with the new decrypted values
+            RebuildInMemoryConfiguration();
+            
             _logger.LogInformation(
                 "Settings encryption processing complete. Encrypted sections: {SectionCount}, Cached decrypted values: {ValueCount}",
                 _sectionsToEncrypt.Count,
@@ -177,6 +190,18 @@ public class SettingsEncryptionService
         {
             _reloadingGate.TryClose();
         }
+    }
+
+    /// <summary>
+    /// Rebuilds the in-memory IConfiguration from the decrypted values dictionary.
+    /// </summary>
+    private void RebuildInMemoryConfiguration()
+    {
+        _decryptedConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(_decryptedValues)
+            .Build();
+        
+        _logger.LogDebug("Rebuilt in-memory configuration with {Count} decrypted values", _decryptedValues.Count);
     }
 
     /// <summary>
@@ -236,7 +261,7 @@ public class SettingsEncryptionService
     /// <summary>
     /// Processes a single XML file: encrypts unencrypted values and caches decrypted values.
     /// </summary>
-    private void ProcessXmlFile(string filePath, Dictionary<string, string> decryptedValues)
+    private void ProcessXmlFile(string filePath, Dictionary<string, string?> decryptedValues)
     {
         try
         {
@@ -313,7 +338,7 @@ public class SettingsEncryptionService
     /// Processes an XML element: encrypts if unencrypted, decrypts and caches if encrypted.
     /// Handles both leaf elements and parent elements (encrypts all children).
     /// </summary>
-    private bool ProcessElement(XElement element, string basePath, Dictionary<string, string> decryptedValues)
+    private bool ProcessElement(XElement element, string basePath, Dictionary<string, string?> decryptedValues)
     {
         bool modified = false;
         
@@ -429,6 +454,7 @@ public class SettingsEncryptionService
 
     /// <summary>
     /// Gets a configuration value, returning the decrypted value if available.
+    /// Falls back to the main IConfiguration if not found in decrypted values.
     /// </summary>
     /// <param name="key">The configuration key (e.g., "ConnectionStrings:default")</param>
     /// <returns>The decrypted value if encrypted, otherwise the raw configuration value</returns>
@@ -437,13 +463,14 @@ public class SettingsEncryptionService
         if (string.IsNullOrWhiteSpace(key))
             return null;
         
-        // Check decrypted cache first
-        if (_decryptedValues.TryGetValue(key, out var decryptedValue))
+        // Check decrypted configuration first
+        var decryptedValue = _decryptedConfiguration.GetValue<string>(key);
+        if (decryptedValue != null)
         {
             return decryptedValue;
         }
         
-        // Fall back to IConfiguration
+        // Fall back to main IConfiguration
         return _configuration.GetValue<string>(key);
     }
 
@@ -458,8 +485,9 @@ public class SettingsEncryptionService
         if (string.IsNullOrWhiteSpace(key))
             return default;
         
-        // Check decrypted cache first
-        if (_decryptedValues.TryGetValue(key, out var decryptedValue))
+        // Check decrypted configuration first
+        var decryptedValue = _decryptedConfiguration.GetValue<string>(key);
+        if (decryptedValue != null)
         {
             try
             {
@@ -480,6 +508,29 @@ public class SettingsEncryptionService
     }
 
     /// <summary>
+    /// Gets a configuration section from the decrypted values.
+    /// This allows you to use familiar IConfigurationSection patterns with decrypted data.
+    /// Falls back to the main IConfiguration if the section has no decrypted values.
+    /// </summary>
+    /// <param name="key">The section key (e.g., "ConnectionStrings" or "nested_secret_data")</param>
+    /// <returns>An IConfigurationSection containing decrypted values, or from main config if not found</returns>
+    public IConfigurationSection GetSection(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return _configuration.GetSection(key);
+        
+        // Check if we have any decrypted values under this section
+        var sectionFromDecrypted = _decryptedConfiguration.GetSection(key);
+        if (sectionFromDecrypted.Exists() || sectionFromDecrypted.GetChildren().Any())
+        {
+            return sectionFromDecrypted;
+        }
+        
+        // Fall back to main IConfiguration
+        return _configuration.GetSection(key);
+    }
+
+    /// <summary>
     /// Gets a connection string, returning the decrypted value if encrypted.
     /// This is a convenience method for the common case of encrypted connection strings.
     /// </summary>
@@ -488,6 +539,47 @@ public class SettingsEncryptionService
     public string? GetConnectionString(string name)
     {
         return GetValue($"ConnectionStrings:{name}");
+    }
+
+    /// <summary>
+    /// Gets all decrypted values under a parent path.
+    /// Useful for sections with multiple child elements (e.g., "nested_secret_data" returns all secrets).
+    /// </summary>
+    /// <param name="parentPath">The parent configuration path</param>
+    /// <returns>Dictionary of child paths (relative to parent) and their decrypted values</returns>
+    public IReadOnlyDictionary<string, string?> GetValuesUnderPath(string parentPath)
+    {
+        if (string.IsNullOrWhiteSpace(parentPath))
+            return new Dictionary<string, string?>();
+        
+        var prefix = parentPath.EndsWith(':') ? parentPath : parentPath + ":";
+        
+        return _decryptedValues
+            .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                kvp => kvp.Key[prefix.Length..], // Return relative path
+                kvp => kvp.Value,
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Gets all decrypted values under a parent path as a list.
+    /// Useful when you just need the values without caring about the exact paths.
+    /// </summary>
+    /// <param name="parentPath">The parent configuration path</param>
+    /// <returns>List of decrypted values under the parent path</returns>
+    public IReadOnlyList<string?> GetValueListUnderPath(string parentPath)
+    {
+        if (string.IsNullOrWhiteSpace(parentPath))
+            return new List<string?>();
+        
+        var prefix = parentPath.EndsWith(':') ? parentPath : parentPath + ":";
+        
+        return _decryptedValues
+            .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(kvp => kvp.Value)
+            .ToList()
+            .AsReadOnly();
     }
 
     /// <summary>
@@ -509,6 +601,12 @@ public class SettingsEncryptionService
     {
         return _decryptedValues.Keys.ToList().AsReadOnly();
     }
+
+    /// <summary>
+    /// Gets the in-memory IConfiguration containing only decrypted values.
+    /// Use this if you need direct access to the decrypted configuration.
+    /// </summary>
+    public IConfiguration DecryptedConfiguration => _decryptedConfiguration;
 
     /// <summary>
     /// Whether the encryption service is active (running on Windows).
