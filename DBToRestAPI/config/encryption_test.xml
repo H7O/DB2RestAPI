@@ -1,0 +1,11 @@
+﻿<settings>
+  <!-- some comments that should not be removed -->
+  
+  <secret_info>some value goes here</secret_info>
+  <nested_secret_data>
+    <secret>1</secret>
+    <secret>2</secret>
+    <!-- another comment -->
+    <secret>3</secret>
+  </nested_secret_data>
+</settings>

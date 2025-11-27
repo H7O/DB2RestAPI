@@ -1,6 +1,7 @@
 ﻿using DBToRestAPI.Settings;
 using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
+using DBToRestAPI.Services;
 
 
 namespace DBToRestAPI.Middlewares;
@@ -28,7 +29,8 @@ public class Step1ServiceTypeChecks(
     IConfiguration configuration,
     ILogger<Step1ServiceTypeChecks> logger,
     RouteConfigResolver routeConfigResolver,
-    QueryRouteResolver queryRouteResolver
+    QueryRouteResolver queryRouteResolver,
+    SettingsEncryptionService settingsEncryptionService
         )
 {
 
@@ -37,6 +39,7 @@ public class Step1ServiceTypeChecks(
     private readonly ILogger<Step1ServiceTypeChecks> _logger = logger;
     private readonly RouteConfigResolver _routeConfigResolver = routeConfigResolver;
     private readonly QueryRouteResolver _queryRouteResolver = queryRouteResolver;
+    private readonly SettingsEncryptionService _settingsEncryptionService = settingsEncryptionService;
     private readonly HashSet<string> _acceptableContentTypes = new HashSet<string>
     {
         "application/json",
@@ -49,6 +52,11 @@ public class Step1ServiceTypeChecks(
 
     public async Task InvokeAsync(HttpContext context)
     {
+        var val1 = this._settingsEncryptionService.GetValue<string>("secret_info");
+
+        _logger.LogDebug("secret_info = {value}", val1);
+
+
 
         #region log the time and the middleware name
         this._logger.LogDebug("{time}: in Step2ServiceTypeChecks middleware",

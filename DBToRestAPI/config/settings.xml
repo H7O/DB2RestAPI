@@ -1,5 +1,7 @@
 ﻿<settings>
 
+  
+
   <ConnectionStrings>
     <default><![CDATA[Data Source=.\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
 
@@ -17,6 +19,7 @@
     <path>config/file_management.xml</path>
     <path>config/regex.xml</path>
     <path>config/auth_providers.xml</path>
+    <path>config/encryption_test.xml</path>
     <!--<path>config/test_auth_provider.xml</path>-->
     
     <!-- 
@@ -29,6 +32,37 @@
   </additional_configurations>
 
 
+  <!-- 
+  Settings Encryption Configuration (Windows only - uses DPAPI)
+  
+  This section configures automatic encryption of sensitive configuration values.
+  On first run, unencrypted values in the specified sections will be encrypted in-place.
+  The application maintains decrypted values in memory for runtime use.
+  
+  Note: DPAPI encryption is machine-specific. Values encrypted on one machine
+  cannot be decrypted on another. Re-deploy with unencrypted values when moving
+  to a new server, and they will be automatically encrypted on first run.
+  -->
+  <settings_encryption>
+    <!-- Prefix added to encrypted values (helps identify what's encrypted) -->
+    <encryption_prefix>encrypted:</encryption_prefix>
+
+    <!-- List of configuration sections/paths to encrypt -->
+    <sections_to_encrypt>
+      <!-- Encrypt all connection strings -->
+      <section>secret_info</section>
+      <section>nested_secret_data</section>
+
+      <!-- Encrypt specific auth provider sections (uncomment as needed) -->
+      <!--<section>authorize:providers:azure_b2c</section>-->
+      <!--<section>authorize:providers:google</section>-->
+
+      <!-- Encrypt SFTP passwords -->
+      <!--<section>file_management:sftp_file_store:site3:password</section>-->
+      <!--<section>file_management:sftp_file_store:site4:password</section>-->
+    </sections_to_encrypt>
+  </settings_encryption>  
+  
   
   <!-- passing the value in the below `debug_mode_header_value` 
   as a value to header `debug-mode` in your HTTP request will enable debug mode
