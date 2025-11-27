@@ -48,6 +48,7 @@ namespace DBToRestAPI.Middlewares
     public class Step5APIGatewayProcess(
         RequestDelegate next,
         IConfiguration configuration,
+        SettingsEncryptionService settingsEncryptionService,
         SettingsService settings,
         IHttpClientFactory httpClientFactory,
         ILogger<Step5APIGatewayProcess> logger,
@@ -56,7 +57,8 @@ namespace DBToRestAPI.Middlewares
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
-        private readonly IConfiguration _configuration = configuration;
+        // private readonly IConfiguration _configuration = configuration;
+        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
         private readonly IHttpClientFactory httpClientFactory = httpClientFactory;
         private readonly ILogger<Step5APIGatewayProcess> _logger = logger;
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;

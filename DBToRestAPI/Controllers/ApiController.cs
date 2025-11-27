@@ -1,24 +1,25 @@
-﻿using Com.H.Data.Common;
+﻿using Azure;
+using Com.H.Collections.Generic;
+using Com.H.Data.Common;
+using Com.H.IO;
+using DBToRestAPI.Cache;
+using DBToRestAPI.Services;
+using DBToRestAPI.Settings;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Http;
+using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel.DataAnnotations;
 using System.Data.Common;
+using System.Dynamic;
+using System.Net.Http;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.Xml;
-using System.Text.Json;
-using Com.H.Collections.Generic;
-using static System.Net.Mime.MediaTypeNames;
-using System.Dynamic;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using System.Net.Http;
-using Azure;
-using System.Reflection.PortableExecutable;
-using Microsoft.Extensions.Http;
-using DBToRestAPI.Cache;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
-using DBToRestAPI.Settings;
-using Microsoft.Data.SqlClient;
-using Com.H.IO;
-using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace DBToRestAPI.Controllers
 {
@@ -39,6 +40,7 @@ namespace DBToRestAPI.Controllers
 
     public class ApiController(
         IConfiguration configuration,
+        SettingsEncryptionService settingsEncryptionService,
         DbConnection connection,
         SettingsService settingsService,
         ILogger<ApiController> logger
@@ -47,7 +49,8 @@ namespace DBToRestAPI.Controllers
             //Com.H.CacheService.MemoryCache cacheService
             ) : ControllerBase
     {
-        private readonly IConfiguration _configuration = configuration;
+        // private readonly IConfiguration _configuration = configuration;
+        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
         private readonly DbConnection _connection = connection;
 
         private readonly ILogger<ApiController> _logger = logger;

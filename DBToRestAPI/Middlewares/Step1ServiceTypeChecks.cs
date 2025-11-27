@@ -35,11 +35,11 @@ public class Step1ServiceTypeChecks(
 {
 
     private readonly RequestDelegate _next = next;
-    private readonly IConfiguration _configuration = configuration;
+    // private readonly IConfiguration _configuration = configuration;
     private readonly ILogger<Step1ServiceTypeChecks> _logger = logger;
     private readonly RouteConfigResolver _routeConfigResolver = routeConfigResolver;
     private readonly QueryRouteResolver _queryRouteResolver = queryRouteResolver;
-    private readonly SettingsEncryptionService _settingsEncryptionService = settingsEncryptionService;
+    private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
     private readonly HashSet<string> _acceptableContentTypes = new HashSet<string>
     {
         "application/json",

@@ -52,6 +52,8 @@
       <!-- Encrypt all connection strings -->
       <section>secret_info</section>
       <section>nested_secret_data</section>
+      <section>api_keys_collections:external_vendors</section>
+      
 
       <!-- Encrypt specific auth provider sections (uncomment as needed) -->
       <!--<section>authorize:providers:azure_b2c</section>-->

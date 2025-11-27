@@ -39,12 +39,14 @@ namespace DBToRestAPI.Middlewares
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
+        SettingsEncryptionService settingsEncryptionService,
         ILogger<Step6MandatoryFieldsCheck> logger,
         ParametersBuilder paramsBuilder)
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
-        private readonly IConfiguration _configuration = configuration;
+        // private readonly IConfiguration _configuration = configuration;
+        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
         private readonly ILogger<Step6MandatoryFieldsCheck> _logger = logger;
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         // private static int count = 0;

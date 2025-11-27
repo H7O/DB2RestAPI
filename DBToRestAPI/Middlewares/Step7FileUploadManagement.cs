@@ -22,12 +22,14 @@ namespace DBToRestAPI.Middlewares
         RequestDelegate next,
         SettingsService settings,
         IConfiguration configuration,
+        SettingsEncryptionService settingsEncryptionService,
         ILogger<Step7FileUploadManagement> logger
         )
     {
         private readonly RequestDelegate _next = next;
         private readonly SettingsService _settings = settings;
-        private readonly IConfiguration _configuration = configuration;
+        // private readonly IConfiguration _configuration = configuration;
+        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
         private readonly ILogger<Step7FileUploadManagement> _logger = logger;
         private static readonly string _errorCode = "Step 7 - File Upload Management Error";
 

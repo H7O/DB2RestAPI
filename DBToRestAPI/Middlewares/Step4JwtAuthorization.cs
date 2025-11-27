@@ -1,4 +1,5 @@
 ﻿using DBToRestAPI.Cache;
+using DBToRestAPI.Services;
 using DBToRestAPI.Settings;
 using DBToRestAPI.Settings.Extensinos;
 using Microsoft.AspNetCore.Mvc;
@@ -18,13 +19,15 @@ namespace DBToRestAPI.Middlewares
         IConfiguration configuration,
         ILogger<Step4JwtAuthorization> logger,
         CacheService cacheService,
+        SettingsEncryptionService settingsEncryptionService,
         IHttpClientFactory httpClientFactory)
     {
         private readonly RequestDelegate _next = next;
-        private readonly IConfiguration _configuration = configuration;
+        // private readonly IConfiguration _configuration = configuration;
+        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
         private readonly ILogger<Step4JwtAuthorization> _logger = logger;
         private readonly CacheService _cacheService = cacheService;
-        private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+                private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
         private static readonly string _errorCode = "Step 5 - JWT Authorization";
 
         public async Task InvokeAsync(HttpContext context)
