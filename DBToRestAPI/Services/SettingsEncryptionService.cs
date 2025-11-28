@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -56,7 +57,13 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
     // Pre-built cache of section wrappers, keyed by path (case-insensitive)
     // Built once during RebuildMergedConfiguration, used by GetSection/GetChildren
+    // This is a regular Dictionary for maximum read performance - only written during rebuild
     private Dictionary<string, ConfigurationSectionWrapper> _sectionCache = new(StringComparer.OrdinalIgnoreCase);
+
+    // Separate cache for non-existent paths (cache misses)
+    // Uses ConcurrentDictionary for thread-safe writes during concurrent reads
+    // This handles the rare case of code calling GetSection() on paths that don't exist
+    private ConcurrentDictionary<string, ConfigurationSectionWrapper> _missCache = new(StringComparer.OrdinalIgnoreCase);
 
     // Pre-built list of root-level children (for GetChildren() on the service itself)
     private List<ConfigurationSectionWrapper> _rootChildren = new();
@@ -223,6 +230,10 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
         // Pre-build all section wrappers
         BuildSectionCache();
+
+        // Clear the miss cache since configuration has changed
+        // Non-existent paths might now exist (or vice versa)
+        _missCache = new ConcurrentDictionary<string, ConfigurationSectionWrapper>(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -291,21 +302,39 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
     /// <summary>
     /// Gets a cached section wrapper by path. Used by ConfigurationSectionWrapper.GetSection().
-    /// If the path doesn't exist in cache, creates a wrapper on-demand (handles non-existent paths gracefully).
+    /// 
+    /// Uses a two-tier cache strategy:
+    /// 1. First checks the main _sectionCache (Dictionary) - fast O(1) lookup for existing paths
+    /// 2. If not found, checks _missCache (ConcurrentDictionary) - for previously seen non-existent paths
+    /// 3. If still not found, creates wrapper and caches in _missCache (thread-safe)
+    /// 
+    /// This provides maximum performance for cache hits (99%+ of calls) while safely handling
+    /// the rare case of non-existent paths without risking Dictionary corruption.
     /// </summary>
     internal ConfigurationSectionWrapper GetCachedSection(string path)
     {
+        // Fast path: check main cache (Dictionary - fastest reads)
         if (_sectionCache.TryGetValue(path, out var cached))
         {
             return cached;
         }
 
-        // Path not in cache - this happens for paths that don't exist in the configuration
+        // Check miss cache (ConcurrentDictionary - still fast, thread-safe)
+        if (_missCache.TryGetValue(path, out var missCached))
+        {
+            return missCached;
+        }
+
+        // Path not in either cache - create wrapper for non-existent path
         // IConfiguration.GetSection() is designed to return a section even for non-existent paths
         // (it just has no value and no children)
         var mergedSection = _mergedConfiguration.GetSection(path);
         var originalSection = _originalConfiguration.GetSection(path);
-        return new ConfigurationSectionWrapper(mergedSection, originalSection, new List<ConfigurationSectionWrapper>(), this);
+        var wrapper = new ConfigurationSectionWrapper(mergedSection, originalSection, new List<ConfigurationSectionWrapper>(), this);
+
+        // Cache in miss cache (thread-safe) to avoid repeated allocations
+        // GetOrAdd ensures only one wrapper is created even with concurrent calls
+        return _missCache.GetOrAdd(path, wrapper);
     }
 
     /// <summary>
