@@ -61,30 +61,11 @@ public class ApiKeysService
                 return;
             }
 
-            _logger.LogDebug("=== Starting API Keys Load ===");
-            _logger.LogDebug("API keys section exists: {Exists}, HasValue: {HasValue}, Value: '{Value}'", 
-                apiKeysSection.Exists(), 
-                !string.IsNullOrEmpty(apiKeysSection.Value),
-                apiKeysSection.Value ?? "(null)");
-
-            var allChildren = apiKeysSection.GetChildren().ToList();
-            _logger.LogDebug("Total top-level children in api_keys_collections: {Count}", allChildren.Count);
-            
-            foreach (var child in allChildren)
-            {
-                _logger.LogDebug("Top-level child - Key: '{Key}', Value: '{Value}', Path: '{Path}'", 
-                    child.Key, 
-                    child.Value ?? "(null)", 
-                    child.Path);
-            }
-
             var newCollections = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var collectionSection in apiKeysSection.GetChildren())
             {
                 var collectionName = collectionSection.Key;
-                _logger.LogDebug("Processing collection: '{CollectionName}'", collectionName);
-                
                 var apiKeys = new HashSet<string>(StringComparer.Ordinal); // API keys are case-sensitive
 
                 // Handle both single key (direct value) and multiple keys (children) scenarios
@@ -92,65 +73,39 @@ public class ApiKeysService
                 // When there are multiple <key> elements, they're stored as children
                 
                 var children = collectionSection.GetChildren().ToList();
-                _logger.LogDebug("Collection '{CollectionName}' has {ChildCount} children", collectionName, children.Count);
                 
                 if (children.Any())
                 {
                     // Multiple keys scenario - iterate through children
                     foreach (var child in children)
                     {
-                        _logger.LogDebug("  Child Key: '{Key}', Value: '{Value}', Path: '{Path}'", 
-                            child.Key, 
-                            child.Value ?? "(null)", 
-                            child.Path);
-                        
                         // Check if this child has its own children (happens with multiple <key> elements)
                         var grandChildren = child.GetChildren().ToList();
                         if (grandChildren.Any())
                         {
-                            _logger.LogDebug("    Child '{Key}' has {GrandChildCount} grandchildren", child.Key, grandChildren.Count);
                             foreach (var grandChild in grandChildren)
                             {
-                                _logger.LogDebug("      GrandChild Key: '{Key}', Value: '{Value}'", 
-                                    grandChild.Key, 
-                                    grandChild.Value ?? "(null)");
-                                    
                                 if (!string.IsNullOrWhiteSpace(grandChild.Value))
                                 {
                                     apiKeys.Add(grandChild.Value);
-                                    _logger.LogDebug("      Added API key from grandchild: '{ApiKey}'", grandChild.Value);
                                 }
                             }
                         }
                         else if (!string.IsNullOrWhiteSpace(child.Value))
                         {
                             apiKeys.Add(child.Value);
-                            _logger.LogDebug("  Added API key: '{ApiKey}'", child.Value);
-                        }
-                        else
-                        {
-                            _logger.LogDebug("  Skipped null/whitespace value for child key: '{Key}'", child.Key);
                         }
                     }
                 }
                 else if (!string.IsNullOrWhiteSpace(collectionSection.Value))
                 {
                     // Single key scenario - the value is directly on the section
-                    _logger.LogDebug("  Single value detected: '{Value}'", collectionSection.Value);
                     apiKeys.Add(collectionSection.Value);
-                }
-                else
-                {
-                    _logger.LogDebug("  No children and no direct value for collection '{CollectionName}'", collectionName);
                 }
 
                 if (apiKeys.Count > 0)
                 {
                     newCollections[collectionName] = apiKeys;
-                    _logger.LogDebug(
-                        "Loaded API key collection '{CollectionName}' with {KeyCount} key(s)",
-                        collectionName,
-                        apiKeys.Count);
                 }
                 else
                 {
@@ -161,18 +116,6 @@ public class ApiKeysService
             }
 
             _apiKeysCollections = newCollections;
-            
-            // Log all loaded keys for debugging
-            _logger.LogDebug("=== Final API Keys State ===");
-            foreach (var collection in _apiKeysCollections)
-            {
-                _logger.LogDebug("  Collection '{Name}': {Count} keys", collection.Key, collection.Value.Count);
-                int i = 0;
-                foreach (var key in collection.Value)
-                {
-                    _logger.LogDebug("    [{Index}] '{Key}'", i++, key);
-                }
-            }
             
             _logger.LogInformation(
                 "API keys loaded successfully. Total collections: {CollectionCount}, Total keys: {KeyCount}",
@@ -233,21 +176,12 @@ public class ApiKeysService
 
         foreach (var collectionName in collectionNames)
         {
-            if (_apiKeysCollections.TryGetValue(collectionName, out var keys))
+            if (_apiKeysCollections.TryGetValue(collectionName, out var keys) && keys.Contains(apiKey))
             {
-                if (keys.Contains(apiKey))
-                {
-                    _logger.LogDebug("API key validated in collection '{CollectionName}'", collectionName);
-                    return true;
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Collection '{CollectionName}' not found", collectionName);
+                return true;
             }
         }
 
-        _logger.LogDebug("API key validation failed - not found in specified collections");
         return false;
     }
 

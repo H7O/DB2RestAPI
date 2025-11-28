@@ -107,13 +107,10 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         {
             if (!_reloadingGate.TryOpen()) return;
             
-            _logger.LogDebug("=== Starting Settings Encryption Processing ===");
-            
             // Read encryption configuration
             var encryptionSection = _originalConfiguration.GetSection("settings_encryption");
             if (!encryptionSection.Exists() || !_isActive)
             {
-                _logger.LogDebug("No settings_encryption section found or not on Windows, using original config");
                 _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 _sectionsToEncrypt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 RebuildMergedConfiguration();
@@ -122,7 +119,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             
             // Get encryption prefix
             _encryptionPrefix = encryptionSection.GetValue<string>("encryption_prefix") ?? DEFAULT_ENCRYPTED_PREFIX;
-            _logger.LogDebug("Using encryption prefix: '{Prefix}'", _encryptionPrefix);
             
             // Get sections to encrypt
             var sectionsSection = encryptionSection.GetSection("sections_to_encrypt");
@@ -154,11 +150,9 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             }
             
             _sectionsToEncrypt = newSectionsToEncrypt;
-            _logger.LogDebug("Sections to encrypt: {Sections}", string.Join(", ", _sectionsToEncrypt));
             
             if (_sectionsToEncrypt.Count == 0)
             {
-                _logger.LogDebug("No sections configured for encryption");
                 _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 RebuildMergedConfiguration();
                 return;
@@ -166,7 +160,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             
             // Get list of XML files to process
             var xmlFilesToProcess = GetXmlFilesToProcess();
-            _logger.LogDebug("XML files to process: {Files}", string.Join(", ", xmlFilesToProcess));
             
             // Process each XML file - collect decrypted values
             var newDecryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -177,13 +170,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             }
             
             _decryptedValues = newDecryptedValues;
-            
-            // Log all decrypted values collected
-            _logger.LogDebug("=== Decrypted values collected ===");
-            foreach (var kvp in _decryptedValues)
-            {
-                _logger.LogDebug("  '{Key}' = '{Value}'", kvp.Key, kvp.Value);
-            }
             
             // Rebuild the complete merged configuration
             RebuildMergedConfiguration();
@@ -215,44 +201,16 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         // Recursively copy all values from original configuration
         CopyAllConfigValues(_originalConfiguration, mergedValues, "");
         
-        _logger.LogDebug("=== RebuildMergedConfiguration ===");
-        _logger.LogDebug("Copied {Count} values from original configuration", mergedValues.Count);
-        
-        // Log original api_keys_collections values before overlay
-        var apiKeysBeforeOverlay = mergedValues
-            .Where(kvp => kvp.Key.StartsWith("api_keys_collections:", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        _logger.LogDebug("API keys from original config (before overlay): {Count}", apiKeysBeforeOverlay.Count);
-        foreach (var kvp in apiKeysBeforeOverlay)
-        {
-            _logger.LogDebug("  Original: '{Key}' = '{Value}'", kvp.Key, kvp.Value?.Substring(0, Math.Min(30, kvp.Value?.Length ?? 0)) + "...");
-        }
-        
         // Overlay with decrypted values (these take precedence)
-        _logger.LogDebug("Decrypted values to overlay: {Count}", _decryptedValues.Count);
         foreach (var kvp in _decryptedValues)
         {
-            _logger.LogDebug("  Overlay: '{Key}' = '{Value}'", kvp.Key, kvp.Value);
             mergedValues[kvp.Key] = kvp.Value;
-        }
-        
-        // Log final api_keys_collections values after overlay
-        var apiKeysAfterOverlay = mergedValues
-            .Where(kvp => kvp.Key.StartsWith("api_keys_collections:", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        _logger.LogDebug("API keys in merged config (after overlay): {Count}", apiKeysAfterOverlay.Count);
-        foreach (var kvp in apiKeysAfterOverlay)
-        {
-            _logger.LogDebug("  Final: '{Key}' = '{Value}'", kvp.Key, kvp.Value);
         }
         
         // Build the merged configuration
         _mergedConfiguration = new ConfigurationBuilder()
             .AddInMemoryCollection(mergedValues)
             .Build();
-        
-        _logger.LogDebug("Rebuilt merged configuration with {TotalCount} total values ({DecryptedCount} decrypted)", 
-            mergedValues.Count, _decryptedValues.Count);
     }
     
     /// <summary>
@@ -335,8 +293,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         try
         {
-            _logger.LogDebug("Processing XML file: {FilePath}", filePath);
-            
             // Load with PreserveWhitespace to maintain comments, formatting, and whitespace
             var doc = XDocument.Load(filePath, LoadOptions.PreserveWhitespace);
             var root = doc.Root;
@@ -457,7 +413,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 // Already encrypted - decrypt and cache
                 var decryptedValue = Decrypt(value);
                 decryptedValues[basePath] = decryptedValue;
-                _logger.LogDebug("Cached decrypted value for: {Path}", basePath);
             }
             else
             {
@@ -466,7 +421,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 element.Value = encryptedValue;
                 decryptedValues[basePath] = value;
                 modified = true;
-                _logger.LogDebug("Encrypted value for: {Path}", basePath);
             }
         }
         
