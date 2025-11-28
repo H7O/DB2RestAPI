@@ -178,6 +178,13 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             
             _decryptedValues = newDecryptedValues;
             
+            // Log all decrypted values collected
+            _logger.LogDebug("=== Decrypted values collected ===");
+            foreach (var kvp in _decryptedValues)
+            {
+                _logger.LogDebug("  '{Key}' = '{Value}'", kvp.Key, kvp.Value);
+            }
+            
             // Rebuild the complete merged configuration
             RebuildMergedConfiguration();
             
@@ -208,10 +215,35 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         // Recursively copy all values from original configuration
         CopyAllConfigValues(_originalConfiguration, mergedValues, "");
         
+        _logger.LogDebug("=== RebuildMergedConfiguration ===");
+        _logger.LogDebug("Copied {Count} values from original configuration", mergedValues.Count);
+        
+        // Log original api_keys_collections values before overlay
+        var apiKeysBeforeOverlay = mergedValues
+            .Where(kvp => kvp.Key.StartsWith("api_keys_collections:", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        _logger.LogDebug("API keys from original config (before overlay): {Count}", apiKeysBeforeOverlay.Count);
+        foreach (var kvp in apiKeysBeforeOverlay)
+        {
+            _logger.LogDebug("  Original: '{Key}' = '{Value}'", kvp.Key, kvp.Value?.Substring(0, Math.Min(30, kvp.Value?.Length ?? 0)) + "...");
+        }
+        
         // Overlay with decrypted values (these take precedence)
+        _logger.LogDebug("Decrypted values to overlay: {Count}", _decryptedValues.Count);
         foreach (var kvp in _decryptedValues)
         {
+            _logger.LogDebug("  Overlay: '{Key}' = '{Value}'", kvp.Key, kvp.Value);
             mergedValues[kvp.Key] = kvp.Value;
+        }
+        
+        // Log final api_keys_collections values after overlay
+        var apiKeysAfterOverlay = mergedValues
+            .Where(kvp => kvp.Key.StartsWith("api_keys_collections:", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        _logger.LogDebug("API keys in merged config (after overlay): {Count}", apiKeysAfterOverlay.Count);
+        foreach (var kvp in apiKeysAfterOverlay)
+        {
+            _logger.LogDebug("  Final: '{Key}' = '{Value}'", kvp.Key, kvp.Value);
         }
         
         // Build the merged configuration

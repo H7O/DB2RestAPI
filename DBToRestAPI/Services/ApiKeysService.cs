@@ -161,6 +161,19 @@ public class ApiKeysService
             }
 
             _apiKeysCollections = newCollections;
+            
+            // Log all loaded keys for debugging
+            _logger.LogDebug("=== Final API Keys State ===");
+            foreach (var collection in _apiKeysCollections)
+            {
+                _logger.LogDebug("  Collection '{Name}': {Count} keys", collection.Key, collection.Value.Count);
+                int i = 0;
+                foreach (var key in collection.Value)
+                {
+                    _logger.LogDebug("    [{Index}] '{Key}'", i++, key);
+                }
+            }
+            
             _logger.LogInformation(
                 "API keys loaded successfully. Total collections: {CollectionCount}, Total keys: {KeyCount}",
                 newCollections.Count,
