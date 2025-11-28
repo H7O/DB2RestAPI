@@ -39,8 +39,7 @@ namespace DBToRestAPI.Controllers
     /// </summary>
 
     public class ApiController(
-        IConfiguration configuration,
-        SettingsEncryptionService settingsEncryptionService,
+        IEncryptedConfiguration configuration,
         DbConnection connection,
         SettingsService settingsService,
         ILogger<ApiController> logger
@@ -50,7 +49,7 @@ namespace DBToRestAPI.Controllers
             ) : ControllerBase
     {
         // private readonly IConfiguration _configuration = configuration;
-        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
+        private readonly IEncryptedConfiguration _configuration = configuration;
         private readonly DbConnection _connection = connection;
 
         private readonly ILogger<ApiController> _logger = logger;

@@ -1,4 +1,5 @@
 ﻿using Com.H.Data.Common;
+using DBToRestAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -20,7 +21,7 @@ namespace DBToRestAPI.Settings.Extensinos
             return mandatoryParameters;
         }
         public static ObjectResult? GetFailedMandatoryParamsCheckIfAny(
-            this IConfiguration serviceQuerySection,
+            this IConfigurationSection serviceQuerySection,
             List<DbQueryParams> qParams,
             string[]? mandatoryParameters = null
             )

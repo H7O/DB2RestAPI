@@ -1,5 +1,6 @@
 using Com.H.Threading;
 using DBToRestAPI.Settings;
+using DBToRestAPI.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 using System.Text.RegularExpressions;
@@ -36,12 +37,12 @@ public class QueryRouteResolver
 
     private List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)> _exactRoutes = new();
     private List<(string NormalizedRoute, HashSet<string> Verbs, IConfigurationSection Config)> _routesWithVariables = new();
-    private readonly IConfiguration _configuration;
+    private readonly IEncryptedConfiguration _configuration;
 
 
     private readonly AtomicGate _reloadingGate = new();
     
-    public QueryRouteResolver(IConfiguration configuration)
+    public QueryRouteResolver(IEncryptedConfiguration configuration)
     {
         _configuration = configuration;
         LoadRoutes(); // initial load

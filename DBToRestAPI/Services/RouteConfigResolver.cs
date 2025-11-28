@@ -1,5 +1,6 @@
 using Com.H.Threading;
 using Microsoft.Extensions.Primitives;
+using DBToRestAPI.Services;
 
 /// <summary>
 /// Resolves API gateway routes from configuration by matching incoming route paths
@@ -25,11 +26,11 @@ public class RouteConfigResolver
 {
     private Dictionary<string, IConfigurationSection> _exactRoutes = new();
     private List<(string Prefix, IConfigurationSection Config)> _wildcardRoutes = new();
-    private readonly IConfiguration _configuration;
+    private readonly IEncryptedConfiguration _configuration;
 
     private readonly AtomicGate _reloadingGate = new();
     
-    public RouteConfigResolver(IConfiguration configuration)
+    public RouteConfigResolver(IEncryptedConfiguration configuration)
     {
         _configuration = configuration;
         LoadRoutes(); // initial load

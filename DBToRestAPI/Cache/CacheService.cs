@@ -4,16 +4,17 @@ using Com.H.Threading;
 using Microsoft.Extensions.Caching.Hybrid;
 using System.Security.Cryptography;
 using System.Text;
+using DBToRestAPI.Services;
 
 namespace DBToRestAPI.Cache
 {
     public class CacheService(
-        IConfiguration configuration,
+        IEncryptedConfiguration configuration,
         IServiceProvider provider,
         HybridCache cache
         )
     {
-        private readonly IConfiguration _configuration = configuration;
+        private readonly IEncryptedConfiguration _configuration = configuration;
         private readonly IServiceProvider _provider = provider;
         private readonly HybridCache _cache = cache;
 

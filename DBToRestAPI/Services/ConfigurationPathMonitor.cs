@@ -57,14 +57,14 @@ public static class ConfigurationExtensions
 /// </summary>
 public class ConfigurationPathMonitor : IHostedService, IDisposable
 {
-    private readonly IConfiguration _configuration;
+    private readonly IEncryptedConfiguration _configuration;
     private readonly ILogger<ConfigurationPathMonitor> _logger;
     private readonly IHostApplicationLifetime _appLifetime;
     private IDisposable? _changeTokenRegistration;
     private List<string>? _currentPaths;
 
     public ConfigurationPathMonitor(
-        IConfiguration configuration,
+        IEncryptedConfiguration configuration,
         ILogger<ConfigurationPathMonitor> logger,
         IHostApplicationLifetime appLifetime)
     {

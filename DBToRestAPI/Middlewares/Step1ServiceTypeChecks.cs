@@ -26,11 +26,10 @@ namespace DBToRestAPI.Middlewares;
 /// </summary>
 public class Step1ServiceTypeChecks(
     RequestDelegate next,
-    IConfiguration configuration,
     ILogger<Step1ServiceTypeChecks> logger,
     RouteConfigResolver routeConfigResolver,
     QueryRouteResolver queryRouteResolver,
-    SettingsEncryptionService settingsEncryptionService
+    IEncryptedConfiguration settingsEncryptionService
         )
 {
 
@@ -39,7 +38,7 @@ public class Step1ServiceTypeChecks(
     private readonly ILogger<Step1ServiceTypeChecks> _logger = logger;
     private readonly RouteConfigResolver _routeConfigResolver = routeConfigResolver;
     private readonly QueryRouteResolver _queryRouteResolver = queryRouteResolver;
-    private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
+    private readonly IEncryptedConfiguration _configuration = settingsEncryptionService;
     private readonly HashSet<string> _acceptableContentTypes = new HashSet<string>
     {
         "application/json",

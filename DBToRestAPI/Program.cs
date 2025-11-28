@@ -19,11 +19,12 @@ builder.Configuration
     .SetBasePath(AppContext.BaseDirectory)
     .AddXmlFile("config/settings.xml", optional: false, reloadOnChange: true)
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    // Load additional configuration files specified in "additional_configurations:path"
     .AddDynamicConfigurationFiles(builder.Configuration)
     ;
 
-// Load additional configuration files specified in "additional_configurations:path"
-builder.Configuration.AddDynamicConfigurationFiles(builder.Configuration);
+
+// builder.Configuration.AddDynamicConfigurationFiles(builder.Configuration);
 
 
 // Add services to the container.
@@ -37,7 +38,7 @@ builder.Services.AddSingleton<IEncryptedConfiguration>(sp => sp.GetRequiredServi
 // Register DbConnection as scoped
 builder.Services.AddScoped<DbConnection>(sp =>
 {
-    var configuration = sp.GetRequiredService<IConfiguration>();
+    var configuration = sp.GetRequiredService<IEncryptedConfiguration>();
     // Use IEncryptedConfiguration for connection string to get decrypted value
     var encryptionService = sp.GetRequiredService<IEncryptedConfiguration>();
     var connectionString = encryptionService.GetConnectionString("default")

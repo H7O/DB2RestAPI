@@ -16,15 +16,14 @@ namespace DBToRestAPI.Middlewares
 {
     public class Step4JwtAuthorization(
                 RequestDelegate next,
-        IConfiguration configuration,
         ILogger<Step4JwtAuthorization> logger,
         CacheService cacheService,
-        SettingsEncryptionService settingsEncryptionService,
+        IEncryptedConfiguration settingsEncryptionService,
         IHttpClientFactory httpClientFactory)
     {
         private readonly RequestDelegate _next = next;
         // private readonly IConfiguration _configuration = configuration;
-        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
+        private readonly IEncryptedConfiguration _configuration = settingsEncryptionService;
         private readonly ILogger<Step4JwtAuthorization> _logger = logger;
         private readonly CacheService _cacheService = cacheService;
                 private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;

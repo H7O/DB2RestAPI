@@ -29,9 +29,8 @@ namespace DBToRestAPI.Middlewares
     public class Step3ApiKeysCheck(
         RequestDelegate next,
         SettingsService settings,
-        IConfiguration configuration,
         ILogger<Step3ApiKeysCheck> logger,
-        SettingsEncryptionService settingsEncryptionService,
+        IEncryptedConfiguration settingsEncryptionService,
         ApiKeysService apiKeysService)
     {
         private readonly RequestDelegate _next = next;
@@ -39,7 +38,7 @@ namespace DBToRestAPI.Middlewares
         private readonly ILogger<Step3ApiKeysCheck> _logger = logger;
         // private readonly IConfiguration _configuration = configuration;
         private readonly ApiKeysService _apiKeysService = apiKeysService;
-        private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
+        private readonly IEncryptedConfiguration _configuration = settingsEncryptionService;
         // private static int count = 0;
         private static readonly string _errorCode = "Step 4 - API Keys Check Error";
         public async Task InvokeAsync(HttpContext context)

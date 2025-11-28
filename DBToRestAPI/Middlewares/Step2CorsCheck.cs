@@ -28,13 +28,12 @@ namespace DBToRestAPI.Middlewares;
 /// </summary>
 public class Step2CorsCheck(
     RequestDelegate next,
-    IConfiguration configuration,
-    SettingsEncryptionService settingsEncryptionService,
+    IEncryptedConfiguration settingsEncryptionService,
     ILogger<Step2CorsCheck> logger)
 {
     private readonly RequestDelegate _next = next;
     // private readonly IConfiguration _configuration = configuration;
-    private readonly SettingsEncryptionService _configuration = settingsEncryptionService;
+    private readonly IEncryptedConfiguration _configuration = settingsEncryptionService;
     private readonly ILogger<Step2CorsCheck> _logger = logger;
     private static readonly string _errorCode = "Step 3 - CORS Check Error";
     private static readonly string _defaultMethods = "GET, POST, PUT, DELETE, PATCH, OPTIONS";

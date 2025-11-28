@@ -30,14 +30,12 @@ namespace DBToRestAPI.Services;
 public class ApiKeysService
 {
     private Dictionary<string, HashSet<string>> _apiKeysCollections = new();
-    // private readonly IConfiguration _configuration;
-    private readonly SettingsEncryptionService _configuration;
+    private readonly IEncryptedConfiguration _configuration;
     private readonly ILogger<ApiKeysService> _logger;
     private readonly AtomicGate _reloadingGate = new();
 
     public ApiKeysService(
-        IConfiguration configuration,
-        SettingsEncryptionService settingsEncryptionService,
+        IEncryptedConfiguration settingsEncryptionService,
         ILogger<ApiKeysService> logger)
     {
         // _configuration = configuration;

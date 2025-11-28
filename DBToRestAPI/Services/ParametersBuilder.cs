@@ -28,7 +28,7 @@ public class ParametersBuilder
 {
 
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IConfiguration _config;
+    private readonly IEncryptedConfiguration _config;
     private readonly ILogger<ParametersBuilder> _logger;
     // private readonly string _errorCode = "Payload Extractor Error";
     private static readonly JsonWriterOptions _jsonWriterOptions = new() { Indented = false };
@@ -59,7 +59,7 @@ public class ParametersBuilder
 
     public ParametersBuilder(
         IHttpContextAccessor httpContextAccessor,
-        IConfiguration configuration,
+        IEncryptedConfiguration configuration,
         ILogger<ParametersBuilder> logger
         )
     {

@@ -8,12 +8,12 @@ using DBToRestAPI.Services;
 namespace DBToRestAPI.Settings
 {
     public class SettingsService(
-        IConfiguration configuration,
+        IEncryptedConfiguration configuration,
         CacheService cacheService,
         ParametersBuilder paramsBuilder
         )
     {
-        private readonly IConfiguration _configuration = configuration;
+        private readonly IEncryptedConfiguration _configuration = configuration;
         private readonly CacheService _cacheService = cacheService;
         private readonly ParametersBuilder _paramsBuilder = paramsBuilder;
         public CacheService CacheService => _cacheService;
