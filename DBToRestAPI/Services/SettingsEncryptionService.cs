@@ -305,11 +305,11 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// 
     /// Uses a two-tier cache strategy:
     /// 1. First checks the main _sectionCache (Dictionary) - fast O(1) lookup for existing paths
-    /// 2. If not found, checks _missCache (ConcurrentDictionary) - for previously seen non-existent paths
-    /// 3. If still not found, creates wrapper and caches in _missCache (thread-safe)
+    /// 2. If not found, uses _missCache (ConcurrentDictionary) with factory - for non-existent paths
     /// 
     /// This provides maximum performance for cache hits (99%+ of calls) while safely handling
     /// the rare case of non-existent paths without risking Dictionary corruption.
+    /// The factory pattern ensures wrapper is only created when actually needed.
     /// </summary>
     internal ConfigurationSectionWrapper GetCachedSection(string path)
     {
@@ -319,22 +319,15 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             return cached;
         }
 
-        // Check miss cache (ConcurrentDictionary - still fast, thread-safe)
-        if (_missCache.TryGetValue(path, out var missCached))
-        {
-            return missCached;
-        }
-
-        // Path not in either cache - create wrapper for non-existent path
+        // Miss cache with factory - wrapper only created if path not already cached
         // IConfiguration.GetSection() is designed to return a section even for non-existent paths
         // (it just has no value and no children)
-        var mergedSection = _mergedConfiguration.GetSection(path);
-        var originalSection = _originalConfiguration.GetSection(path);
-        var wrapper = new ConfigurationSectionWrapper(mergedSection, originalSection, new List<ConfigurationSectionWrapper>(), this);
-
-        // Cache in miss cache (thread-safe) to avoid repeated allocations
-        // GetOrAdd ensures only one wrapper is created even with concurrent calls
-        return _missCache.GetOrAdd(path, wrapper);
+        return _missCache.GetOrAdd(path, key =>
+            new ConfigurationSectionWrapper(
+                _mergedConfiguration.GetSection(key),
+                _originalConfiguration.GetSection(key),
+                new List<ConfigurationSectionWrapper>(),
+                this));
     }
 
     /// <summary>
