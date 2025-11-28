@@ -334,6 +334,14 @@ namespace DBToRestAPI.Controllers
 
                     if (disableDifferredExecution)
                     {
+                        if (!string.IsNullOrWhiteSpace(rootNodeName))
+                        {
+                            // wrap the result in an object with the root node name
+                            var wrappedResult = new ExpandoObject();
+                            wrappedResult.TryAdd(rootNodeName, resultWithNoCount?.AsEnumerable().ToArray());
+                            return StatusCode(customSuccessStatusCode, wrappedResult);
+                        }
+
                         return StatusCode(customSuccessStatusCode,
                             resultWithNoCount.AsEnumerable().ToArray());
                     }
@@ -342,7 +350,7 @@ namespace DBToRestAPI.Controllers
                         // wrap the result in an object with the root node name
                         var wrappedResult = new ExpandoObject();
                         wrappedResult.TryAdd(rootNodeName, resultWithNoCount);
-                        return StatusCode(customSuccessStatusCode, resultWithNoCount);
+                        return StatusCode(customSuccessStatusCode, wrappedResult);
                     }
                     return StatusCode(customSuccessStatusCode, resultWithNoCount);
 
