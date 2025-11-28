@@ -34,8 +34,12 @@ namespace DBToRestAPI.Services;
 /// 
 /// Uses DataProtectionScope.LocalMachine so any user on the machine can decrypt
 /// (suitable for IIS app pools with different identities).
+/// 
+/// Implements IEncryptedConfiguration which extends IConfiguration, so this service
+/// can be passed to any method expecting IConfiguration while also being injectable
+/// as IEncryptedConfiguration for DI differentiation.
 /// </summary>
-public class SettingsEncryptionService
+public class SettingsEncryptionService : IEncryptedConfiguration
 {
     private const string DEFAULT_ENCRYPTED_PREFIX = "encrypted:";
     
@@ -449,6 +453,57 @@ public class SettingsEncryptionService
     {
         return !string.IsNullOrEmpty(value) && value.StartsWith(_encryptionPrefix);
     }
+
+    #region IConfiguration Implementation
+
+    /// <summary>
+    /// Gets or sets a configuration value.
+    /// When getting: returns decrypted value if available, falls back to main configuration.
+    /// When setting: sets the value in the decrypted configuration (not persisted).
+    /// </summary>
+    public string? this[string key]
+    {
+        get => GetValue(key);
+        set
+        {
+            // Setting values updates the in-memory decrypted config only (not persisted)
+            // This maintains IConfiguration contract but changes won't survive restart
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                _decryptedValues[key] = value;
+                RebuildInMemoryConfiguration();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the immediate descendant configuration sub-sections.
+    /// Combines children from both decrypted and main configuration.
+    /// </summary>
+    public IEnumerable<IConfigurationSection> GetChildren()
+    {
+        // Get children from decrypted configuration
+        var decryptedChildren = _decryptedConfiguration.GetChildren();
+        var decryptedKeys = decryptedChildren.Select(c => c.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        
+        // Get children from main configuration that aren't in decrypted
+        var mainChildren = _configuration.GetChildren()
+            .Where(c => !decryptedKeys.Contains(c.Key));
+        
+        // Return decrypted children first, then main children
+        return decryptedChildren.Concat(mainChildren);
+    }
+
+    /// <summary>
+    /// Returns a change token that can be used to observe when this configuration is reloaded.
+    /// </summary>
+    public IChangeToken GetReloadToken()
+    {
+        // Return the main configuration's reload token since that's what triggers our reload
+        return _configuration.GetReloadToken();
+    }
+
+    #endregion
 
     #region Public API
 

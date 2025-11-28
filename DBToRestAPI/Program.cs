@@ -30,14 +30,16 @@ builder.Configuration.AddDynamicConfigurationFiles(builder.Configuration);
 
 // Settings encryption service - must be registered early to decrypt config values
 // before other services initialize. Only active on Windows (uses DPAPI).
+// Register as both the concrete type and interface for flexibility
 builder.Services.AddSingleton<SettingsEncryptionService>();
+builder.Services.AddSingleton<IEncryptedConfiguration>(sp => sp.GetRequiredService<SettingsEncryptionService>());
 
 // Register DbConnection as scoped
 builder.Services.AddScoped<DbConnection>(sp =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
-    // Use SettingsEncryptionService for connection string to get decrypted value
-    var encryptionService = sp.GetRequiredService<SettingsEncryptionService>();
+    // Use IEncryptedConfiguration for connection string to get decrypted value
+    var encryptionService = sp.GetRequiredService<IEncryptedConfiguration>();
     var connectionString = encryptionService.GetConnectionString("default")
         ?? configuration.GetConnectionString("default")
         ?? throw new InvalidOperationException("Connection string not found");
