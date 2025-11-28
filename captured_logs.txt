@@ -17,11 +17,9 @@ dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Encrypted value for: api_keys_collections:external_vendors:key:0
+      Cached decrypted value for: api_keys_collections:external_vendors:key:0
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Encrypted value for: api_keys_collections:external_vendors:key:1
-info: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Saving encrypted values to: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml
+      Cached decrypted value for: api_keys_collections:external_vendors:key:1
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
@@ -31,15 +29,13 @@ dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Encrypted value for: secret_info
+      Cached decrypted value for: secret_info
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Encrypted value for: nested_secret_data:secret:0
+      Cached decrypted value for: nested_secret_data:secret:0
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Encrypted value for: nested_secret_data:secret:1
+      Cached decrypted value for: nested_secret_data:secret:1
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Encrypted value for: nested_secret_data:secret:2
-info: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Saving encrypted values to: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
+      Cached decrypted value for: nested_secret_data:secret:2
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       === Decrypted values collected ===
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
@@ -61,9 +57,9 @@ dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       API keys from original config (before overlay): 3
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:0' = 'api key 1...'
+        Original: 'api_keys_collections:external_vendors:key:0' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:1' = 'api key 2...'
+        Original: 'api_keys_collections:external_vendors:key:1' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
         Original: 'api_keys_collections:internal_solutions:key' = 'api key 3...'
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
@@ -168,358 +164,58 @@ info: Program[0]
 info: Program[0]
 dbug: Microsoft.Extensions.Hosting.Internal.Host[2]
       Hosting started
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Starting Settings Encryption Processing ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Using encryption prefix: 'encrypted:'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Sections to encrypt: secret_info, nested_secret_data, api_keys_collections:external_vendors
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      XML files to process: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: secret_info
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:2
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Decrypted values collected ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === RebuildMergedConfiguration ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Copied 258 values from original configuration
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys from original config (before overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:0' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:1' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:internal_solutions:key' = 'api key 3...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Decrypted values to overlay: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys in merged config (after overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:internal_solutions:key' = 'api key 3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Rebuilt merged configuration with 258 total values (6 decrypted)
-info: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Settings encryption processing complete. Encrypted sections: 3, Decrypted values: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Starting Settings Encryption Processing ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Using encryption prefix: 'encrypted:'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Sections to encrypt: secret_info, nested_secret_data, api_keys_collections:external_vendors
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      XML files to process: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: secret_info
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:2
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Decrypted values collected ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === RebuildMergedConfiguration ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Copied 258 values from original configuration
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys from original config (before overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:0' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:1' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:internal_solutions:key' = 'api key 3...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Decrypted values to overlay: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys in merged config (after overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:internal_solutions:key' = 'api key 3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Rebuilt merged configuration with 258 total values (6 decrypted)
-info: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Settings encryption processing complete. Encrypted sections: 3, Decrypted values: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Starting Settings Encryption Processing ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Using encryption prefix: 'encrypted:'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Sections to encrypt: secret_info, nested_secret_data, api_keys_collections:external_vendors
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      XML files to process: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: secret_info
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:2
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Decrypted values collected ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === RebuildMergedConfiguration ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Copied 258 values from original configuration
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys from original config (before overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:0' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:1' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:internal_solutions:key' = 'api key 3...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Decrypted values to overlay: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys in merged config (after overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:internal_solutions:key' = 'api key 3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Rebuilt merged configuration with 258 total values (6 decrypted)
-info: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Settings encryption processing complete. Encrypted sections: 3, Decrypted values: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Starting Settings Encryption Processing ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Using encryption prefix: 'encrypted:'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Sections to encrypt: secret_info, nested_secret_data, api_keys_collections:external_vendors
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      XML files to process: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml, C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config\settings.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/sql.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_gateway.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/api_keys.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: api_keys_collections:external_vendors:key:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/file_management.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/regex.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/auth_providers.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Processing XML file: C:\code\H7O\DBToRestAPI\DBToRestAPI\bin\Debug\net10.0\config/encryption_test.xml
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: secret_info
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:0
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:1
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Cached decrypted value for: nested_secret_data:secret:2
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === Decrypted values collected ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      === RebuildMergedConfiguration ===
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Copied 258 values from original configuration
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys from original config (before overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:0' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:external_vendors:key:1' = 'encrypted:AQAAANCMnd8BFdERjHoA...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Original: 'api_keys_collections:internal_solutions:key' = 'api key 3...'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Decrypted values to overlay: 6
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'secret_info' = 'some value goes here'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:0' = '1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:1' = '2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Overlay: 'nested_secret_data:secret:2' = '3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      API keys in merged config (after overlay): 3
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:0' = 'api key 1'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:external_vendors:key:1' = 'api key 2'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-        Final: 'api_keys_collections:internal_solutions:key' = 'api key 3'
-dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Rebuilt merged configuration with 258 total values (6 decrypted)
-info: DBToRestAPI.Services.SettingsEncryptionService[0]
-      Settings encryption processing complete. Encrypted sections: 3, Decrypted values: 6
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      === Starting API Keys Load ===
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      API keys section exists: True, HasValue: False, Value: '(null)'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Total top-level children in api_keys_collections: 2
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Top-level child - Key: 'external_vendors', Value: '(null)', Path: 'api_keys_collections:external_vendors'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Top-level child - Key: 'internal_solutions', Value: '(null)', Path: 'api_keys_collections:internal_solutions'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Processing collection: 'external_vendors'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Collection 'external_vendors' has 1 children
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Child Key: 'key', Value: '(null)', Path: 'api_keys_collections:external_vendors:key'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          Child 'key' has 2 grandchildren
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            GrandChild Key: '0', Value: 'api key 1'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            Added API key from grandchild: 'api key 1'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            GrandChild Key: '1', Value: 'api key 2'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            Added API key from grandchild: 'api key 2'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Loaded API key collection 'external_vendors' with 2 key(s)
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Processing collection: 'internal_solutions'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Collection 'internal_solutions' has 1 children
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Child Key: 'key', Value: 'api key 3', Path: 'api_keys_collections:internal_solutions:key'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Added API key: 'api key 3'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Loaded API key collection 'internal_solutions' with 1 key(s)
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      === Final API Keys State ===
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Collection 'external_vendors': 2 keys
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [0] 'api key 1'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [1] 'api key 2'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Collection 'internal_solutions': 1 keys
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [0] 'api key 3'
+info: DBToRestAPI.Services.ApiKeysService[0]
+      API keys loaded successfully. Total collections: 2, Total keys: 3
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       === Starting Settings Encryption Processing ===
 dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
@@ -718,28 +414,70 @@ dbug: DBToRestAPI.Services.SettingsEncryptionService[0]
       Rebuilt merged configuration with 259 total values (7 decrypted)
 info: DBToRestAPI.Services.SettingsEncryptionService[0]
       Settings encryption processing complete. Encrypted sections: 3, Decrypted values: 7
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      === Starting API Keys Load ===
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      API keys section exists: True, HasValue: False, Value: '(null)'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Total top-level children in api_keys_collections: 2
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Top-level child - Key: 'external_vendors', Value: '(null)', Path: 'api_keys_collections:external_vendors'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Top-level child - Key: 'internal_solutions', Value: '(null)', Path: 'api_keys_collections:internal_solutions'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Processing collection: 'external_vendors'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Collection 'external_vendors' has 1 children
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Child Key: 'key', Value: '(null)', Path: 'api_keys_collections:external_vendors:key'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          Child 'key' has 3 grandchildren
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            GrandChild Key: '0', Value: 'api key 1'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            Added API key from grandchild: 'api key 1'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            GrandChild Key: '1', Value: 'api key 2'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            Added API key from grandchild: 'api key 2'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            GrandChild Key: '2', Value: 'api key 4'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+            Added API key from grandchild: 'api key 4'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Loaded API key collection 'external_vendors' with 3 key(s)
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Processing collection: 'internal_solutions'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Collection 'internal_solutions' has 1 children
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Child Key: 'key', Value: 'api key 3', Path: 'api_keys_collections:internal_solutions:key'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Added API key: 'api key 3'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      Loaded API key collection 'internal_solutions' with 1 key(s)
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      === Final API Keys State ===
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Collection 'external_vendors': 3 keys
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [0] 'api key 1'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [1] 'api key 2'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [2] 'api key 4'
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+        Collection 'internal_solutions': 1 keys
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+          [0] 'api key 3'
+info: DBToRestAPI.Services.ApiKeysService[0]
+      API keys loaded successfully. Total collections: 2, Total keys: 4
 warn: Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware[3]
       Failed to determine the https port for redirect.
 dbug: DBToRestAPI.Middlewares.Step1ServiceTypeChecks[0]
-      2025-11-28 09:08:38.26399: in Step2ServiceTypeChecks middleware
+      2025-11-28 10:53:22.93927: in Step2ServiceTypeChecks middleware
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      2025-11-28 09:08:38.27638: in Step3_CorsCheck middleware
-dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      CORS: No Origin header, using fallback_origin 'https://www.example.com' for non-browser request
-dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      CORS: No verb configuration found, using default allowed methods
-dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      CORS: Using default allowed headers
-dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      CORS headers set: Origin=https://www.example.com, Methods=GET, POST, PUT, DELETE, PATCH, OPTIONS
-dbug: DBToRestAPI.Middlewares.Step3ApiKeysCheck[0]
-      2025-11-28 09:08:38.28041: in Step3LocalApiKeysCheck middleware
-dbug: DBToRestAPI.Services.ApiKeysService[0]
-      API key validation failed - not found in specified collections
-dbug: DBToRestAPI.Middlewares.Step1ServiceTypeChecks[0]
-      2025-11-28 09:08:44.59176: in Step2ServiceTypeChecks middleware
-dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      2025-11-28 09:08:44.59319: in Step3_CorsCheck middleware
+      2025-11-28 10:53:22.94752: in Step3_CorsCheck middleware
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
       CORS: No Origin header, using fallback_origin 'https://www.example.com' for non-browser request
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
@@ -749,25 +487,25 @@ dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
       CORS headers set: Origin=https://www.example.com, Methods=GET, POST, PUT, DELETE, PATCH, OPTIONS
 dbug: DBToRestAPI.Middlewares.Step3ApiKeysCheck[0]
-      2025-11-28 09:08:44.59333: in Step3LocalApiKeysCheck middleware
+      2025-11-28 10:53:22.94996: in Step3LocalApiKeysCheck middleware
 dbug: DBToRestAPI.Services.ApiKeysService[0]
       API key validated in collection 'external_vendors'
 dbug: DBToRestAPI.Middlewares.Step4JwtAuthorization[0]
-      2025-11-28 09:08:44.60965: in Step5JwtAuthorization middleware
+      2025-11-28 10:53:22.96156: in Step5JwtAuthorization middleware
 dbug: DBToRestAPI.Middlewares.Step5APIGatewayProcess[0]
-      2025-11-28 09:08:44.61146: in Step4APIGatewayProcess middleware
+      2025-11-28 10:53:22.96324: in Step4APIGatewayProcess middleware
 dbug: DBToRestAPI.Middlewares.Step6MandatoryFieldsCheck[0]
-      2025-11-28 09:08:44.61244: in Step5MandatoryFieldsCheck middleware
+      2025-11-28 10:53:22.96432: in Step5MandatoryFieldsCheck middleware
 dbug: DBToRestAPI.Middlewares.Step7FileUploadManagement[0]
-      2025-11-28 09:08:44.70166: in Step6FileManagement middleware
+      2025-11-28 10:53:23.05949: in Step6FileManagement middleware
 dbug: DBToRestAPI.Middlewares.Step8FileDownloadManagement[0]
-      2025-11-28 09:08:44.70333: in Step6FileDownloadManagement middleware
+      2025-11-28 10:53:23.06112: in Step6FileDownloadManagement middleware
 dbug: DBToRestAPI.Controllers.ApiController[0]
-      2025-11-28 09:08:44.73924: in ApiController.Index method
+      2025-11-28 10:53:23.10021: in ApiController.Index method
 dbug: DBToRestAPI.Middlewares.Step1ServiceTypeChecks[0]
-      2025-11-28 09:08:58.11098: in Step2ServiceTypeChecks middleware
+      2025-11-28 10:53:27.46528: in Step2ServiceTypeChecks middleware
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      2025-11-28 09:08:58.11215: in Step3_CorsCheck middleware
+      2025-11-28 10:53:27.46675: in Step3_CorsCheck middleware
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
       CORS: No Origin header, using fallback_origin 'https://www.example.com' for non-browser request
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
@@ -777,25 +515,25 @@ dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
       CORS headers set: Origin=https://www.example.com, Methods=GET, POST, PUT, DELETE, PATCH, OPTIONS
 dbug: DBToRestAPI.Middlewares.Step3ApiKeysCheck[0]
-      2025-11-28 09:08:58.11223: in Step3LocalApiKeysCheck middleware
+      2025-11-28 10:53:27.46692: in Step3LocalApiKeysCheck middleware
 dbug: DBToRestAPI.Services.ApiKeysService[0]
       API key validated in collection 'external_vendors'
 dbug: DBToRestAPI.Middlewares.Step4JwtAuthorization[0]
-      2025-11-28 09:08:58.11227: in Step5JwtAuthorization middleware
+      2025-11-28 10:53:27.46697: in Step5JwtAuthorization middleware
 dbug: DBToRestAPI.Middlewares.Step5APIGatewayProcess[0]
-      2025-11-28 09:08:58.11228: in Step4APIGatewayProcess middleware
+      2025-11-28 10:53:27.46700: in Step4APIGatewayProcess middleware
 dbug: DBToRestAPI.Middlewares.Step6MandatoryFieldsCheck[0]
-      2025-11-28 09:08:58.11230: in Step5MandatoryFieldsCheck middleware
+      2025-11-28 10:53:27.46702: in Step5MandatoryFieldsCheck middleware
 dbug: DBToRestAPI.Middlewares.Step7FileUploadManagement[0]
-      2025-11-28 09:08:58.11272: in Step6FileManagement middleware
+      2025-11-28 10:53:27.46744: in Step6FileManagement middleware
 dbug: DBToRestAPI.Middlewares.Step8FileDownloadManagement[0]
-      2025-11-28 09:08:58.11288: in Step6FileDownloadManagement middleware
+      2025-11-28 10:53:27.46758: in Step6FileDownloadManagement middleware
 dbug: DBToRestAPI.Controllers.ApiController[0]
-      2025-11-28 09:08:58.11336: in ApiController.Index method
+      2025-11-28 10:53:27.46803: in ApiController.Index method
 dbug: DBToRestAPI.Middlewares.Step1ServiceTypeChecks[0]
-      2025-11-28 09:09:03.26570: in Step2ServiceTypeChecks middleware
+      2025-11-28 10:53:31.04388: in Step2ServiceTypeChecks middleware
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
-      2025-11-28 09:09:03.26692: in Step3_CorsCheck middleware
+      2025-11-28 10:53:31.04498: in Step3_CorsCheck middleware
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
       CORS: No Origin header, using fallback_origin 'https://www.example.com' for non-browser request
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
@@ -805,20 +543,48 @@ dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
 dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
       CORS headers set: Origin=https://www.example.com, Methods=GET, POST, PUT, DELETE, PATCH, OPTIONS
 dbug: DBToRestAPI.Middlewares.Step3ApiKeysCheck[0]
-      2025-11-28 09:09:03.26701: in Step3LocalApiKeysCheck middleware
+      2025-11-28 10:53:31.04513: in Step3LocalApiKeysCheck middleware
+dbug: DBToRestAPI.Services.ApiKeysService[0]
+      API key validated in collection 'external_vendors'
+dbug: DBToRestAPI.Middlewares.Step4JwtAuthorization[0]
+      2025-11-28 10:53:31.04517: in Step5JwtAuthorization middleware
+dbug: DBToRestAPI.Middlewares.Step5APIGatewayProcess[0]
+      2025-11-28 10:53:31.04519: in Step4APIGatewayProcess middleware
+dbug: DBToRestAPI.Middlewares.Step6MandatoryFieldsCheck[0]
+      2025-11-28 10:53:31.04520: in Step5MandatoryFieldsCheck middleware
+dbug: DBToRestAPI.Middlewares.Step7FileUploadManagement[0]
+      2025-11-28 10:53:31.04535: in Step6FileManagement middleware
+dbug: DBToRestAPI.Middlewares.Step8FileDownloadManagement[0]
+      2025-11-28 10:53:31.04585: in Step6FileDownloadManagement middleware
+dbug: DBToRestAPI.Controllers.ApiController[0]
+      2025-11-28 10:53:31.04648: in ApiController.Index method
+dbug: DBToRestAPI.Middlewares.Step1ServiceTypeChecks[0]
+      2025-11-28 10:53:35.22319: in Step2ServiceTypeChecks middleware
+dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
+      2025-11-28 10:53:35.22441: in Step3_CorsCheck middleware
+dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
+      CORS: No Origin header, using fallback_origin 'https://www.example.com' for non-browser request
+dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
+      CORS: No verb configuration found, using default allowed methods
+dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
+      CORS: Using default allowed headers
+dbug: DBToRestAPI.Middlewares.Step2CorsCheck[0]
+      CORS headers set: Origin=https://www.example.com, Methods=GET, POST, PUT, DELETE, PATCH, OPTIONS
+dbug: DBToRestAPI.Middlewares.Step3ApiKeysCheck[0]
+      2025-11-28 10:53:35.22454: in Step3LocalApiKeysCheck middleware
 dbug: DBToRestAPI.Services.ApiKeysService[0]
       API key validated in collection 'internal_solutions'
 dbug: DBToRestAPI.Middlewares.Step4JwtAuthorization[0]
-      2025-11-28 09:09:03.26706: in Step5JwtAuthorization middleware
+      2025-11-28 10:53:35.22457: in Step5JwtAuthorization middleware
 dbug: DBToRestAPI.Middlewares.Step5APIGatewayProcess[0]
-      2025-11-28 09:09:03.26708: in Step4APIGatewayProcess middleware
+      2025-11-28 10:53:35.22461: in Step4APIGatewayProcess middleware
 dbug: DBToRestAPI.Middlewares.Step6MandatoryFieldsCheck[0]
-      2025-11-28 09:09:03.26709: in Step5MandatoryFieldsCheck middleware
+      2025-11-28 10:53:35.22461: in Step5MandatoryFieldsCheck middleware
 dbug: DBToRestAPI.Middlewares.Step7FileUploadManagement[0]
-      2025-11-28 09:09:03.26732: in Step6FileManagement middleware
+      2025-11-28 10:53:35.22481: in Step6FileManagement middleware
 dbug: DBToRestAPI.Middlewares.Step8FileDownloadManagement[0]
-      2025-11-28 09:09:03.26789: in Step6FileDownloadManagement middleware
+      2025-11-28 10:53:35.22483: in Step6FileDownloadManagement middleware
 dbug: DBToRestAPI.Controllers.ApiController[0]
-      2025-11-28 09:09:03.26854: in ApiController.Index method
+      2025-11-28 10:53:35.22495: in ApiController.Index method
 info: Microsoft.Hosting.Lifetime[0]
       Application is shutting down...

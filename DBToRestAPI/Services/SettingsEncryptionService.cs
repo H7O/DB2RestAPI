@@ -567,10 +567,24 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
     /// <summary>
     /// Gets the immediate descendant configuration sub-sections from the merged configuration.
+    /// Sections are wrapped to preserve reload token behavior from the original configuration.
     /// </summary>
     public IEnumerable<IConfigurationSection> GetChildren()
     {
-        return _mergedConfiguration.GetChildren();
+        var mergedChildren = _mergedConfiguration.GetChildren().ToList();
+        var originalChildren = _originalConfiguration.GetChildren().ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var mergedChild in mergedChildren)
+        {
+            if (originalChildren.TryGetValue(mergedChild.Key, out var originalChild))
+            {
+                yield return new ConfigurationSectionWrapper(mergedChild, originalChild);
+            }
+            else
+            {
+                yield return new ConfigurationSectionWrapper(mergedChild, mergedChild);
+            }
+        }
     }
 
     /// <summary>
@@ -616,12 +630,16 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// <summary>
     /// Gets a configuration section from the merged configuration.
     /// The merged configuration contains all original values overlaid with decrypted values.
+    /// The returned section uses the original configuration's reload token so that
+    /// ChangeToken.OnChange() works correctly even though data comes from the merged config.
     /// </summary>
     /// <param name="key">The section key (e.g., "ConnectionStrings" or "api_keys_collections")</param>
-    /// <returns>An IConfigurationSection from the merged configuration</returns>
+    /// <returns>An IConfigurationSection wrapper that combines merged data with original reload tokens</returns>
     public IConfigurationSection GetSection(string key)
     {
-        return _mergedConfiguration.GetSection(key);
+        var mergedSection = _mergedConfiguration.GetSection(key);
+        var originalSection = _originalConfiguration.GetSection(key);
+        return new ConfigurationSectionWrapper(mergedSection, originalSection);
     }
     
     /// <summary>
@@ -736,4 +754,103 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     public bool IsActive => _isActive;
 
     #endregion
+}
+
+/// <summary>
+/// A wrapper around IConfigurationSection that delegates data operations to a merged configuration
+/// but returns reload tokens from the original configuration.
+/// 
+/// This is necessary because the merged configuration is an in-memory IConfiguration
+/// whose sections don't have proper reload tokens. By wrapping sections, we can:
+/// - Read data from the merged config (which has decrypted values)
+/// - Return reload tokens from the original config (which fires when XML files change)
+/// 
+/// This allows code like:
+///   ChangeToken.OnChange(() => config.GetSection("api_keys").GetReloadToken(), LoadKeys);
+/// to work correctly even when using IEncryptedConfiguration.
+/// </summary>
+internal class ConfigurationSectionWrapper : IConfigurationSection
+{
+    private readonly IConfigurationSection _mergedSection;
+    private readonly IConfigurationSection _originalSection;
+
+    public ConfigurationSectionWrapper(IConfigurationSection mergedSection, IConfigurationSection originalSection)
+    {
+        _mergedSection = mergedSection;
+        _originalSection = originalSection;
+    }
+
+    /// <summary>
+    /// Gets the key this section occupies in its parent.
+    /// </summary>
+    public string Key => _mergedSection.Key;
+
+    /// <summary>
+    /// Gets the full path to this section within the configuration.
+    /// </summary>
+    public string Path => _mergedSection.Path;
+
+    /// <summary>
+    /// Gets or sets the section value (from merged/decrypted config).
+    /// </summary>
+    public string? Value
+    {
+        get => _mergedSection.Value;
+        set => _mergedSection.Value = value;
+    }
+
+    /// <summary>
+    /// Gets or sets a configuration value (from merged/decrypted config).
+    /// </summary>
+    public string? this[string key]
+    {
+        get => _mergedSection[key];
+        set => _mergedSection[key] = value;
+    }
+
+    /// <summary>
+    /// Returns a change token from the ORIGINAL configuration.
+    /// This is the key method - it ensures ChangeToken.OnChange works correctly.
+    /// </summary>
+    public IChangeToken GetReloadToken()
+    {
+        // Return the original config's token so changes are detected
+        return _originalSection.GetReloadToken();
+    }
+
+    /// <summary>
+    /// Gets a subsection with the specified key, wrapped to preserve reload token behavior.
+    /// </summary>
+    public IConfigurationSection GetSection(string key)
+    {
+        var mergedChild = _mergedSection.GetSection(key);
+        var originalChild = _originalSection.GetSection(key);
+        return new ConfigurationSectionWrapper(mergedChild, originalChild);
+    }
+
+    /// <summary>
+    /// Gets the immediate descendant configuration sub-sections, wrapped.
+    /// </summary>
+    public IEnumerable<IConfigurationSection> GetChildren()
+    {
+        // Get children from merged config (has decrypted values)
+        // But we need to wrap them to preserve reload token behavior
+        var mergedChildren = _mergedSection.GetChildren().ToList();
+        var originalChildren = _originalSection.GetChildren().ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var mergedChild in mergedChildren)
+        {
+            // Try to find matching original section for reload token
+            if (originalChildren.TryGetValue(mergedChild.Key, out var originalChild))
+            {
+                yield return new ConfigurationSectionWrapper(mergedChild, originalChild);
+            }
+            else
+            {
+                // No original section (shouldn't happen normally, but handle gracefully)
+                // Use merged section for both - reload token won't work but data will
+                yield return new ConfigurationSectionWrapper(mergedChild, mergedChild);
+            }
+        }
+    }
 }
