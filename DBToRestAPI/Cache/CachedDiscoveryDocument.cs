@@ -2,7 +2,7 @@
 {
     public class CachedDiscoveryDocument
     {
-        public Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration Document { get; set; }
+        public Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectConfiguration? Document { get; set; }
         public DateTime RefreshAfter { get; set; }
     }
 

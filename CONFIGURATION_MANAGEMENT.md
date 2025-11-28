@@ -158,3 +158,246 @@ This confirms:
 ---
 
 **Note:** This system provides the flexibility to choose between automatic restarts (development-friendly) and manual control (production-safe) based on your operational requirements.
+
+---
+
+# Settings Encryption
+
+## Overview
+
+DBToRestAPI provides automatic encryption of sensitive configuration values such as connection strings, API secrets, and passwords. The encryption service automatically encrypts unencrypted values on startup and decrypts them at runtime, maintaining security while keeping configuration management simple.
+
+## Encryption Methods
+
+The service supports two encryption methods:
+
+### 1. ASP.NET Core Data Protection API (Cross-Platform)
+
+**Best for:** Linux, macOS, Docker containers, Kubernetes, Azure App Service, or any cross-platform deployment.
+
+Uses the ASP.NET Core Data Protection API with key files stored in a directory you specify. Keys are portable between machines that share the same key directory.
+
+**Configuration:**
+```xml
+<settings_encryption>
+  <data_protection_key_path>./keys/</data_protection_key_path>
+  <sections_to_encrypt>
+    <section>ConnectionStrings</section>
+  </sections_to_encrypt>
+</settings_encryption>
+```
+
+**Or via environment variable:**
+```bash
+DATA_PROTECTION_KEY_PATH=./keys/
+```
+
+### 2. Windows DPAPI (Windows Only)
+
+**Best for:** Windows Server, IIS deployments where keys should be machine-bound.
+
+Uses Windows Data Protection API with `LocalMachine` scope, allowing any user on the machine to decrypt (suitable for IIS app pools with different identities).
+
+**Configuration:** No special configuration needed - DPAPI is used automatically on Windows when `data_protection_key_path` is not specified.
+
+### Encryption Method Resolution
+
+The service determines which encryption method to use in this order:
+
+1. **If `data_protection_key_path` is configured** (config or env var) → **Data Protection API**
+2. **Else if running on Windows** → **DPAPI**  
+3. **Else** → **Encryption disabled** (passthrough mode)
+
+## Configuration
+
+### Basic Setup
+
+Add to your `settings.xml`:
+
+```xml
+<settings_encryption>
+  <!-- Optional: prefix for encrypted values (default: "encrypted:") -->
+  <encryption_prefix>encrypted:</encryption_prefix>
+  
+  <!-- Optional: path for Data Protection keys (enables cross-platform mode) -->
+  <data_protection_key_path>./keys/</data_protection_key_path>
+  
+  <!-- Sections to encrypt (paths match IConfiguration key paths) -->
+  <sections_to_encrypt>
+    <section>ConnectionStrings</section>
+    <section>authorize:providers:azure_b2c:client_secret</section>
+    <section>file_management:sftp_file_store:remote_site:password</section>
+  </sections_to_encrypt>
+</settings_encryption>
+```
+
+### Encryption Paths
+
+The `<section>` elements specify which configuration paths should be encrypted:
+
+| Path | What Gets Encrypted |
+|------|---------------------|
+| `ConnectionStrings` | All connection strings under this section |
+| `ConnectionStrings:default` | Only the specific "default" connection string |
+| `authorize:providers:azure_b2c` | All values under azure_b2c (client_id, client_secret, etc.) |
+| `authorize:providers:azure_b2c:client_secret` | Only the specific client_secret value |
+
+## How It Works
+
+### On Application Startup
+
+1. The service scans XML configuration files for values matching the configured sections
+2. **Unencrypted values** are automatically encrypted and saved back to the XML file
+3. **Encrypted values** are decrypted and cached in memory
+4. The application uses decrypted values at runtime while files remain encrypted
+
+### Example Transformation
+
+**Before (unencrypted `settings.xml`):**
+```xml
+<ConnectionStrings>
+  <default>Server=myserver;Database=mydb;User=sa;Password=MySecret123!</default>
+</ConnectionStrings>
+```
+
+**After first startup (automatically encrypted):**
+```xml
+<ConnectionStrings>
+  <default>encrypted:CfDJ8NhY2kB...very-long-base64-string...</default>
+</ConnectionStrings>
+```
+
+The original value is now encrypted in the file, but your application code accesses it as if it were unencrypted.
+
+## Cross-Platform Deployment
+
+### Docker / Kubernetes
+
+1. Configure a persistent volume for the keys directory
+2. Set the environment variable or mount the keys path
+
+**docker-compose.yml:**
+```yaml
+services:
+  api:
+    image: your-api:latest
+    environment:
+      - DATA_PROTECTION_KEY_PATH=/app/keys/
+    volumes:
+      - data-protection-keys:/app/keys/
+
+volumes:
+  data-protection-keys:
+```
+
+**Kubernetes Secret:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: data-protection-keys
+type: Opaque
+# Keys are stored in the mounted volume, not in the secret itself
+```
+
+### Azure App Service
+
+1. Configure Azure Blob Storage for key storage (recommended for scale-out)
+2. Or use a persistent file share mounted to the app
+
+### Key Portability
+
+- **Same key directory** = values encrypted on one machine can be decrypted on another
+- **Different key directory** = values cannot be decrypted (graceful failure)
+
+## Graceful Error Handling
+
+When decryption fails (e.g., wrong encryption method, missing keys), the service:
+
+1. **Logs a detailed error** explaining the likely cause
+2. **Returns null** for the affected value
+3. **Continues running** - the application doesn't crash
+
+**Example log message:**
+```
+[Error] Failed to decrypt value using DataProtection. This may indicate the value 
+was encrypted with a different method, on a different machine, or the encryption 
+keys have been lost. The application will continue but this setting will be null.
+```
+
+This allows you to:
+- Deploy to a new environment and see which values need re-encryption
+- Gracefully handle key rotation scenarios
+- Debug encryption issues without application crashes
+
+## Dependency Injection
+
+The service is registered as both `IConfiguration` and `IEncryptedConfiguration`:
+
+```csharp
+// In Program.cs
+builder.Services.AddSingleton<IEncryptedConfiguration, SettingsEncryptionService>();
+
+// In your services - use either interface
+public class MyService
+{
+    public MyService(IEncryptedConfiguration config)
+    {
+        // Access encrypted values seamlessly
+        var connectionString = config.GetConnectionString("default");
+        
+        // Check encryption status
+        if (config.IsActive)
+        {
+            Console.WriteLine($"Using {config.ActiveEncryptionMethod}");
+        }
+    }
+}
+```
+
+## Properties and Methods
+
+| Member | Description |
+|--------|-------------|
+| `IsActive` | Whether encryption is enabled |
+| `ActiveEncryptionMethod` | The encryption method in use (`None`, `Dpapi`, `DataProtection`) |
+| `GetConnectionString(name)` | Get a decrypted connection string |
+| `GetValue<T>(key)` | Get a decrypted configuration value |
+| `GetSection(key)` | Get a configuration section (hot-reload compatible) |
+| `GetValuesUnderPath(path)` | Get all decrypted values under a parent path |
+
+## Best Practices
+
+### Production Deployments
+
+1. **Use Data Protection API** for cross-platform or containerized deployments
+2. **Persist the keys directory** - losing keys means losing access to encrypted values
+3. **Back up your keys** before major deployments
+4. **Use environment variables** for the key path to avoid committing it to source control
+
+### Security Considerations
+
+1. **Never commit unencrypted secrets** - let the service encrypt on first run in a secure environment
+2. **Protect the keys directory** - file system permissions should restrict access
+3. **Rotate keys periodically** - the Data Protection API supports key rotation
+4. **Use separate keys per environment** - dev, staging, and production should have different keys
+
+### Migrating Between Encryption Methods
+
+When switching from DPAPI to Data Protection (or vice versa):
+
+1. The old encrypted values will fail to decrypt (gracefully)
+2. Clear the encrypted values in your config files
+3. Replace with plain text values
+4. Restart the application - values will be re-encrypted with the new method
+
+### Monitoring
+
+Check the startup logs to verify encryption is working:
+
+```
+[Information] Settings encryption initialized using DataProtection
+[Information] Settings encryption processing complete. 
+Encrypted sections: 3, Decrypted values: 5, Cached sections: 42
+```
+

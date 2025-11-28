@@ -50,7 +50,7 @@ namespace DBToRestAPI.Cache
                 Expiration = cacheInfo.Duration,
                 LocalCacheExpiration = cacheInfo.Duration,
             };
-            return await this._cache.GetOrCreateAsync<T>(
+            return await this._cache.GetOrCreateAsync<T?>(
                 cacheInfo.Key, // Unique key to the cache entry
 
                 async cancel => await dataFactory(true),

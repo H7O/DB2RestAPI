@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Com.H.Threading;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Primitives;
 
 // Disable platform compatibility warnings - we check RuntimeInformation.IsOSPlatform at runtime
@@ -12,20 +13,43 @@ using Microsoft.Extensions.Primitives;
 namespace DBToRestAPI.Services;
 
 /// <summary>
-/// Service that handles encryption and decryption of sensitive configuration values using DPAPI.
+/// Defines the encryption method used by the settings encryption service.
+/// </summary>
+public enum EncryptionMethod
+{
+    /// <summary>No encryption is available or configured.</summary>
+    None,
+    /// <summary>Windows DPAPI (Data Protection API) - Windows only.</summary>
+    Dpapi,
+    /// <summary>ASP.NET Core Data Protection API - cross-platform with key file persistence.</summary>
+    DataProtection
+}
+
+/// <summary>
+/// Service that handles encryption and decryption of sensitive configuration values.
 /// 
-/// This service:
-/// - Runs only on Windows (DPAPI is Windows-specific)
+/// This service supports two encryption methods:
+/// 1. DPAPI (Windows Data Protection API) - Windows only, machine-scoped
+/// 2. ASP.NET Core Data Protection API - cross-platform, key file-based
+/// 
+/// Encryption method resolution order:
+/// 1. If data_protection_key_path is configured (config or env var) → Data Protection API
+/// 2. Else if running on Windows → DPAPI
+/// 3. Else → Encryption disabled (passthrough mode)
+/// 
+/// Features:
 /// - Automatically encrypts unencrypted sensitive values in XML config files on startup
 /// - Maintains a complete merged IConfiguration copy with decrypted values
 /// - Pre-builds and caches all section wrappers for optimal GetSection/GetChildren performance
 /// - Monitors for configuration changes and rebuilds the merged copy automatically
 /// - Implements IEncryptedConfiguration (extends IConfiguration) for seamless integration
+/// - Graceful decryption failure handling (logs error, returns null, continues)
 /// 
 /// Configuration structure (in settings.xml):
 /// <code>
 /// &lt;settings_encryption&gt;
 ///   &lt;encryption_prefix&gt;encrypted:&lt;/encryption_prefix&gt;
+///   &lt;data_protection_key_path&gt;./keys/&lt;/data_protection_key_path&gt;
 ///   &lt;sections_to_encrypt&gt;
 ///     &lt;section&gt;ConnectionStrings&lt;/section&gt;
 ///     &lt;section&gt;authorize:providers:azure_b2c&lt;/section&gt;
@@ -34,7 +58,11 @@ namespace DBToRestAPI.Services;
 /// &lt;/settings_encryption&gt;
 /// </code>
 /// 
-/// Uses DataProtectionScope.LocalMachine so any user on the machine can decrypt
+/// Environment variable (alternative to config):
+///   DATA_PROTECTION_KEY_PATH=./keys/
+///   (or with prefix: MYAPP_DATA_PROTECTION_KEY_PATH if using configuration prefix)
+/// 
+/// DPAPI uses DataProtectionScope.LocalMachine so any user on the machine can decrypt
 /// (suitable for IIS app pools with different identities).
 /// 
 /// Implements IEncryptedConfiguration which extends IConfiguration, so this service
@@ -44,6 +72,8 @@ namespace DBToRestAPI.Services;
 public class SettingsEncryptionService : IEncryptedConfiguration
 {
     private const string DEFAULT_ENCRYPTED_PREFIX = "encrypted:";
+    private const string DATA_PROTECTION_PURPOSE = "DBToRestAPI.SettingsEncryption";
+    private const string DATA_PROTECTION_KEY_PATH_ENV_VAR = "DATA_PROTECTION_KEY_PATH";
 
     // Entropy for additional DPAPI security (like a salt)
     private static readonly byte[] _entropy = Encoding.UTF8.GetBytes("DBToRestAPI-Secret-Sauce-2025");
@@ -77,7 +107,13 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     // The prefix used to identify encrypted values
     private string _encryptionPrefix = DEFAULT_ENCRYPTED_PREFIX;
 
-    // Whether the service is active (only on Windows)
+    // The encryption method being used
+    private readonly EncryptionMethod _encryptionMethod;
+
+    // ASP.NET Core Data Protection provider (if using Data Protection API)
+    private readonly IDataProtector? _dataProtector;
+
+    // Whether the service is active (encryption available)
     private readonly bool _isActive;
 
     public SettingsEncryptionService(
@@ -92,16 +128,21 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             .AddInMemoryCollection(new Dictionary<string, string?>())
             .Build();
 
-        // Only activate on Windows (DPAPI is Windows-specific)
-        _isActive = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        // Determine encryption method and initialize
+        (_encryptionMethod, _dataProtector) = InitializeEncryption();
+        _isActive = _encryptionMethod != EncryptionMethod.None;
 
         if (!_isActive)
         {
-            _logger.LogInformation("Settings encryption service is disabled (not running on Windows)");
-            // On non-Windows, just copy the original configuration
+            _logger.LogInformation(
+                "Settings encryption service is disabled. " +
+                "Configure data_protection_key_path for cross-platform encryption, or run on Windows for DPAPI.");
+            // Just copy the original configuration
             RebuildMergedConfiguration();
             return;
         }
+
+        _logger.LogInformation("Settings encryption initialized using {Method}", _encryptionMethod);
 
         // Initial load - process encryption and build merged config
         LoadAndProcessEncryption();
@@ -110,6 +151,90 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         ChangeToken.OnChange(
             () => _originalConfiguration.GetReloadToken(),
             LoadAndProcessEncryption);
+    }
+
+    /// <summary>
+    /// Determines the encryption method and initializes the appropriate provider.
+    /// Resolution order:
+    /// 1. data_protection_key_path configured → Data Protection API
+    /// 2. Windows → DPAPI
+    /// 3. Otherwise → None
+    /// </summary>
+    private (EncryptionMethod Method, IDataProtector? Protector) InitializeEncryption()
+    {
+        // Check for Data Protection key path (config first, then environment variable)
+        var keyPath = _originalConfiguration.GetValue<string>("settings_encryption:data_protection_key_path");
+        
+        if (string.IsNullOrWhiteSpace(keyPath))
+        {
+            // Try environment variable (with optional prefix support)
+            keyPath = Environment.GetEnvironmentVariable(DATA_PROTECTION_KEY_PATH_ENV_VAR);
+            
+            // Also try with common prefixes
+            if (string.IsNullOrWhiteSpace(keyPath))
+            {
+                var envPrefix = _originalConfiguration.GetValue<string>("env_var_prefix");
+                if (!string.IsNullOrWhiteSpace(envPrefix))
+                {
+                    keyPath = Environment.GetEnvironmentVariable($"{envPrefix}{DATA_PROTECTION_KEY_PATH_ENV_VAR}");
+                }
+            }
+        }
+
+        // If key path is configured, use Data Protection API
+        if (!string.IsNullOrWhiteSpace(keyPath))
+        {
+            try
+            {
+                var protector = CreateDataProtector(keyPath);
+                return (EncryptionMethod.DataProtection, protector);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, 
+                    "Failed to initialize Data Protection API with key path '{KeyPath}'. Falling back to DPAPI or disabled.",
+                    keyPath);
+                // Fall through to DPAPI check
+            }
+        }
+
+        // Check for Windows DPAPI
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return (EncryptionMethod.Dpapi, null);
+        }
+
+        // No encryption available
+        return (EncryptionMethod.None, null);
+    }
+
+    /// <summary>
+    /// Creates a Data Protection provider with keys stored at the specified path.
+    /// </summary>
+    private IDataProtector CreateDataProtector(string keyPath)
+    {
+        // Resolve relative paths
+        if (!Path.IsPathRooted(keyPath))
+        {
+            keyPath = Path.Combine(AppContext.BaseDirectory, keyPath);
+        }
+
+        // Create directory if it doesn't exist
+        if (!Directory.Exists(keyPath))
+        {
+            Directory.CreateDirectory(keyPath);
+            _logger.LogInformation("Created Data Protection key directory: {KeyPath}", keyPath);
+        }
+
+        // Create Data Protection provider
+        var dataProtectionProvider = DataProtectionProvider.Create(
+            new DirectoryInfo(keyPath),
+            configuration =>
+            {
+                configuration.SetApplicationName("DBToRestAPI");
+            });
+
+        return dataProtectionProvider.CreateProtector(DATA_PROTECTION_PURPOSE);
     }
 
     /// <summary>
@@ -528,8 +653,13 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             if (IsEncrypted(value))
             {
                 // Already encrypted - decrypt and cache
+                // Decrypt returns null on failure (graceful degradation)
                 var decryptedValue = Decrypt(value);
-                decryptedValues[basePath] = decryptedValue;
+                if (decryptedValue != null)
+                {
+                    decryptedValues[basePath] = decryptedValue;
+                }
+                // If null, the value was logged in Decrypt - we just skip caching it
             }
             else
             {
@@ -545,7 +675,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     }
 
     /// <summary>
-    /// Encrypts a plain text value using DPAPI.
+    /// Encrypts a plain text value using the configured encryption method.
     /// </summary>
     private string Encrypt(string plainText)
     {
@@ -554,29 +684,44 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
         try
         {
-            byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+            string encryptedBase64;
 
-            // Encrypt using DPAPI
-            // DataProtectionScope.LocalMachine = any user on this machine can decrypt
-            byte[] encryptedBytes = ProtectedData.Protect(
-                plainBytes,
-                _entropy,
-                DataProtectionScope.LocalMachine
-            );
+            switch (_encryptionMethod)
+            {
+                case EncryptionMethod.DataProtection:
+                    // Use ASP.NET Core Data Protection API
+                    encryptedBase64 = _dataProtector!.Protect(plainText);
+                    break;
 
-            // Convert to Base64 and add prefix
-            return _encryptionPrefix + Convert.ToBase64String(encryptedBytes);
+                case EncryptionMethod.Dpapi:
+                    // Use Windows DPAPI
+                    byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+                    byte[] encryptedBytes = ProtectedData.Protect(
+                        plainBytes,
+                        _entropy,
+                        DataProtectionScope.LocalMachine
+                    );
+                    encryptedBase64 = Convert.ToBase64String(encryptedBytes);
+                    break;
+
+                default:
+                    // Should never reach here - Encrypt is only called when _isActive is true
+                    throw new InvalidOperationException("No encryption method available");
+            }
+
+            return _encryptionPrefix + encryptedBase64;
         }
         catch (Exception ex)
         {
-            throw new CryptographicException($"Encryption failed: {ex.Message}", ex);
+            throw new CryptographicException($"Encryption failed using {_encryptionMethod}: {ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// Decrypts an encrypted value using DPAPI.
+    /// Decrypts an encrypted value using the configured encryption method.
+    /// Returns null if decryption fails (graceful degradation).
     /// </summary>
-    private string Decrypt(string encryptedText)
+    private string? Decrypt(string encryptedText)
     {
         if (string.IsNullOrEmpty(encryptedText))
             return encryptedText;
@@ -587,22 +732,42 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
         try
         {
-            // Remove prefix and convert from Base64
-            string base64 = encryptedText[_encryptionPrefix.Length..];
-            byte[] encryptedBytes = Convert.FromBase64String(base64);
+            // Remove prefix
+            string encryptedPayload = encryptedText[_encryptionPrefix.Length..];
 
-            // Decrypt using DPAPI
-            byte[] plainBytes = ProtectedData.Unprotect(
-                encryptedBytes,
-                _entropy,
-                DataProtectionScope.LocalMachine
-            );
+            switch (_encryptionMethod)
+            {
+                case EncryptionMethod.DataProtection:
+                    // Use ASP.NET Core Data Protection API
+                    return _dataProtector!.Unprotect(encryptedPayload);
 
-            return Encoding.UTF8.GetString(plainBytes);
+                case EncryptionMethod.Dpapi:
+                    // Use Windows DPAPI
+                    byte[] encryptedBytes = Convert.FromBase64String(encryptedPayload);
+                    byte[] plainBytes = ProtectedData.Unprotect(
+                        encryptedBytes,
+                        _entropy,
+                        DataProtectionScope.LocalMachine
+                    );
+                    return Encoding.UTF8.GetString(plainBytes);
+
+                default:
+                    // No encryption method - return null to indicate failure
+                    _logger.LogWarning(
+                        "Cannot decrypt value - no encryption method available. " +
+                        "The value may have been encrypted on a different platform or with a different configuration.");
+                    return null;
+            }
         }
         catch (Exception ex)
         {
-            throw new CryptographicException($"Decryption failed for value. This may indicate the value was encrypted on a different machine or the DPAPI keys have been lost: {ex.Message}", ex);
+            // Log the error but don't throw - graceful degradation
+            _logger.LogError(ex,
+                "Failed to decrypt value using {Method}. " +
+                "This may indicate the value was encrypted with a different method, on a different machine, " +
+                "or the encryption keys have been lost. The application will continue but this setting will be null.",
+                _encryptionMethod);
+            return null;
         }
     }
 
@@ -775,9 +940,14 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     public IConfiguration MergedConfiguration => _mergedConfiguration;
 
     /// <summary>
-    /// Whether the encryption service is active (running on Windows).
+    /// Whether the encryption service is active (encryption available).
     /// </summary>
     public bool IsActive => _isActive;
+
+    /// <summary>
+    /// Gets the encryption method being used (None, Dpapi, or DataProtection).
+    /// </summary>
+    public EncryptionMethod ActiveEncryptionMethod => _encryptionMethod;
 
     #endregion
 }

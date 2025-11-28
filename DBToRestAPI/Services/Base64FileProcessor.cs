@@ -19,8 +19,8 @@ public class Base64FileProcessor
     // File info to process
     private class FileToProcess
     {
-        public string Base64Content { get; set; }
-        public string FileName { get; set; }
+        public string? Base64Content { get; set; }
+        public string? FileName { get; set; }
         public int FileIndex { get; set; }
     }
 
@@ -151,7 +151,7 @@ public class Base64FileProcessor
         string fileNameProperty,
         string base64PropertyName,
         List<FileToProcess> filesToProcess,
-        string currentPropertyName = null)
+        string? currentPropertyName = null)
     {
         while (reader.Read())
         {
@@ -257,8 +257,8 @@ public class Base64FileProcessor
     {
         writer.WriteStartObject();
 
-        string fileName = null;
-        string base64Content = null;
+        string? fileName = null;
+        string? base64Content = null;
         int fileIndex = filesToProcess.Count;
         int depth = reader.CurrentDepth;
 

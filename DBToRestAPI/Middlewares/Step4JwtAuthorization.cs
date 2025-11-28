@@ -386,7 +386,7 @@ namespace DBToRestAPI.Middlewares
                 .Concat(principal.FindAll("roles"))
                 .Select(c => c.Value)
                 .Distinct()
-                .ToList();
+                .ToList()??[];
             //if (userRoles?.Any() == true)
             //    claimsDict["roles"] = string.Join("|", userRoles);
             #endregion
@@ -476,7 +476,7 @@ namespace DBToRestAPI.Middlewares
             if (!string.IsNullOrWhiteSpace(userName))
                 claimsDict["name"] = userName;
 
-            if (userRoles?.Any() == true)
+            if (userRoles.Count == 0)
                 claimsDict["roles"] = string.Join("|", userRoles);
 
 
