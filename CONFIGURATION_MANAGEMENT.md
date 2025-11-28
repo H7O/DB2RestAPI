@@ -192,6 +192,8 @@ Uses the ASP.NET Core Data Protection API with key files stored in a directory y
 DATA_PROTECTION_KEY_PATH=./keys/
 ```
 
+> **⚠️ Environment Variable Prefix Note**: If you have configured an `env_var_prefix` in your settings (e.g., `<env_var_prefix>MYAPP_</env_var_prefix>`), you must prepend that prefix to the environment variable name. For example, if your prefix is `MYAPP_`, the environment variable should be `MYAPP_DATA_PROTECTION_KEY_PATH=./keys/`.
+
 ### 2. Windows DPAPI (Windows Only)
 
 **Best for:** Windows Server, IIS deployments where keys should be machine-bound.

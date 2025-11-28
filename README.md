@@ -3345,5 +3345,84 @@ This logs:
 > **Security Note**: JWT authorization works seamlessly with CORS - when an `authorize` section exists, `Access-Control-Allow-Credentials: true` is automatically set. Ensure your `cors:pattern` is restrictive and doesn't allow untrusted origins.
 
 
+## Settings Encryption
+
+The solution provides automatic encryption of sensitive configuration values such as connection strings, API secrets, and passwords. Sensitive values are automatically encrypted on first startup and decrypted at runtime.
+
+### Quick Start (Windows - DPAPI)
+
+On Windows, encryption works automatically using DPAPI (Data Protection API) with no additional setup required.
+
+1. Add the `settings_encryption` section to your `/config/settings.xml`:
+
+```xml
+<settings_encryption>
+  <sections_to_encrypt>
+    <section>ConnectionStrings</section>
+    <section>authorize:providers:azure_b2c:client_secret</section>
+  </sections_to_encrypt>
+</settings_encryption>
+```
+
+2. Run the application. On first startup:
+   - Unencrypted values are automatically encrypted and saved back to the XML files
+   - Values are decrypted in memory for runtime use
+   - Your config files now contain encrypted values like `encrypted:CfDJ8NhY2kB...`
+
+**Before (unencrypted):**
+```xml
+<ConnectionStrings>
+  <default>Server=myserver;Password=MySecret123!</default>
+</ConnectionStrings>
+```
+
+**After first startup (automatically encrypted):**
+```xml
+<ConnectionStrings>
+  <default>encrypted:CfDJ8NhY2kB...very-long-base64-string...</default>
+</ConnectionStrings>
+```
+
+Your application code accesses values normally - decryption is transparent.
+
+### Cross-Platform Encryption
+
+For Linux, macOS, Docker, or Kubernetes deployments, configure the ASP.NET Core Data Protection API with a key directory:
+
+```xml
+<settings_encryption>
+  <data_protection_key_path>./keys/</data_protection_key_path>
+  <sections_to_encrypt>
+    <section>ConnectionStrings</section>
+  </sections_to_encrypt>
+</settings_encryption>
+```
+
+Or use an environment variable:
+```bash
+DATA_PROTECTION_KEY_PATH=./keys/
+```
+
+> **Important**: Persist the keys directory! Losing keys means losing access to encrypted values.
+
+### Encryption Method Priority
+
+1. **If `data_protection_key_path` is configured** → ASP.NET Core Data Protection API (cross-platform)
+2. **Else if running on Windows** → DPAPI (machine-bound)
+3. **Else** → Encryption disabled (passthrough mode)
+
+### What Can Be Encrypted
+
+Specify configuration paths in `sections_to_encrypt`:
+
+| Path | What Gets Encrypted |
+|------|---------------------|
+| `ConnectionStrings` | All connection strings |
+| `ConnectionStrings:default` | Only the "default" connection string |
+| `authorize:providers:azure_b2c` | All values under azure_b2c |
+| `authorize:providers:azure_b2c:client_secret` | Only the client_secret |
+
+> **📖 Full Documentation**: For complete details on cross-platform setup, Docker/Kubernetes deployment, key management, and migration between encryption methods, see [CONFIGURATION_MANAGEMENT.md](CONFIGURATION_MANAGEMENT.md#settings-encryption).
+
 
 **documentation in progress - more examples to be added soon**
