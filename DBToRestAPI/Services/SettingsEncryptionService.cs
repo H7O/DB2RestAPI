@@ -607,15 +607,6 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         var decryptedExists = sectionFromDecrypted.Exists() || sectionFromDecrypted.GetChildren().Any();
         var mainExists = sectionFromMain.Exists() || sectionFromMain.GetChildren().Any();
         
-        _logger.LogDebug(
-            "GetSection('{Key}'): DecryptedExists={DecryptedExists}, MainExists={MainExists}, " +
-            "DecryptedChildren={DecryptedChildren}, MainChildren={MainChildren}",
-            key,
-            decryptedExists,
-            mainExists,
-            sectionFromDecrypted.GetChildren().Count(),
-            sectionFromMain.GetChildren().Count());
-        
         // If both have values, we need to merge them
         if (decryptedExists && mainExists)
         {
@@ -644,18 +635,15 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 .AddInMemoryCollection(mergedValues)
                 .Build();
             
-            _logger.LogDebug("GetSection('{Key}'): Returning merged section with {Count} values", key, mergedValues.Count);
             return mergedConfig.GetSection(key);
         }
         
         if (decryptedExists)
         {
-            _logger.LogDebug("GetSection('{Key}'): Returning decrypted section", key);
             return sectionFromDecrypted;
         }
         
         // Fall back to main IConfiguration
-        _logger.LogDebug("GetSection('{Key}'): Returning main config section", key);
         return sectionFromMain;
     }
     
