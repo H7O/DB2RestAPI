@@ -17,6 +17,7 @@ namespace DBToRestAPI.Services;
 /// - Runs only on Windows (DPAPI is Windows-specific)
 /// - Automatically encrypts unencrypted sensitive values in XML config files on startup
 /// - Maintains a complete merged IConfiguration copy with decrypted values
+/// - Pre-builds and caches all section wrappers for optimal GetSection/GetChildren performance
 /// - Monitors for configuration changes and rebuilds the merged copy automatically
 /// - Implements IEncryptedConfiguration (extends IConfiguration) for seamless integration
 /// 
@@ -42,26 +43,33 @@ namespace DBToRestAPI.Services;
 public class SettingsEncryptionService : IEncryptedConfiguration
 {
     private const string DEFAULT_ENCRYPTED_PREFIX = "encrypted:";
-    
+
     // Entropy for additional DPAPI security (like a salt)
     private static readonly byte[] _entropy = Encoding.UTF8.GetBytes("DBToRestAPI-Secret-Sauce-2025");
-    
+
     private readonly IConfiguration _originalConfiguration;
     private readonly ILogger<SettingsEncryptionService> _logger;
     private readonly AtomicGate _reloadingGate = new();
-    
+
     // Complete merged IConfiguration (all original values + decrypted values overlaid)
     private IConfiguration _mergedConfiguration;
-    
-    // Dictionary of decrypted values only (used for overlay during merge)
+
+    // Pre-built cache of section wrappers, keyed by path (case-insensitive)
+    // Built once during RebuildMergedConfiguration, used by GetSection/GetChildren
+    private Dictionary<string, ConfigurationSectionWrapper> _sectionCache = new(StringComparer.OrdinalIgnoreCase);
+
+    // Pre-built list of root-level children (for GetChildren() on the service itself)
+    private List<ConfigurationSectionWrapper> _rootChildren = new();
+
+    // Dictionary of decrypted values only (used for overlay during merge and public API)
     private Dictionary<string, string?> _decryptedValues = new(StringComparer.OrdinalIgnoreCase);
-    
+
     // Tracks which sections are configured for encryption
     private HashSet<string> _sectionsToEncrypt = new(StringComparer.OrdinalIgnoreCase);
-    
+
     // The prefix used to identify encrypted values
     private string _encryptionPrefix = DEFAULT_ENCRYPTED_PREFIX;
-    
+
     // Whether the service is active (only on Windows)
     private readonly bool _isActive;
 
@@ -71,15 +79,15 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         _originalConfiguration = configuration;
         _logger = logger;
-        
+
         // Initialize with empty merged configuration
         _mergedConfiguration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>())
             .Build();
-        
+
         // Only activate on Windows (DPAPI is Windows-specific)
         _isActive = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        
+
         if (!_isActive)
         {
             _logger.LogInformation("Settings encryption service is disabled (not running on Windows)");
@@ -87,10 +95,10 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             RebuildMergedConfiguration();
             return;
         }
-        
+
         // Initial load - process encryption and build merged config
         LoadAndProcessEncryption();
-        
+
         // Monitor for ANY configuration changes (not just settings_encryption)
         ChangeToken.OnChange(
             () => _originalConfiguration.GetReloadToken(),
@@ -99,14 +107,14 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
     /// <summary>
     /// Main method that loads encryption settings, encrypts unencrypted values in files,
-    /// and rebuilds the complete merged configuration.
+    /// and rebuilds the complete merged configuration with pre-cached section wrappers.
     /// </summary>
     private void LoadAndProcessEncryption()
     {
         try
         {
             if (!_reloadingGate.TryOpen()) return;
-            
+
             // Read encryption configuration
             var encryptionSection = _originalConfiguration.GetSection("settings_encryption");
             if (!encryptionSection.Exists() || !_isActive)
@@ -116,14 +124,14 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 RebuildMergedConfiguration();
                 return;
             }
-            
+
             // Get encryption prefix
             _encryptionPrefix = encryptionSection.GetValue<string>("encryption_prefix") ?? DEFAULT_ENCRYPTED_PREFIX;
-            
+
             // Get sections to encrypt
             var sectionsSection = encryptionSection.GetSection("sections_to_encrypt");
             var newSectionsToEncrypt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            
+
             if (sectionsSection.Exists())
             {
                 // Handle both single and multiple <section> elements (same XML quirk as ApiKeysService)
@@ -148,36 +156,37 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                     }
                 }
             }
-            
+
             _sectionsToEncrypt = newSectionsToEncrypt;
-            
+
             if (_sectionsToEncrypt.Count == 0)
             {
                 _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 RebuildMergedConfiguration();
                 return;
             }
-            
+
             // Get list of XML files to process
             var xmlFilesToProcess = GetXmlFilesToProcess();
-            
+
             // Process each XML file - collect decrypted values
             var newDecryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-            
+
             foreach (var xmlFile in xmlFilesToProcess)
             {
                 ProcessXmlFile(xmlFile, newDecryptedValues);
             }
-            
+
             _decryptedValues = newDecryptedValues;
-            
-            // Rebuild the complete merged configuration
+
+            // Rebuild the complete merged configuration and section cache
             RebuildMergedConfiguration();
-            
+
             _logger.LogInformation(
-                "Settings encryption processing complete. Encrypted sections: {SectionCount}, Decrypted values: {ValueCount}",
+                "Settings encryption processing complete. Encrypted sections: {SectionCount}, Decrypted values: {ValueCount}, Cached sections: {CacheCount}",
                 _sectionsToEncrypt.Count,
-                _decryptedValues.Count);
+                _decryptedValues.Count,
+                _sectionCache.Count);
         }
         catch (Exception ex)
         {
@@ -191,28 +200,114 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 
     /// <summary>
     /// Rebuilds the complete merged IConfiguration by copying all values from the original
-    /// configuration and overlaying with decrypted values.
+    /// configuration and overlaying with decrypted values. Also pre-builds all section wrappers.
     /// </summary>
     private void RebuildMergedConfiguration()
     {
         // Start with all values from original configuration
         var mergedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        
+
         // Recursively copy all values from original configuration
         CopyAllConfigValues(_originalConfiguration, mergedValues, "");
-        
+
         // Overlay with decrypted values (these take precedence)
         foreach (var kvp in _decryptedValues)
         {
             mergedValues[kvp.Key] = kvp.Value;
         }
-        
+
         // Build the merged configuration
         _mergedConfiguration = new ConfigurationBuilder()
             .AddInMemoryCollection(mergedValues)
             .Build();
+
+        // Pre-build all section wrappers
+        BuildSectionCache();
     }
-    
+
+    /// <summary>
+    /// Pre-builds all ConfigurationSectionWrapper instances and stores them in the cache.
+    /// This is called once during rebuild, so GetSection/GetChildren are O(1) lookups.
+    /// </summary>
+    private void BuildSectionCache()
+    {
+        var newCache = new Dictionary<string, ConfigurationSectionWrapper>(StringComparer.OrdinalIgnoreCase);
+        var newRootChildren = new List<ConfigurationSectionWrapper>();
+
+        // Build cache recursively starting from root
+        BuildSectionCacheRecursive(
+            _mergedConfiguration,
+            _originalConfiguration,
+            parentPath: "",
+            parentChildrenList: newRootChildren,
+            cache: newCache);
+
+        _sectionCache = newCache;
+        _rootChildren = newRootChildren;
+    }
+
+    /// <summary>
+    /// Recursively builds section wrappers for all configuration paths.
+    /// </summary>
+    private void BuildSectionCacheRecursive(
+        IConfiguration mergedConfig,
+        IConfiguration originalConfig,
+        string parentPath,
+        List<ConfigurationSectionWrapper> parentChildrenList,
+        Dictionary<string, ConfigurationSectionWrapper> cache)
+    {
+        var mergedChildren = mergedConfig.GetChildren().ToList();
+        var originalChildren = originalConfig.GetChildren().ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var mergedChild in mergedChildren)
+        {
+            var path = string.IsNullOrEmpty(parentPath)
+                ? mergedChild.Key
+                : $"{parentPath}:{mergedChild.Key}";
+
+            // Find matching original section (for reload token)
+            if (!originalChildren.TryGetValue(mergedChild.Key, out var originalChild))
+            {
+                // Fallback: use merged section for both (reload token won't work, but data will)
+                originalChild = mergedChild;
+            }
+
+            // Create wrapper with empty children list (we'll populate it recursively)
+            var childrenList = new List<ConfigurationSectionWrapper>();
+            var wrapper = new ConfigurationSectionWrapper(
+                mergedChild,
+                originalChild,
+                childrenList,
+                this);
+
+            // Add to cache and parent's children list
+            cache[path] = wrapper;
+            parentChildrenList.Add(wrapper);
+
+            // Recurse into children
+            BuildSectionCacheRecursive(mergedChild, originalChild, path, childrenList, cache);
+        }
+    }
+
+    /// <summary>
+    /// Gets a cached section wrapper by path. Used by ConfigurationSectionWrapper.GetSection().
+    /// If the path doesn't exist in cache, creates a wrapper on-demand (handles non-existent paths gracefully).
+    /// </summary>
+    internal ConfigurationSectionWrapper GetCachedSection(string path)
+    {
+        if (_sectionCache.TryGetValue(path, out var cached))
+        {
+            return cached;
+        }
+
+        // Path not in cache - this happens for paths that don't exist in the configuration
+        // IConfiguration.GetSection() is designed to return a section even for non-existent paths
+        // (it just has no value and no children)
+        var mergedSection = _mergedConfiguration.GetSection(path);
+        var originalSection = _originalConfiguration.GetSection(path);
+        return new ConfigurationSectionWrapper(mergedSection, originalSection, new List<ConfigurationSectionWrapper>(), this);
+    }
+
     /// <summary>
     /// Recursively copies all configuration values to a dictionary.
     /// </summary>
@@ -221,12 +316,12 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         foreach (var child in config.GetChildren())
         {
             var path = string.IsNullOrEmpty(parentPath) ? child.Key : $"{parentPath}:{child.Key}";
-            
+
             if (child.Value != null)
             {
                 target[path] = child.Value;
             }
-            
+
             // Recurse into children
             CopyAllConfigValues(child, target, path);
         }
@@ -239,14 +334,14 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         var files = new List<string>();
         var basePath = AppContext.BaseDirectory;
-        
+
         // Always include settings.xml
         var settingsPath = Path.Combine(basePath, "config", "settings.xml");
         if (File.Exists(settingsPath))
         {
             files.Add(settingsPath);
         }
-        
+
         // Add files from additional_configurations:path
         var pathsSection = _originalConfiguration.GetSection("additional_configurations:path");
         if (pathsSection.Exists())
@@ -268,17 +363,17 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 }
             }
         }
-        
+
         return files;
     }
 
     private void AddXmlFileIfExists(List<string> files, string basePath, string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath)) return;
-        
+
         // Only process XML files
         if (!relativePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)) return;
-        
+
         var fullPath = Path.Combine(basePath, relativePath);
         if (File.Exists(fullPath) && !files.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
         {
@@ -297,24 +392,24 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             var doc = XDocument.Load(filePath, LoadOptions.PreserveWhitespace);
             var root = doc.Root;
             if (root == null) return;
-            
+
             bool fileModified = false;
-            
+
             foreach (var sectionPath in _sectionsToEncrypt)
             {
                 // Convert configuration path to XML path
                 // e.g., "ConnectionStrings:default" -> ["ConnectionStrings", "default"]
                 var pathParts = sectionPath.Split(':');
-                
+
                 // Try to find matching elements in the XML
                 var matchingElements = FindMatchingElements(root, pathParts, 0);
-                
+
                 foreach (var (element, configPath) in matchingElements)
                 {
                     fileModified |= ProcessElement(element, configPath, decryptedValues);
                 }
             }
-            
+
             // Save file if any values were encrypted
             if (fileModified)
             {
@@ -333,30 +428,30 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// Recursively finds elements matching the configuration path.
     /// </summary>
     private List<(XElement Element, string ConfigPath)> FindMatchingElements(
-        XElement current, 
-        string[] pathParts, 
+        XElement current,
+        string[] pathParts,
         int index,
         string currentPath = "")
     {
         var results = new List<(XElement, string)>();
-        
+
         if (index >= pathParts.Length)
         {
             // We've matched all parts, return this element
             results.Add((current, currentPath.TrimStart(':')));
             return results;
         }
-        
+
         var targetName = pathParts[index];
         var matchingChildren = current.Elements()
             .Where(e => e.Name.LocalName.Equals(targetName, StringComparison.OrdinalIgnoreCase));
-        
+
         foreach (var child in matchingChildren)
         {
             var childPath = currentPath + ":" + child.Name.LocalName;
             results.AddRange(FindMatchingElements(child, pathParts, index + 1, childPath));
         }
-        
+
         return results;
     }
 
@@ -368,23 +463,23 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     private bool ProcessElement(XElement element, string basePath, Dictionary<string, string?> decryptedValues)
     {
         bool modified = false;
-        
+
         // If element has children, process each child recursively
         if (element.HasElements)
         {
             // Group children by name to handle multiple elements with the same name
             var childGroups = element.Elements().GroupBy(e => e.Name.LocalName);
-            
+
             foreach (var group in childGroups)
             {
                 var childrenList = group.ToList();
-                
+
                 if (childrenList.Count == 1)
                 {
                     // Single element - no index needed
                     var child = childrenList[0];
-                    var childPath = string.IsNullOrEmpty(basePath) 
-                        ? child.Name.LocalName 
+                    var childPath = string.IsNullOrEmpty(basePath)
+                        ? child.Name.LocalName
                         : $"{basePath}:{child.Name.LocalName}";
                     modified |= ProcessElement(child, childPath, decryptedValues);
                 }
@@ -394,8 +489,8 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                     for (int i = 0; i < childrenList.Count; i++)
                     {
                         var child = childrenList[i];
-                        var childPath = string.IsNullOrEmpty(basePath) 
-                            ? $"{child.Name.LocalName}:{i}" 
+                        var childPath = string.IsNullOrEmpty(basePath)
+                            ? $"{child.Name.LocalName}:{i}"
                             : $"{basePath}:{child.Name.LocalName}:{i}";
                         modified |= ProcessElement(child, childPath, decryptedValues);
                     }
@@ -407,7 +502,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             // Leaf element with a value
             var value = element.Value;
             if (string.IsNullOrEmpty(value)) return false;
-            
+
             if (IsEncrypted(value))
             {
                 // Already encrypted - decrypt and cache
@@ -423,7 +518,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 modified = true;
             }
         }
-        
+
         return modified;
     }
 
@@ -434,11 +529,11 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         if (string.IsNullOrEmpty(plainText))
             return plainText;
-        
+
         try
         {
             byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
-            
+
             // Encrypt using DPAPI
             // DataProtectionScope.LocalMachine = any user on this machine can decrypt
             byte[] encryptedBytes = ProtectedData.Protect(
@@ -446,7 +541,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
                 _entropy,
                 DataProtectionScope.LocalMachine
             );
-            
+
             // Convert to Base64 and add prefix
             return _encryptionPrefix + Convert.ToBase64String(encryptedBytes);
         }
@@ -463,24 +558,24 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         if (string.IsNullOrEmpty(encryptedText))
             return encryptedText;
-        
+
         // Check if value is actually encrypted
         if (!IsEncrypted(encryptedText))
             return encryptedText;
-        
+
         try
         {
             // Remove prefix and convert from Base64
             string base64 = encryptedText[_encryptionPrefix.Length..];
             byte[] encryptedBytes = Convert.FromBase64String(base64);
-            
+
             // Decrypt using DPAPI
             byte[] plainBytes = ProtectedData.Unprotect(
                 encryptedBytes,
                 _entropy,
                 DataProtectionScope.LocalMachine
             );
-            
+
             return Encoding.UTF8.GetString(plainBytes);
         }
         catch (Exception ex)
@@ -520,25 +615,12 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     }
 
     /// <summary>
-    /// Gets the immediate descendant configuration sub-sections from the merged configuration.
-    /// Sections are wrapped to preserve reload token behavior from the original configuration.
+    /// Gets the immediate descendant configuration sub-sections from the pre-built cache.
+    /// O(1) operation - returns the pre-built list directly.
     /// </summary>
     public IEnumerable<IConfigurationSection> GetChildren()
     {
-        var mergedChildren = _mergedConfiguration.GetChildren().ToList();
-        var originalChildren = _originalConfiguration.GetChildren().ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var mergedChild in mergedChildren)
-        {
-            if (originalChildren.TryGetValue(mergedChild.Key, out var originalChild))
-            {
-                yield return new ConfigurationSectionWrapper(mergedChild, originalChild);
-            }
-            else
-            {
-                yield return new ConfigurationSectionWrapper(mergedChild, mergedChild);
-            }
-        }
+        return _rootChildren;
     }
 
     /// <summary>
@@ -548,6 +630,17 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         // Return the original configuration's reload token since that's what triggers our reload
         return _originalConfiguration.GetReloadToken();
+    }
+
+    /// <summary>
+    /// Gets a configuration section from the pre-built cache.
+    /// O(1) dictionary lookup - no wrapper creation on each call.
+    /// </summary>
+    /// <param name="key">The section key (e.g., "ConnectionStrings" or "api_keys_collections")</param>
+    /// <returns>A pre-built ConfigurationSectionWrapper from the cache</returns>
+    public IConfigurationSection GetSection(string key)
+    {
+        return GetCachedSection(key);
     }
 
     #endregion
@@ -563,7 +656,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         if (string.IsNullOrWhiteSpace(key))
             return null;
-        
+
         return _mergedConfiguration.GetValue<string>(key);
     }
 
@@ -577,51 +670,8 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         if (string.IsNullOrWhiteSpace(key))
             return default;
-        
-        return _mergedConfiguration.GetValue<T>(key);
-    }
 
-    /// <summary>
-    /// Gets a configuration section from the merged configuration.
-    /// The merged configuration contains all original values overlaid with decrypted values.
-    /// The returned section uses the original configuration's reload token so that
-    /// ChangeToken.OnChange() works correctly even though data comes from the merged config.
-    /// </summary>
-    /// <param name="key">The section key (e.g., "ConnectionStrings" or "api_keys_collections")</param>
-    /// <returns>An IConfigurationSection wrapper that combines merged data with original reload tokens</returns>
-    public IConfigurationSection GetSection(string key)
-    {
-        var mergedSection = _mergedConfiguration.GetSection(key);
-        var originalSection = _originalConfiguration.GetSection(key);
-        return new ConfigurationSectionWrapper(mergedSection, originalSection);
-    }
-    
-    /// <summary>
-    /// Helper method to get all key-value pairs under a configuration section recursively.
-    /// </summary>
-    private static IEnumerable<KeyValuePair<string, string?>> GetAllValuesUnderSection(IConfiguration config, string sectionKey)
-    {
-        var section = config.GetSection(sectionKey);
-        return GetAllValuesRecursive(section, sectionKey);
-    }
-    
-    private static IEnumerable<KeyValuePair<string, string?>> GetAllValuesRecursive(IConfigurationSection section, string currentPath)
-    {
-        // If this section has a value, yield it
-        if (section.Value != null)
-        {
-            yield return new KeyValuePair<string, string?>(currentPath, section.Value);
-        }
-        
-        // Recurse into children
-        foreach (var child in section.GetChildren())
-        {
-            var childPath = $"{currentPath}:{child.Key}";
-            foreach (var kvp in GetAllValuesRecursive(child, childPath))
-            {
-                yield return kvp;
-            }
-        }
+        return _mergedConfiguration.GetValue<T>(key);
     }
 
     /// <summary>
@@ -645,9 +695,9 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         if (string.IsNullOrWhiteSpace(parentPath))
             return new Dictionary<string, string?>();
-        
+
         var prefix = parentPath.EndsWith(':') ? parentPath : parentPath + ":";
-        
+
         return _decryptedValues
             .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(
@@ -666,9 +716,9 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     {
         if (string.IsNullOrWhiteSpace(parentPath))
             return new List<string?>();
-        
+
         var prefix = parentPath.EndsWith(':') ? parentPath : parentPath + ":";
-        
+
         return _decryptedValues
             .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(kvp => kvp.Value)
@@ -711,8 +761,11 @@ public class SettingsEncryptionService : IEncryptedConfiguration
 }
 
 /// <summary>
-/// A wrapper around IConfigurationSection that delegates data operations to a merged configuration
+/// A pre-built wrapper around IConfigurationSection that delegates data operations to a merged configuration
 /// but returns reload tokens from the original configuration.
+/// 
+/// Unlike the previous implementation, these wrappers are created once during RebuildMergedConfiguration()
+/// and cached. GetSection() and GetChildren() are O(1) operations that return pre-built instances.
 /// 
 /// This is necessary because the merged configuration is an in-memory IConfiguration
 /// whose sections don't have proper reload tokens. By wrapping sections, we can:
@@ -727,11 +780,19 @@ internal class ConfigurationSectionWrapper : IConfigurationSection
 {
     private readonly IConfigurationSection _mergedSection;
     private readonly IConfigurationSection _originalSection;
+    private readonly List<ConfigurationSectionWrapper> _children;
+    private readonly SettingsEncryptionService _parent;
 
-    public ConfigurationSectionWrapper(IConfigurationSection mergedSection, IConfigurationSection originalSection)
+    public ConfigurationSectionWrapper(
+        IConfigurationSection mergedSection,
+        IConfigurationSection originalSection,
+        List<ConfigurationSectionWrapper> children,
+        SettingsEncryptionService parent)
     {
         _mergedSection = mergedSection;
         _originalSection = originalSection;
+        _children = children;
+        _parent = parent;
     }
 
     /// <summary>
@@ -773,38 +834,21 @@ internal class ConfigurationSectionWrapper : IConfigurationSection
     }
 
     /// <summary>
-    /// Gets a subsection with the specified key, wrapped to preserve reload token behavior.
+    /// Gets a subsection with the specified key from the pre-built cache.
+    /// O(1) dictionary lookup via the parent service.
     /// </summary>
     public IConfigurationSection GetSection(string key)
     {
-        var mergedChild = _mergedSection.GetSection(key);
-        var originalChild = _originalSection.GetSection(key);
-        return new ConfigurationSectionWrapper(mergedChild, originalChild);
+        var childPath = string.IsNullOrEmpty(Path) ? key : $"{Path}:{key}";
+        return _parent.GetCachedSection(childPath);
     }
 
     /// <summary>
-    /// Gets the immediate descendant configuration sub-sections, wrapped.
+    /// Gets the immediate descendant configuration sub-sections.
+    /// O(1) operation - returns the pre-built children list directly.
     /// </summary>
     public IEnumerable<IConfigurationSection> GetChildren()
     {
-        // Get children from merged config (has decrypted values)
-        // But we need to wrap them to preserve reload token behavior
-        var mergedChildren = _mergedSection.GetChildren().ToList();
-        var originalChildren = _originalSection.GetChildren().ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var mergedChild in mergedChildren)
-        {
-            // Try to find matching original section for reload token
-            if (originalChildren.TryGetValue(mergedChild.Key, out var originalChild))
-            {
-                yield return new ConfigurationSectionWrapper(mergedChild, originalChild);
-            }
-            else
-            {
-                // No original section (shouldn't happen normally, but handle gracefully)
-                // Use merged section for both - reload token won't work but data will
-                yield return new ConfigurationSectionWrapper(mergedChild, mergedChild);
-            }
-        }
+        return _children;
     }
 }
