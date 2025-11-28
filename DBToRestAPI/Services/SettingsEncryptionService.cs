@@ -628,7 +628,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// <returns>The decrypted connection string</returns>
     public string? GetConnectionString(string name)
     {
-        return GetValue($"ConnectionStrings:{name}");
+        return _mergedConfiguration.GetConnectionString(name);
     }
 
     /// <summary>
