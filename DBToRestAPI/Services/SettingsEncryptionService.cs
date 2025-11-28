@@ -341,6 +341,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// <summary>
     /// Processes an XML element: encrypts if unencrypted, decrypts and caches if encrypted.
     /// Handles both leaf elements and parent elements (encrypts all children).
+    /// Also handles multiple elements with the same name by adding index suffix (e.g., key:0, key:1).
     /// </summary>
     private bool ProcessElement(XElement element, string basePath, Dictionary<string, string?> decryptedValues)
     {
@@ -349,12 +350,34 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         // If element has children, process each child recursively
         if (element.HasElements)
         {
-            foreach (var child in element.Elements())
+            // Group children by name to handle multiple elements with the same name
+            var childGroups = element.Elements().GroupBy(e => e.Name.LocalName);
+            
+            foreach (var group in childGroups)
             {
-                var childPath = string.IsNullOrEmpty(basePath) 
-                    ? child.Name.LocalName 
-                    : $"{basePath}:{child.Name.LocalName}";
-                modified |= ProcessElement(child, childPath, decryptedValues);
+                var childrenList = group.ToList();
+                
+                if (childrenList.Count == 1)
+                {
+                    // Single element - no index needed
+                    var child = childrenList[0];
+                    var childPath = string.IsNullOrEmpty(basePath) 
+                        ? child.Name.LocalName 
+                        : $"{basePath}:{child.Name.LocalName}";
+                    modified |= ProcessElement(child, childPath, decryptedValues);
+                }
+                else
+                {
+                    // Multiple elements with same name - add index (matches IConfiguration behavior)
+                    for (int i = 0; i < childrenList.Count; i++)
+                    {
+                        var child = childrenList[i];
+                        var childPath = string.IsNullOrEmpty(basePath) 
+                            ? $"{child.Name.LocalName}:{i}" 
+                            : $"{basePath}:{child.Name.LocalName}:{i}";
+                        modified |= ProcessElement(child, childPath, decryptedValues);
+                    }
+                }
             }
         }
         else
@@ -563,26 +586,105 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     }
 
     /// <summary>
-    /// Gets a configuration section from the decrypted values.
-    /// This allows you to use familiar IConfigurationSection patterns with decrypted data.
-    /// Falls back to the main IConfiguration if the section has no decrypted values.
+    /// Gets a configuration section that merges decrypted values with the main configuration.
+    /// This allows you to use familiar IConfigurationSection patterns with decrypted data
+    /// while still having access to non-encrypted siblings.
+    /// 
+    /// The returned section is built by combining:
+    /// 1. All decrypted values under the requested path
+    /// 2. All main config values under the requested path (that aren't overridden by decrypted values)
     /// </summary>
-    /// <param name="key">The section key (e.g., "ConnectionStrings" or "nested_secret_data")</param>
-    /// <returns>An IConfigurationSection containing decrypted values, or from main config if not found</returns>
+    /// <param name="key">The section key (e.g., "ConnectionStrings" or "api_keys_collections")</param>
+    /// <returns>An IConfigurationSection containing merged decrypted and main config values</returns>
     public IConfigurationSection GetSection(string key)
     {
         if (string.IsNullOrWhiteSpace(key))
             return _configuration.GetSection(key);
         
-        // Check if we have any decrypted values under this section
         var sectionFromDecrypted = _decryptedConfiguration.GetSection(key);
-        if (sectionFromDecrypted.Exists() || sectionFromDecrypted.GetChildren().Any())
+        var sectionFromMain = _configuration.GetSection(key);
+        
+        var decryptedExists = sectionFromDecrypted.Exists() || sectionFromDecrypted.GetChildren().Any();
+        var mainExists = sectionFromMain.Exists() || sectionFromMain.GetChildren().Any();
+        
+        _logger.LogDebug(
+            "GetSection('{Key}'): DecryptedExists={DecryptedExists}, MainExists={MainExists}, " +
+            "DecryptedChildren={DecryptedChildren}, MainChildren={MainChildren}",
+            key,
+            decryptedExists,
+            mainExists,
+            sectionFromDecrypted.GetChildren().Count(),
+            sectionFromMain.GetChildren().Count());
+        
+        // If both have values, we need to merge them
+        if (decryptedExists && mainExists)
         {
+            // Build a merged configuration
+            var mergedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var keyPrefix = key + ":";
+            
+            // First, add all values from main config under this section
+            foreach (var kvp in GetAllValuesUnderSection(_configuration, key))
+            {
+                mergedValues[kvp.Key] = kvp.Value;
+            }
+            
+            // Then, overlay with decrypted values (these take precedence)
+            foreach (var kvp in _decryptedValues)
+            {
+                if (kvp.Key.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    mergedValues[kvp.Key] = kvp.Value;
+                }
+            }
+            
+            // Build a new in-memory configuration with merged values
+            var mergedConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(mergedValues)
+                .Build();
+            
+            _logger.LogDebug("GetSection('{Key}'): Returning merged section with {Count} values", key, mergedValues.Count);
+            return mergedConfig.GetSection(key);
+        }
+        
+        if (decryptedExists)
+        {
+            _logger.LogDebug("GetSection('{Key}'): Returning decrypted section", key);
             return sectionFromDecrypted;
         }
         
         // Fall back to main IConfiguration
-        return _configuration.GetSection(key);
+        _logger.LogDebug("GetSection('{Key}'): Returning main config section", key);
+        return sectionFromMain;
+    }
+    
+    /// <summary>
+    /// Helper method to get all key-value pairs under a configuration section recursively.
+    /// </summary>
+    private static IEnumerable<KeyValuePair<string, string?>> GetAllValuesUnderSection(IConfiguration config, string sectionKey)
+    {
+        var section = config.GetSection(sectionKey);
+        return GetAllValuesRecursive(section, sectionKey);
+    }
+    
+    private static IEnumerable<KeyValuePair<string, string?>> GetAllValuesRecursive(IConfigurationSection section, string currentPath)
+    {
+        // If this section has a value, yield it
+        if (section.Value != null)
+        {
+            yield return new KeyValuePair<string, string?>(currentPath, section.Value);
+        }
+        
+        // Recurse into children
+        foreach (var child in section.GetChildren())
+        {
+            var childPath = $"{currentPath}:{child.Key}";
+            foreach (var kvp in GetAllValuesRecursive(child, childPath))
+            {
+                yield return kvp;
+            }
+        }
     }
 
     /// <summary>

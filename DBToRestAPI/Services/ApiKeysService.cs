@@ -219,25 +219,42 @@ public class ApiKeysService
             return false;
         }
 
-        _logger.LogDebug("Validating API key against collections: {Collections}", 
+        _logger.LogDebug("=== API Key Validation ===");
+        _logger.LogDebug("Input API key: '{ApiKey}' (length: {Length})", apiKey, apiKey.Length);
+        _logger.LogDebug("Collections to check: {Collections}", 
             string.Join(", ", collectionNames.Select(c => $"'{c}'")));
+        _logger.LogDebug("Total loaded collections: {Count} - Names: {Names}",
+            _apiKeysCollections.Count,
+            string.Join(", ", _apiKeysCollections.Keys.Select(k => $"'{k}'")));
 
         foreach (var collectionName in collectionNames)
         {
             if (_apiKeysCollections.TryGetValue(collectionName, out var keys))
             {
-                _logger.LogDebug("  Collection '{CollectionName}' found with {KeyCount} keys", 
+                _logger.LogDebug("  Collection '{CollectionName}' found with {KeyCount} keys:", 
                     collectionName, 
                     keys.Count);
+                
+                // Log each key in the collection for debugging
+                int keyIndex = 0;
+                foreach (var storedKey in keys)
+                {
+                    var matches = storedKey == apiKey;
+                    _logger.LogDebug("    [{Index}] '{StoredKey}' (length: {Length}) - Matches: {Matches}", 
+                        keyIndex++,
+                        storedKey, 
+                        storedKey.Length,
+                        matches);
+                }
                     
                 if (keys.Contains(apiKey))
                 {
-                    _logger.LogDebug("  API key validated successfully in collection '{CollectionName}'", collectionName);
+                    _logger.LogDebug("  ✓ API key validated successfully in collection '{CollectionName}'", collectionName);
                     return true;
                 }
                 else
                 {
-                    _logger.LogDebug("  API key not found in collection '{CollectionName}'", collectionName);
+                    _logger.LogDebug("  ✗ API key not found in collection '{CollectionName}'", collectionName);
                 }
             }
             else
@@ -248,7 +265,7 @@ public class ApiKeysService
             }
         }
 
-        _logger.LogDebug("API key validation failed - not found in any of the specified collections");
+        _logger.LogDebug("=== API key validation FAILED - not found in any specified collections ===");
         return false;
     }
 
