@@ -16,9 +16,9 @@ namespace DBToRestAPI.Services;
 /// This service:
 /// - Runs only on Windows (DPAPI is Windows-specific)
 /// - Automatically encrypts unencrypted sensitive values in XML config files on startup
-/// - Maintains decrypted values in an in-memory IConfiguration for seamless access
-/// - Monitors for configuration changes and reloads automatically
-/// - Provides GetSection() support just like IConfiguration
+/// - Maintains a complete merged IConfiguration copy with decrypted values
+/// - Monitors for configuration changes and rebuilds the merged copy automatically
+/// - Implements IEncryptedConfiguration (extends IConfiguration) for seamless integration
 /// 
 /// Configuration structure (in settings.xml):
 /// <code>
@@ -46,14 +46,14 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     // Entropy for additional DPAPI security (like a salt)
     private static readonly byte[] _entropy = Encoding.UTF8.GetBytes("DBToRestAPI-Secret-Sauce-2025");
     
-    private readonly IConfiguration _configuration;
+    private readonly IConfiguration _originalConfiguration;
     private readonly ILogger<SettingsEncryptionService> _logger;
     private readonly AtomicGate _reloadingGate = new();
     
-    // In-memory IConfiguration containing only decrypted values
-    private IConfiguration _decryptedConfiguration;
+    // Complete merged IConfiguration (all original values + decrypted values overlaid)
+    private IConfiguration _mergedConfiguration;
     
-    // Dictionary for quick key lookups (also used to build the in-memory config)
+    // Dictionary of decrypted values only (used for overlay during merge)
     private Dictionary<string, string?> _decryptedValues = new(StringComparer.OrdinalIgnoreCase);
     
     // Tracks which sections are configured for encryption
@@ -69,11 +69,11 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         IConfiguration configuration,
         ILogger<SettingsEncryptionService> logger)
     {
-        _configuration = configuration;
+        _originalConfiguration = configuration;
         _logger = logger;
         
-        // Initialize empty in-memory configuration
-        _decryptedConfiguration = new ConfigurationBuilder()
+        // Initialize with empty merged configuration
+        _mergedConfiguration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>())
             .Build();
         
@@ -83,26 +83,26 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         if (!_isActive)
         {
             _logger.LogInformation("Settings encryption service is disabled (not running on Windows)");
+            // On non-Windows, just copy the original configuration
+            RebuildMergedConfiguration();
             return;
         }
         
-        // Initial load
+        // Initial load - process encryption and build merged config
         LoadAndProcessEncryption();
         
-        // Monitor for changes to the settings_encryption section
+        // Monitor for ANY configuration changes (not just settings_encryption)
         ChangeToken.OnChange(
-            () => _configuration.GetSection("settings_encryption").GetReloadToken(),
+            () => _originalConfiguration.GetReloadToken(),
             LoadAndProcessEncryption);
     }
 
     /// <summary>
     /// Main method that loads encryption settings, encrypts unencrypted values in files,
-    /// and populates the in-memory decrypted cache.
+    /// and rebuilds the complete merged configuration.
     /// </summary>
     private void LoadAndProcessEncryption()
     {
-        if (!_isActive) return;
-        
         try
         {
             if (!_reloadingGate.TryOpen()) return;
@@ -110,13 +110,13 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             _logger.LogDebug("=== Starting Settings Encryption Processing ===");
             
             // Read encryption configuration
-            var encryptionSection = _configuration.GetSection("settings_encryption");
-            if (!encryptionSection.Exists())
+            var encryptionSection = _originalConfiguration.GetSection("settings_encryption");
+            if (!encryptionSection.Exists() || !_isActive)
             {
-                _logger.LogDebug("No settings_encryption section found, skipping encryption processing");
+                _logger.LogDebug("No settings_encryption section found or not on Windows, using original config");
                 _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 _sectionsToEncrypt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                RebuildInMemoryConfiguration();
+                RebuildMergedConfiguration();
                 return;
             }
             
@@ -160,7 +160,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             {
                 _logger.LogDebug("No sections configured for encryption");
                 _decryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-                RebuildInMemoryConfiguration();
+                RebuildMergedConfiguration();
                 return;
             }
             
@@ -168,7 +168,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             var xmlFilesToProcess = GetXmlFilesToProcess();
             _logger.LogDebug("XML files to process: {Files}", string.Join(", ", xmlFilesToProcess));
             
-            // Process each XML file
+            // Process each XML file - collect decrypted values
             var newDecryptedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             
             foreach (var xmlFile in xmlFilesToProcess)
@@ -178,11 +178,11 @@ public class SettingsEncryptionService : IEncryptedConfiguration
             
             _decryptedValues = newDecryptedValues;
             
-            // Rebuild the in-memory IConfiguration with the new decrypted values
-            RebuildInMemoryConfiguration();
+            // Rebuild the complete merged configuration
+            RebuildMergedConfiguration();
             
             _logger.LogInformation(
-                "Settings encryption processing complete. Encrypted sections: {SectionCount}, Cached decrypted values: {ValueCount}",
+                "Settings encryption processing complete. Encrypted sections: {SectionCount}, Decrypted values: {ValueCount}",
                 _sectionsToEncrypt.Count,
                 _decryptedValues.Count);
         }
@@ -197,15 +197,49 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     }
 
     /// <summary>
-    /// Rebuilds the in-memory IConfiguration from the decrypted values dictionary.
+    /// Rebuilds the complete merged IConfiguration by copying all values from the original
+    /// configuration and overlaying with decrypted values.
     /// </summary>
-    private void RebuildInMemoryConfiguration()
+    private void RebuildMergedConfiguration()
     {
-        _decryptedConfiguration = new ConfigurationBuilder()
-            .AddInMemoryCollection(_decryptedValues)
+        // Start with all values from original configuration
+        var mergedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        
+        // Recursively copy all values from original configuration
+        CopyAllConfigValues(_originalConfiguration, mergedValues, "");
+        
+        // Overlay with decrypted values (these take precedence)
+        foreach (var kvp in _decryptedValues)
+        {
+            mergedValues[kvp.Key] = kvp.Value;
+        }
+        
+        // Build the merged configuration
+        _mergedConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(mergedValues)
             .Build();
         
-        _logger.LogDebug("Rebuilt in-memory configuration with {Count} decrypted values", _decryptedValues.Count);
+        _logger.LogDebug("Rebuilt merged configuration with {TotalCount} total values ({DecryptedCount} decrypted)", 
+            mergedValues.Count, _decryptedValues.Count);
+    }
+    
+    /// <summary>
+    /// Recursively copies all configuration values to a dictionary.
+    /// </summary>
+    private static void CopyAllConfigValues(IConfiguration config, Dictionary<string, string?> target, string parentPath)
+    {
+        foreach (var child in config.GetChildren())
+        {
+            var path = string.IsNullOrEmpty(parentPath) ? child.Key : $"{parentPath}:{child.Key}";
+            
+            if (child.Value != null)
+            {
+                target[path] = child.Value;
+            }
+            
+            // Recurse into children
+            CopyAllConfigValues(child, target, path);
+        }
     }
 
     /// <summary>
@@ -224,7 +258,7 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         }
         
         // Add files from additional_configurations:path
-        var pathsSection = _configuration.GetSection("additional_configurations:path");
+        var pathsSection = _originalConfiguration.GetSection("additional_configurations:path");
         if (pathsSection.Exists())
         {
             foreach (var child in pathsSection.GetChildren())
@@ -486,35 +520,25 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// </summary>
     public string? this[string key]
     {
-        get => GetValue(key);
+        get => _mergedConfiguration[key];
         set
         {
-            // Setting values updates the in-memory decrypted config only (not persisted)
+            // Setting values updates the in-memory decrypted values (not persisted)
             // This maintains IConfiguration contract but changes won't survive restart
             if (!string.IsNullOrWhiteSpace(key))
             {
                 _decryptedValues[key] = value;
-                RebuildInMemoryConfiguration();
+                RebuildMergedConfiguration();
             }
         }
     }
 
     /// <summary>
-    /// Gets the immediate descendant configuration sub-sections.
-    /// Combines children from both decrypted and main configuration.
+    /// Gets the immediate descendant configuration sub-sections from the merged configuration.
     /// </summary>
     public IEnumerable<IConfigurationSection> GetChildren()
     {
-        // Get children from decrypted configuration
-        var decryptedChildren = _decryptedConfiguration.GetChildren();
-        var decryptedKeys = decryptedChildren.Select(c => c.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        
-        // Get children from main configuration that aren't in decrypted
-        var mainChildren = _configuration.GetChildren()
-            .Where(c => !decryptedKeys.Contains(c.Key));
-        
-        // Return decrypted children first, then main children
-        return decryptedChildren.Concat(mainChildren);
+        return _mergedConfiguration.GetChildren();
     }
 
     /// <summary>
@@ -522,8 +546,8 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     /// </summary>
     public IChangeToken GetReloadToken()
     {
-        // Return the main configuration's reload token since that's what triggers our reload
-        return _configuration.GetReloadToken();
+        // Return the original configuration's reload token since that's what triggers our reload
+        return _originalConfiguration.GetReloadToken();
     }
 
     #endregion
@@ -531,29 +555,20 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     #region Public API
 
     /// <summary>
-    /// Gets a configuration value, returning the decrypted value if available.
-    /// Falls back to the main IConfiguration if not found in decrypted values.
+    /// Gets a configuration value from the merged configuration.
     /// </summary>
     /// <param name="key">The configuration key (e.g., "ConnectionStrings:default")</param>
-    /// <returns>The decrypted value if encrypted, otherwise the raw configuration value</returns>
+    /// <returns>The configuration value (decrypted if it was encrypted)</returns>
     public string? GetValue(string key)
     {
         if (string.IsNullOrWhiteSpace(key))
             return null;
         
-        // Check decrypted configuration first
-        var decryptedValue = _decryptedConfiguration.GetValue<string>(key);
-        if (decryptedValue != null)
-        {
-            return decryptedValue;
-        }
-        
-        // Fall back to main IConfiguration
-        return _configuration.GetValue<string>(key);
+        return _mergedConfiguration.GetValue<string>(key);
     }
 
     /// <summary>
-    /// Gets a configuration value as the specified type, returning the decrypted value if available.
+    /// Gets a configuration value as the specified type from the merged configuration.
     /// </summary>
     /// <typeparam name="T">The type to convert the value to</typeparam>
     /// <param name="key">The configuration key</param>
@@ -563,88 +578,18 @@ public class SettingsEncryptionService : IEncryptedConfiguration
         if (string.IsNullOrWhiteSpace(key))
             return default;
         
-        // Check decrypted configuration first
-        var decryptedValue = _decryptedConfiguration.GetValue<string>(key);
-        if (decryptedValue != null)
-        {
-            try
-            {
-                if (typeof(T) == typeof(string))
-                {
-                    return (T)(object)decryptedValue;
-                }
-                return (T)Convert.ChangeType(decryptedValue, typeof(T));
-            }
-            catch
-            {
-                return default;
-            }
-        }
-        
-        // Fall back to IConfiguration
-        return _configuration.GetValue<T>(key);
+        return _mergedConfiguration.GetValue<T>(key);
     }
 
     /// <summary>
-    /// Gets a configuration section that merges decrypted values with the main configuration.
-    /// This allows you to use familiar IConfigurationSection patterns with decrypted data
-    /// while still having access to non-encrypted siblings.
-    /// 
-    /// The returned section is built by combining:
-    /// 1. All decrypted values under the requested path
-    /// 2. All main config values under the requested path (that aren't overridden by decrypted values)
+    /// Gets a configuration section from the merged configuration.
+    /// The merged configuration contains all original values overlaid with decrypted values.
     /// </summary>
     /// <param name="key">The section key (e.g., "ConnectionStrings" or "api_keys_collections")</param>
-    /// <returns>An IConfigurationSection containing merged decrypted and main config values</returns>
+    /// <returns>An IConfigurationSection from the merged configuration</returns>
     public IConfigurationSection GetSection(string key)
     {
-        if (string.IsNullOrWhiteSpace(key))
-            return _configuration.GetSection(key);
-        
-        var sectionFromDecrypted = _decryptedConfiguration.GetSection(key);
-        var sectionFromMain = _configuration.GetSection(key);
-        
-        var decryptedExists = sectionFromDecrypted.Exists() || sectionFromDecrypted.GetChildren().Any();
-        var mainExists = sectionFromMain.Exists() || sectionFromMain.GetChildren().Any();
-        
-        // If both have values, we need to merge them
-        if (decryptedExists && mainExists)
-        {
-            // Build a merged configuration
-            var mergedValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-            var keyPrefix = key + ":";
-            
-            // First, add all values from main config under this section
-            foreach (var kvp in GetAllValuesUnderSection(_configuration, key))
-            {
-                mergedValues[kvp.Key] = kvp.Value;
-            }
-            
-            // Then, overlay with decrypted values (these take precedence)
-            foreach (var kvp in _decryptedValues)
-            {
-                if (kvp.Key.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase) ||
-                    kvp.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
-                {
-                    mergedValues[kvp.Key] = kvp.Value;
-                }
-            }
-            
-            // Build a new in-memory configuration with merged values
-            var mergedConfig = new ConfigurationBuilder()
-                .AddInMemoryCollection(mergedValues)
-                .Build();
-            
-            return mergedConfig.GetSection(key);
-        }
-        
-        if (decryptedExists)
-        {
-            return sectionFromDecrypted;
-        }
-        
-        // Fall back to main IConfiguration
-        return sectionFromMain;
+        return _mergedConfiguration.GetSection(key);
     }
     
     /// <summary>
@@ -748,10 +693,10 @@ public class SettingsEncryptionService : IEncryptedConfiguration
     }
 
     /// <summary>
-    /// Gets the in-memory IConfiguration containing only decrypted values.
-    /// Use this if you need direct access to the decrypted configuration.
+    /// Gets the merged in-memory IConfiguration containing all original values overlaid with decrypted values.
+    /// Use this if you need direct access to the merged configuration.
     /// </summary>
-    public IConfiguration DecryptedConfiguration => _decryptedConfiguration;
+    public IConfiguration MergedConfiguration => _mergedConfiguration;
 
     /// <summary>
     /// Whether the encryption service is active (running on Windows).
