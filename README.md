@@ -1,15 +1,14 @@
 # No-Code Database-to-REST API
 
-A no-code solution that automatically converts your SQL queries into RESTful APIs—no API coding knowledge required.
+A no-code solution designed to automatically convert your SQL queries into RESTful APIs—no API coding knowledge required.
 
-If you can write basic SQL queries, you can hopefully build safe, secure REST APIs in minutes with this solution.
+If you can write basic SQL queries, this solution makes it easy to build safe, secure REST APIs in minutes.
 
+It's designed to support a range of use cases out of the box: public APIs, B2B APIs with API key authentication, or full-stack applications with JWT/OIDC authentication. With built-in support for OAuth 2.0/OIDC providers (Azure B2C, Google, Auth0, and others), you can build complete front-end applications in React, Angular, or Vue that communicate directly with your database through secure, authenticated REST APIs.
 
-This solution supports a range of use cases out of the box: public APIs, B2B APIs with API key authentication, or full-stack applications with JWT/OIDC authentication. With built-in support for OAuth 2.0/OIDC providers (Azure B2C, Google, Auth0, and others), you can build complete front-end applications in React, Angular, or Vue that communicate directly with your database through secure, authenticated REST APIs.
+If you value the DB-First approach, this solution offers a straightforward path to a production-ready REST API—without intermediary ORM layers, complex abstractions, proprietary query languages, or unnecessary GUI tooling.
 
-If you value the DB-First approach, you'll hopefully find this a straightforward path to a production-ready REST API that doesn't attempt to introduce intermediary ORM layers or complex abstractions, proprietary query languages, GUIs, or other unnecessary complications. 
-
-You retain your SQL know-how and leverage it directly to build your APIs in pure SQL.
+Retain your SQL expertise and leverage it directly to build APIs in pure SQL.
 
 > Note: For .NET developers looking to extend the solution with custom features, the codebase is fully accessible and ready to customize.
 
