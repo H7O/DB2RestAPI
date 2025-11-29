@@ -1,12 +1,18 @@
 # No-Code Database-to-REST API
 
-A no-code solution that automatically converts your SQL queries to RESTful APIs without API coding knowledge.
+A no-code solution that automatically converts your SQL queries into RESTful APIs—no API coding knowledge required.
 
-All you need to have is knowledge in writing basic SQL queries and you'll hopefully be on your way building safe and secure REST APIs in minutes.
+If you can write basic SQL queries, you can hopefully build safe, secure REST APIs in minutes with this solution.
 
-And although not required, but if you happen to be a .NET developer, you can expand on this solution to add more features / customizations of your liking.
 
-Whether you're building public APIs, B2B APIs with API keys, or full-stack applications with JWT/OIDC authentication, you can use this solution as is. With built-in support for OAuth2.0/OIDC (Azure B2C, Google, Auth0, etc.), you can now build complete front-end applications (React, Angular, Vue) that directly communicate with your database through secure, authenticated REST APIs. You'll be surprised how easy it is to build a production-ready REST API from a database using the DB-First approach offered by this solution.
+This solution supports a range of use cases out of the box: public APIs, B2B APIs with API key authentication, or full-stack applications with JWT/OIDC authentication. With built-in support for OAuth 2.0/OIDC providers (Azure B2C, Google, Auth0, and others), you can build complete front-end applications in React, Angular, or Vue that communicate directly with your database through secure, authenticated REST APIs.
+
+If you value the DB-First approach, you'll hopefully find this a straightforward path to a production-ready REST API that doesn't attempt to introduce intermediary ORM layers or complex abstractions, proprietary query languages, GUIs, or other unnecessary complications. 
+
+You retain your SQL know-how and leverage it directly to build your APIs in pure SQL.
+
+> Note: For .NET developers looking to extend the solution with custom features, the codebase is fully accessible and ready to customize.
+
 
 ## How to use
 
@@ -2807,7 +2813,7 @@ Settings follow this priority order:
 - ✅ OIDC providers (Google, Facebook, etc.) don't know your app's business logic
 - ✅ ID tokens provide identity proof, not authorization
 - ✅ Roles/permissions managed in your database (source of truth)
-- ✅ Instant role changes (no token refresh needed)
+- ✅ Instant role changes (no sign-out / sign-in needed to force token refresh)
 - ✅ Supports complex authorization logic in SQL
 
 **Database Schema:**
