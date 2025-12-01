@@ -14,8 +14,8 @@
     and adding your preferred regex there. The precidence order is: sql.xml query node override > global setting here -> default regex in code.
     -->
     <json_variables_pattern><![CDATA[(?<open_marker>\{\{|\{j\{)(?<param>.*?)?(?<close_marker>\}\})]]></json_variables_pattern>
-    
-    
+
+
 
 
     <!-- the default regex that detects query string variables (e.g., the `?name=John&phone=123` in `https://example.com/your_api_call?name=John&phone=123` ) in sql queries
@@ -29,8 +29,8 @@
     <query_string_variables_pattern>
       <![CDATA[(?<open_marker>\{\{|\{qs\{)(?<param>.*?)?(?<close_marker>\}\})]]>
     </query_string_variables_pattern>
-    
-    
+
+
 
     <!-- the default regex that detects header variables (e.g., the `x-api-key` in HTTP headers) in sql queries
     is `(?<open_marker>\{\{|\{h\{)(?<param>.*?)?(?<close_marker>\}\})`
@@ -43,9 +43,9 @@
       <![CDATA[(?<open_marker>\{\{|\{h\{)(?<param>.*?)?(?<close_marker>\}\})]]>
     </headers_variables_pattern>
 
-    
-    
-    
+
+
+
     <!-- 
     `route_variables_pattern` with default regex of `(?<open_marker>\{\{|\{r\{)(?<param>.*?)?(?<close_marker>\}\})` 
     even if you delete the `route_variables_pattern` node,
@@ -56,11 +56,11 @@
     <route_variables_pattern>
       <![CDATA[(?<open_marker>\{\{|\{r\{)(?<param>.*?)?(?<close_marker>\}\})]]>
     </route_variables_pattern>
-    
-    
-    
-    
-    
+
+
+
+
+
     <!--
     `form_variables_pattern` with default regex of `(?<open_marker>\{\{|\{f\{)(?<param>.*?)?(?<close_marker>\}\})`
     even if you delete the `form_variables_pattern` node,
@@ -73,7 +73,7 @@
 
 
     <auth_variables_pattern>
-      <![CDATA[(?<open_marker>\{\{|\{auth\{)(?<param>.*?)?(?<close_marker>\}\})]]>
+      <![CDATA[(?<open_marker>\{auth\{)(?<param>.*?)?(?<close_marker>\}\})]]>
     </auth_variables_pattern>
 
 

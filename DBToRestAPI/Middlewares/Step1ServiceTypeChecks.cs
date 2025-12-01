@@ -205,10 +205,13 @@ public class Step1ServiceTypeChecks(
             return;
         }
 
-        var serviceQuerySection = this._queryRouteResolver.ResolveRoute(route, context.Request.Method);
-
-        if (serviceQuerySection == null || !serviceQuerySection.Exists())
+        // For OPTIONS requests, resolve ALL matching routes to get complete CORS info
+        if (context.Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
         {
+            var allMatchingSections = this._queryRouteResolver.ResolveRoutes(route);
+
+            if (allMatchingSections == null || allMatchingSections.Count == 0)
+            {
                 await context.Response.DeferredWriteAsJsonAsync(
                     new ObjectResult(
                         new
@@ -220,6 +223,35 @@ public class Step1ServiceTypeChecks(
                         StatusCode = 404
                     });
                 return;
+            }
+
+            context.Items["route"] = route;
+            context.Items["sections"] = allMatchingSections;  // Note: plural "sections"
+            context.Items["section"] = allMatchingSections[0]; // Keep first one for backward compatibility
+            context.Items["service_type"] = "db_query";
+            context.Items["content_type"] = contentType;
+
+            // Call the next middleware in the pipeline
+            await _next(context);
+            return;
+        }
+
+        // For non-OPTIONS requests, resolve single best matching route
+        var serviceQuerySection = this._queryRouteResolver.ResolveRoute(route, context.Request.Method);
+
+        if (serviceQuerySection == null || !serviceQuerySection.Exists())
+        {
+            await context.Response.DeferredWriteAsJsonAsync(
+                new ObjectResult(
+                    new
+                    {
+                        success = false,
+                        message = $"API Endpoint `{route}` not found"
+                    })
+                {
+                    StatusCode = 404
+                });
+            return;
         }
 
         var routeParameters = this._queryRouteResolver.GetRouteParametersIfAny(serviceQuerySection, route);
