@@ -121,6 +121,13 @@ namespace DBToRestAPI.Middlewares
                 return;
             }
 
+            // Get overwrite_existing_files setting (endpoint-specific -> global -> default false)
+            // If false, uploading a file that already exists in the store will throw an exception
+            // If true, existing files will be silently overwritten
+            var overwriteExistingFiles = fileManagementSection.GetValue<bool?>("overwrite_existing_files")
+                ?? defaultFileStoresSettings.GetValue<bool?>("overwrite_existing_files")
+                ?? false;
+
             var storesList = stores.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .ToHashSet();
 
@@ -199,14 +206,22 @@ namespace DBToRestAPI.Middlewares
                             {
                                 Directory.CreateDirectory(parentDir!);
                             }
-                            
+
+                            // Check if file already exists (unless overwrite is enabled)
+                            if (!overwriteExistingFiles && File.Exists(destinationPath))
+                            {
+                                throw new InvalidOperationException(
+                                    $"File '{file.Value.RelativePath}' already exists in store '{entry.Config.Key}'. " +
+                                    "Set 'overwrite_existing_files' to true to allow overwriting.");
+                            }
+
                             // Use async file copy
                             using (var sourceStream = new FileStream(file.Key, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true))
                             using (var destStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true))
                             {
                                 await sourceStream.CopyToAsync(destStream, context.RequestAborted);
                             }
-                            
+
                             entry.WasSuccessful = true;
                             this._logger.LogDebug("{time}: Copied temp file '{tempFile}' to local store ({local_store_name})  at '{destinationPath}' in Step6FileManagement middleware",
                                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),
@@ -265,13 +280,25 @@ namespace DBToRestAPI.Middlewares
                             {
                                 var destinationPath = Path.Combine(remotePath, file.Value.RelativePath)
                                     .UnifyPathSeperator().Replace("\\", "/");
-                                
+
+                                // Check if file already exists on SFTP (unless overwrite is enabled)
+                                if (!overwriteExistingFiles)
+                                {
+                                    bool fileExists = await sftpClient.ExistsAsync(destinationPath, context.RequestAborted);
+                                    if (fileExists)
+                                    {
+                                        throw new InvalidOperationException(
+                                            $"File '{file.Value.RelativePath}' already exists in SFTP store '{entry.Config.Key}'. " +
+                                            "Set 'overwrite_existing_files' to true to allow overwriting.");
+                                    }
+                                }
+
                                 // Use async file stream with proper buffering
                                 using (var fileStream = new FileStream(file.Key, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true))
                                 {
                                     await sftpClient.UploadAsync(fileStream, destinationPath);
                                 }
-                                
+
                                 entry.WasSuccessful = true;
                                 this._logger.LogDebug("{time}: Uploaded temp file '{tempFile}' to SFTP store ({sftp_store_name}) at '{destinationPath}' in Step6FileManagement middleware",
                                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fffff"),

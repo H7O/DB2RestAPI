@@ -1473,6 +1473,9 @@ Before using file upload endpoints, you need to configure your file stores in `/
     <max_number_of_files>5</max_number_of_files>
     <max_file_size_in_bytes>314572800</max_file_size_in_bytes> <!-- 300 MB -->
     
+    <!-- File overwrite behavior (can be overridden per endpoint) -->
+    <overwrite_existing_files>false</overwrite_existing_files> <!-- Prevents accidental overwrites -->
+    
     <!-- Configure local file stores -->
     <local_file_store>
       <primary>
@@ -1795,6 +1798,226 @@ This adds a `base64_content` field to the JSON passed to your query.
 <base64_content_field_in_payload>fileContent</base64_content_field_in_payload>
 <files_json_field_or_form_field_name>documents</files_json_field_or_form_field_name>
 ```
+
+**Overwrite Existing Files**: Control whether uploading a file with the same path should overwrite an existing file:
+```xml
+<!-- In file_management.xml (global setting) -->
+<overwrite_existing_files>false</overwrite_existing_files>
+
+<!-- Or per-endpoint in sql.xml -->
+<file_management>
+    <stores>primary</stores>
+    <overwrite_existing_files>true</overwrite_existing_files> <!-- Allow overwrites for this endpoint -->
+</file_management>
+```
+
+When `overwrite_existing_files` is `false` (the default):
+- Attempting to upload a file to a path that already exists will throw an error
+- Error message: `"File 'path/to/file.pdf' already exists in store 'primary'. Set 'overwrite_existing_files' to true to allow overwriting."`
+- This applies to both local file stores and SFTP stores
+- Useful for preventing accidental data loss
+
+When `overwrite_existing_files` is `true`:
+- Existing files at the destination path will be silently replaced
+- No error or warning is generated
+- Useful for update scenarios where you intentionally want to replace files
+
+> **Priority**: Endpoint-specific settings override global settings. If not specified anywhere, defaults to `false`.
+
+### Engine-Enriched File Properties
+
+When files are processed, the engine enriches each file object with additional properties before passing to your SQL query:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | GUID | Unique file identifier (generated or caller-provided if `accept_caller_defined_file_ids` is true) |
+| `file_name` | string | Original filename (validated and normalized) |
+| `relative_path` | string | Storage path based on `relative_file_path_structure` |
+| `extension` | string | File extension (e.g., `.pdf`) |
+| `mime_type` | string | MIME type (e.g., `application/pdf`) |
+| `size` | number | File size in bytes |
+| `is_new_upload` | boolean | `true` if this file was actually uploaded, `false`/absent for existing file metadata passed through |
+| `backend_temp_file_path` | string | Temp file path (only present when `pass_files_content_to_query` is false and file was uploaded) |
+
+### Partial File Updates (Update Records with Existing Files)
+
+When updating a record that already has associated files, you often need to:
+- **Keep existing files** - Include their metadata (with `id`) but don't re-upload the binary
+- **Add new files** - Include new files with binary content
+- **Remove files** - Simply don't include them in the files array
+- **Update metadata only** - Change document_type, remarks, etc. without re-uploading
+
+#### Configuration Required
+
+Enable `accept_caller_defined_file_ids` for update endpoints so the engine preserves file IDs sent by the caller:
+
+```xml
+<file_management>
+    <stores>primary</stores>
+    <accept_caller_defined_file_ids>true</accept_caller_defined_file_ids>
+    <!-- other settings... -->
+</file_management>
+```
+
+#### Example: Update with Partial File Changes
+
+Assume a contact has 3 existing documents (A, B, D). You want to:
+- Keep document A unchanged
+- Update document B's description  
+- Add a new document C
+- Remove document D (by not including it)
+
+**JSON Request:**
+```json
+PUT /v2/contacts/123e4567-e89b-12d3-a456-426614174000
+Content-Type: application/json
+
+{
+  "name": "John Doe Updated",
+  "attachments": [
+    {
+      "id": "aaaa-existing-doc-a-id",
+      "file_name": "passport.pdf",
+      "document_type": "Passport"
+    },
+    {
+      "id": "bbbb-existing-doc-b-id", 
+      "file_name": "emirates_id.jpg",
+      "document_type": "Emirates ID",
+      "description": "Updated description for doc B"
+    },
+    {
+      "file_name": "new_certificate.pdf",
+      "document_type": "Certificate",
+      "description": "Newly added document",
+      "base64_content": "JVBERi0xLjQK..."
+    }
+  ]
+}
+```
+
+**Multipart Request:**
+```http
+PUT /v2/contacts/123e4567-e89b-12d3-a456-426614174000
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="name"
+
+John Doe Updated
+------FormBoundary
+Content-Disposition: form-data; name="attachments"
+
+[
+  {"id": "aaaa-existing-doc-a-id", "file_name": "passport.pdf", "document_type": "Passport"},
+  {"id": "bbbb-existing-doc-b-id", "file_name": "emirates_id.jpg", "document_type": "Emirates ID", "description": "Updated description"},
+  {"file_name": "new_certificate.pdf", "document_type": "Certificate", "description": "Newly added"}
+]
+------FormBoundary
+Content-Disposition: form-data; name="file"; filename="new_certificate.pdf"
+Content-Type: application/pdf
+
+(binary content for new file only)
+------FormBoundary--
+```
+
+> **Key Point:** Only include binary content for NEW files. Existing files (those without `base64_content` in JSON mode, or without a matching binary upload in multipart mode) are passed through with `is_new_upload = false`.
+
+#### SQL Query for Partial Updates
+
+Use the `is_new_upload` field to differentiate between new and existing files:
+
+```xml
+<update_contact_with_files>
+  <route>v2/contacts/{{id}}</route>
+  <verb>PUT</verb>
+  <mandatory_parameters>id</mandatory_parameters>
+  
+  <file_management>
+    <stores>primary</stores>
+    <accept_caller_defined_file_ids>true</accept_caller_defined_file_ids>
+    <files_json_field_or_form_field_name>attachments</files_json_field_or_form_field_name>
+  </file_management>
+  
+  <query>
+  <![CDATA[
+    DECLARE @id UNIQUEIDENTIFIER = {{id}};
+    DECLARE @name NVARCHAR(500) = {{name}};
+    DECLARE @files NVARCHAR(MAX) = {{attachments}};
+    
+    -- Update contact fields
+    UPDATE [contacts]
+    SET name = COALESCE(@name, name),
+        m_date = GETDATE()
+    WHERE id = @id;
+    
+    -- Process files if provided
+    IF @files IS NOT NULL
+    BEGIN
+        -- Collect all file IDs being sent (both existing and new)
+        DECLARE @sent_ids TABLE (id UNIQUEIDENTIFIER);
+        INSERT INTO @sent_ids (id)
+        SELECT TRY_CAST(JSON_VALUE(value, '$.id') AS UNIQUEIDENTIFIER)
+        FROM OPENJSON(@files)
+        WHERE JSON_VALUE(value, '$.id') IS NOT NULL;
+        
+        -- DELETE: Remove files not in the sent list
+        DELETE FROM [files] 
+        WHERE contact_id = @id 
+          AND id NOT IN (SELECT id FROM @sent_ids);
+        
+        -- UPDATE: Existing files (is_new_upload is false or not present)
+        -- Only update metadata like description, document_type, etc.
+        UPDATE f
+        SET 
+            f.description = COALESCE(JSON_VALUE(j.value, '$.description'), f.description),
+            f.document_type = COALESCE(JSON_VALUE(j.value, '$.document_type'), f.document_type),
+            f.m_date = GETDATE()
+        FROM [files] f
+        INNER JOIN OPENJSON(@files) j 
+            ON TRY_CAST(JSON_VALUE(j.value, '$.id') AS UNIQUEIDENTIFIER) = f.id
+        WHERE f.contact_id = @id
+          AND COALESCE(JSON_VALUE(j.value, '$.is_new_upload'), 'false') != 'true';
+        
+        -- INSERT: New files (is_new_upload = true)
+        INSERT INTO [files] (id, contact_id, file_name, relative_path, mime_type, size, description, document_type, c_date)
+        SELECT 
+            TRY_CAST(JSON_VALUE(value, '$.id') AS UNIQUEIDENTIFIER),
+            @id,
+            JSON_VALUE(value, '$.file_name'),
+            JSON_VALUE(value, '$.relative_path'),
+            JSON_VALUE(value, '$.mime_type'),
+            TRY_CAST(JSON_VALUE(value, '$.size') AS BIGINT),
+            JSON_VALUE(value, '$.description'),
+            JSON_VALUE(value, '$.document_type'),
+            GETDATE()
+        FROM OPENJSON(@files)
+        WHERE JSON_VALUE(value, '$.is_new_upload') = 'true';
+    END
+    
+    -- Return updated record with files
+    SELECT 
+        c.id, c.name, c.phone,
+        (SELECT id, file_name, relative_path, description, document_type
+         FROM [files] WHERE contact_id = c.id
+         FOR JSON PATH) AS {type{json{files}}}
+    FROM [contacts] c
+    WHERE c.id = @id;
+  ]]>
+  </query>
+</update_contact_with_files>
+```
+
+#### Summary Table
+
+| Scenario | Include ID? | Include Binary? | `is_new_upload` value |
+|----------|-------------|-----------------|----------------------|
+| Keep existing file unchanged | ✅ Yes | ❌ No | `false` (or absent) |
+| Update existing file's metadata | ✅ Yes | ❌ No | `false` (or absent) |
+| Add new file | ❌ No (engine generates) | ✅ Yes | `true` |
+| Remove file | Don't include in array | - | - |
+
+> **Security Note**: When `accept_caller_defined_file_ids` is `true`, always validate in your SQL query that the provided file IDs actually belong to the record being updated. This prevents unauthorized access to files from other records.
 
 > **Security Note**: The file upload feature includes built-in protection against path traversal attacks and validates file extensions to prevent malicious uploads. Always configure `permitted_file_extensions` to whitelist only the file types your application needs.
 

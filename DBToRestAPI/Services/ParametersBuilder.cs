@@ -52,7 +52,7 @@ public class ParametersBuilder
         {
             var context = _httpContextAccessor.HttpContext
                 ?? throw new InvalidOperationException("HttpContext is not available");
-            
+
             return context.RequestServices.GetRequiredService<TempFilesTracker>();
         }
     }
@@ -99,7 +99,7 @@ public class ParametersBuilder
         }
     }
 
-    public string? FilesDataFieldNameInQueryIfAny
+    public string? FilesDataFieldName
     {
         get
         {
@@ -126,8 +126,8 @@ public class ParametersBuilder
 
     public async Task<List<DbQueryParams>?> GetParamsAsync()
     {
-        
-        
+
+
         var section = Section!;
         var context = Context;
         context.Items.TryGetValue("parameters", out var parameters);
@@ -294,7 +294,7 @@ public class ParametersBuilder
 
 
 
-        var filesField = this.FilesDataFieldNameInQueryIfAny;
+        var filesField = this.FilesDataFieldName;
 
 
         var jsonVarRegex = Section.GetValue<string>("json_variables_pattern");
@@ -341,7 +341,7 @@ public class ParametersBuilder
 
                 foreach (JsonProperty property in root.EnumerateObject())
                 {
-                    if (!property.NameEquals(filesField??string.Empty))
+                    if (!property.NameEquals(filesField ?? string.Empty))
                     {
                         property.WriteTo(writer);
                     }
@@ -410,7 +410,7 @@ public class ParametersBuilder
         if (string.IsNullOrWhiteSpace(fileNameField))
             fileNameField = "name";
 
-        
+
         // get `base64_content_field_in_payload` from section or config or use default
         var fileContentField = section.GetValue<string>("file_management:base64_content_field_in_payload");
         if (string.IsNullOrWhiteSpace(fileContentField))
@@ -454,7 +454,15 @@ public class ParametersBuilder
             _config.GetValue<bool?>("file_management:accept_caller_defined_file_ids") ?? false;
 
         // Determine if we're processing multipart files or JSON base64
-        bool isMultipartMode = formFiles != null && formFiles.Count > 0;
+
+        // don't use the below check to know if the submission is multipart or not
+        // use the header check in ContentType property instead
+        // bool isMultipartMode = formFiles != null && formFiles.Count > 0;
+
+        // check the header instead
+        bool isMultipartMode = StringComparer.InvariantCultureIgnoreCase.Equals(
+            this.ContentType,
+            "multipart/form-data");
 
 
         // Write array directly to the provided writer
@@ -473,14 +481,40 @@ public class ParametersBuilder
 
             if (isMultipartMode)
             {
-                // Validate we have enough files in the collection
-                if (fileCount >= formFiles!.Count)
-                    throw new ArgumentException($"Mismatch between metadata entries ({filesArray.GetArrayLength()}) and uploaded files ({formFiles.Count})");
+                // the below is commented out to allow for partial uploads
+                // e.g., when updating a record the caller may want to only upload the new files
+                // but want to keep the existing files metadata in the JSON array
+
+                //// Validate we have enough files in the collection
+                //if (fileCount >= formFiles!.Count)
+                //    throw new ArgumentException($"Mismatch between metadata entries ({filesArray.GetArrayLength()}) and uploaded files ({formFiles.Count})");
+
+                // if it's an existing file entry without an uploaded file, skip processing
+                // just add it to the output as is
+                // to know whether or not it's an existing file entry
+                // see if the formFiles has a file with the same name or not
+                // if not then it's an existing file entry
+                if (!fileElement.TryGetProperty(fileNameField, out var fileNameProperty)
+                    || fileNameProperty.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(fileNameProperty.GetString()))
+                {
+                    throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileNameField}` representing the file name");
+                }
+                var fileName = fileNameProperty.GetString()!;
+                var matchingFormFile = formFiles!
+                    .FirstOrDefault(f => f.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+                if (matchingFormFile == null)
+                {
+                    // existing file entry - write as is
+                    fileElement.WriteTo(writer);
+                    fileCount++;
+                    continue;
+                }
 
                 // Process multipart file - get content from form file
                 await ProcessSingleMultipartFileEntry(
                     fileElement,
-                    formFiles[fileCount],
+                    matchingFormFile,
                     writer,
                     fileNameField,
                     relativeFilePathStructure,
@@ -492,6 +526,23 @@ public class ParametersBuilder
             }
             else
             {
+                // JSON mode: check if this file has base64 content
+                // If not, it's an existing file entry - write as-is (supports partial uploads on update)
+                // this is a temporary measure until having the time to implement logic that can
+                // detect the existance of the property without loading the whole content in memory
+                // perhaps I should only check if the property exists without checking its value
+                // and advice callers to either provide the property with content if there is a new upload
+                // or omit the property entirely for existing files
+                if (!fileElement.TryGetProperty(fileContentField, out var contentProperty)
+                    || contentProperty.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(contentProperty.GetString()))
+                {
+                    // existing file entry - write as is
+                    fileElement.WriteTo(writer);
+                    fileCount++;
+                    continue;
+                }
+
                 // Process JSON file - get base64 content from JSON
                 await ProcessSingleFileEntry(
                     fileElement,
@@ -556,15 +607,8 @@ public class ParametersBuilder
         var relativePath = BuildRelativeFilePath(relativeFilePathStructure, fileName, fileId);
         var mimeType = GetMimeTypeFromFileName(fileName);
 
-        // Get base64 content
-        if (!fileElement.TryGetProperty(fileContentField, out var contentProperty)
-            || contentProperty.ValueKind != JsonValueKind.String
-            || string.IsNullOrWhiteSpace(contentProperty.GetString()))
-        {
-            throw new ArgumentException($"Invalid JSON format: Each file object must contain a non-empty string property `{fileContentField}` representing the base64 content of the file");
-        }
-
-        var base64Content = contentProperty.GetString()!;
+        // Get base64 content (already validated by caller)
+        var base64Content = fileElement.GetProperty(fileContentField).GetString()!;
 
         // Write file object directly to writer
         writer.WriteStartObject();
@@ -584,7 +628,8 @@ public class ParametersBuilder
                 cancellationToken);
 
             writer.WriteNumber("size", fileSize);
-            writer.WriteString("backend_base64_temp_file_path", tempPath);
+            writer.WriteString("backend_temp_file_path", tempPath);
+            writer.WriteBoolean("is_new_upload", true);
 
             // Track temp file for cleanup later
             TempFilesTracker.AddLocalFile(tempPath, fileName, relativePath);
@@ -602,6 +647,7 @@ public class ParametersBuilder
 
             writer.WriteNumber("size", fileSize);
             writer.WriteString(fileContentField, base64Content);
+            writer.WriteBoolean("is_new_upload", true);
         }
 
         // Copy any additional properties from original file object
@@ -684,6 +730,7 @@ public class ParametersBuilder
         writer.WriteString("mime_type", mimeType);
         writer.WriteNumber("size", formFile.Length);
 
+
         if (!passFilesContentToQuery)
         {
             // Save to temp file (NO base64 decoding needed!)
@@ -693,9 +740,9 @@ public class ParametersBuilder
             {
                 using (var stream = formFile.OpenReadStream())
                 using (var fileStream = new FileStream(
-                    tempPath, 
-                    FileMode.Create, 
-                    FileAccess.Write, 
+                    tempPath,
+                    FileMode.Create,
+                    FileAccess.Write,
                     FileShare.None,
                     bufferSize: 81920,
                     useAsync: true))
@@ -704,6 +751,7 @@ public class ParametersBuilder
                 }
 
                 writer.WriteString("backend_temp_file_path", tempPath);
+                writer.WriteBoolean("is_new_upload", true);
                 TempFilesTracker.AddLocalFile(tempPath, fileName, relativePath);
             }
             catch
@@ -724,6 +772,7 @@ public class ParametersBuilder
 
             var base64 = Convert.ToBase64String(ms.ToArray());
             writer.WriteString("base64_content", base64);
+            writer.WriteBoolean("is_new_upload", true);
         }
 
         // Copy any additional properties from metadata JSON
@@ -1129,13 +1178,13 @@ public class ParametersBuilder
     {
         "application/x-www-form-urlencoded",
         "multipart/form-data"
-    };  
+    };
     private async Task<DbQueryParams> ExtractFromMultipartFormAsync()
     {
         var context = this.Context;
         var section = this.Section;
         var contentType = this.ContentType;
-        var filesField = this.FilesDataFieldNameInQueryIfAny;
+        var filesField = this.FilesDataFieldName;
 
         var formDataVarRegex = section.GetValue<string>("form_data_variables_pattern");
         if (string.IsNullOrWhiteSpace(formDataVarRegex))
@@ -1167,7 +1216,7 @@ public class ParametersBuilder
 
             writer.WriteStartObject();
 
-            foreach(var kvp in form)
+            foreach (var kvp in form)
             {
                 if (!StringComparer.OrdinalIgnoreCase.Equals(kvp.Key, filesField ?? string.Empty))
                 {
@@ -1192,8 +1241,9 @@ public class ParametersBuilder
                 if (string.IsNullOrWhiteSpace(filesField)
                     || kvp.Value.Count < 1)
                     continue;
-                    
-                
+
+                // only process the first value for filesField
+                // reason for that is that files metadata should be passed as a single JSON array string
                 var jsonArrayText = kvp.Value[0];
                 if (string.IsNullOrWhiteSpace(jsonArrayText))
                     continue;
@@ -1288,7 +1338,7 @@ public class ParametersBuilder
                 QueryParamsRegex = routeVarRegex
             };
         }
-    }   
+    }
 
 
 }
