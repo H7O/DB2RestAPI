@@ -45,7 +45,7 @@ CREATE TABLE [dbo].[contacts] (
 	"name": "John"
 }
 ```
-12. Send the request and you should see the following JSON respons: 
+12. Send the request and you should see the following JSON response:
 ```json
 
 
@@ -92,7 +92,7 @@ The full xml node in `sql.xml` that has the above query defined is as follows:
     </hello_world>
 ```
 
-> **Note**: Notice that then name of the node `hello_world` is the API endpoint route we're calling in Postman. Later in further examples, we'll see how we can define custom routes to precicely control the route naming conventions instead of just having the xml node name to be the route name as the case in this example.
+> **Note**: The node name `hello_world` becomes the API endpoint route. In later examples, we'll see how to define custom routes to precisely control the route naming conventions.
 
 > **Note**: Passing parameters is safe and secure. The solution is designed to protect against SQL injection attacks by default via utilizing SQL Server's built-in parameterization feature. 
 > The SQL parameterization feature is offered by `Com.H.Data.Common` package (available on [Github](https://github.com/H7O/Com.H.Data.Common) / [Nuget](https://www.nuget.org/packages/Com.H.Data.Common/)).
@@ -112,7 +112,7 @@ Now, let's try to create a new record in the `contacts` table.
 	"phone": "1234567890"
 }
 ```
-4. Send the request and you should see the following JSON respons: 
+4. Send the request and you should see the following JSON response:
 ```json
 {
   "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
@@ -120,7 +120,6 @@ Now, let's try to create a new record in the `contacts` table.
   "phone": "1234567890",
   "active": 1
 }
-
 ```
 
 **About the `id` property:**
@@ -220,24 +219,21 @@ Now, let's try to update a record in the `contacts` table.
 	"phone": "1234567890"
 }
 ```
-4. Send the request and you should see the following JSON respons: 
+4. Send the request and you should see the following JSON response:
 ```json
-
 {
   "id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
   "name": "John Update 1",
   "phone": "1234567890",
   "active": 1
 }
-
 ```
+
 The response above shows the updated record.
 
-1. To see how the API works, change the `name` and/or `phone` properties in the request body and send the request again. You should see a different response from the database.
-2. Try updating the same record multiple times.
-3. Try also updating a record that doesn't exist.
-You should get an error message from the database saying that the record doesn't exist.
-The error should be returned to the client as HTTP error code 404 (not found error).
+5. To see how the API works, change the `name` and/or `phone` properties in the request body and send the request again. You should see a different response from the database.
+6. Try updating the same record multiple times.
+7. Try updating a record that doesn't exist—you should get an HTTP 404 error.
 
 Check the `/config/sql.xml` file for the `update_contact` node to see how the `id` parameter is used in the query.
 
@@ -293,21 +289,18 @@ Below is the `update_contact` node in the `/config/sql.xml` file:
     </update_contact>
 ```
 
-> **connection_string_name**
-The `connection_string_name` tag is optional and used to specify the connection string name for the query.
-The app is designed to pickup the `default` connection string you define in 
-`/config/settings.xml` under `ConnectionStrings` node if you haven't set one here.
-However, if you need to access a different database for a specific query,
-you can set a different connection string name here, given that you've defined it in `/config/settings.xml` under `ConnectionStrings` node.
+**About `connection_string_name`:**
+- Optional tag to specify which connection string to use for the query
+- Defaults to the `default` connection string defined in `/config/settings.xml` under `ConnectionStrings`
+- Use this to access different databases for specific queries—just ensure the connection string is defined in `settings.xml`
 
 
 ### Example 3 - Retrieving contact records along with the total number of records
 
 Now, let's try to retrieve records from the `contacts` table along with the total number of records.
-1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts` and change the request method to `GET`.
-1. Fill `Content-Type` header with `application/json`.
-1. Send the request and you should see the following JSON respons: 
-
+1. Change the request URL to `https://localhost:<your_custom_port>/contacts` and set the request method to `GET`.
+2. Set the `Content-Type` header to `application/json`.
+3. Send the request and you should see the following JSON response:
 ```json
 {
 	"count": 3,
@@ -437,7 +430,7 @@ Now, let's try to retrieve records from the `contacts` table along with the tota
 	"skip": 0
 }
 ```
-4. Send the request and you should see the following JSON respons: 
+4. Send the request and you should see the following JSON response:
 ```json
 {
 	"count": 20,
@@ -487,7 +480,7 @@ Now, let's try to retrieve records from the `contacts` table while also implemen
 	"skip": 0
 }
 ```
-4. Send the request and you should see the following JSON respons:
+4. Send the request and you should see the following JSON response:
 ```json
 {
 	"count": 20,
@@ -501,7 +494,7 @@ Now, let's try to retrieve records from the `contacts` table while also implemen
 		{
 			"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b1",
 			"name": "Jane",
-			"phone": "3432345567", 
+			"phone": "3432345567",
 			"active": 1
 		},
 		{
@@ -530,9 +523,9 @@ Now, let's try to delete a record in the `contacts` table.
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts/b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0` and change the request method to `DELETE`.
 2. Fill `Content-Type` header with `application/json`.
 
-> **Note**: The above is an example `id` value. You can use any `id` value that you get from the API when you add a new record or retrieve records.
+   > The above is an example `id` value. Use any `id` from a previously created or retrieved record.
 
-3. Send the request and you should see the following JSON respons: 
+3. Send the request and you should see the following JSON response:
 ```json
 {
 	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
@@ -541,10 +534,10 @@ Now, let's try to delete a record in the `contacts` table.
 	"active": 1
 }
 ```
-> **Note**: If the record doesn't exist, you'll get an error message from the database saying that the record doesn't exist.
-The error will be returned to the client as HTTP error code 404 (not found error).
 
-Successfully deleted records are returned to the client as HTTP status code 204 (no content).
+**Behavior notes:**
+- If the record doesn't exist, the API returns HTTP `404 Not Found`
+- Successfully deleted records return HTTP `204 No Content`
 
 Check the `/config/sql.xml` file for the `delete_contact` node to see how the `id` parameter is used in the query.
 
@@ -579,22 +572,20 @@ Below is the `delete_contact` node in the `/config/sql.xml` file:
         ]]>
       </query>
     </delete_contact>
-
 ```
 
-> **Note**: The `id` parameter is a mandatory parameter. If you don't specify it, the app will return an HTTP 400 error (bad request error).
+**Key configuration points:**
+- `id` is mandatory—missing it returns HTTP `400 Bad Request`
+- `verb` is set to `DELETE`—other HTTP methods return `404 Not Found`
+- `success_status_code` is `204`—successful deletions return `204 No Content`
 
-The `verb` tag is set to `DELETE` to indicate that the request is a DELETE request. If the caller's http request is not a DELETE request, the app will return an HTTP 404 error (API endpoint not found error).
-
-The `success_status_code` tag is set to `204` to indicate that the request was successful. If the request was successful, the app will return an HTTP 204 status code (no content).
-
-### Example 8 - Activating / deactivating a contact record
+### Example 7 - Activating / deactivating a contact record
 
 Now, let's try to activate / deactivate a record in the `contacts` table.
 
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts/b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0/deactivate` and change the request method to `PUT`.
 2. Fill `Content-Type` header with `application/json`.
-3. Send the request and you should see the following JSON respons: 
+3. Send the request and you should see the following JSON response:
 ```json
 {
 	"id": "b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0",
@@ -604,7 +595,7 @@ Now, let's try to activate / deactivate a record in the `contacts` table.
 }
 ```
 
-The above response shows the record that was deactivated.
+The response shows the record with `active` set to `0` (deactivated).
 
 Check the `/config/sql.xml` file for the `activate_deactivate_contact` node to see how the `id` and `status_action` parameters are used in the query.
 
@@ -665,16 +656,13 @@ Below is the `activate_deactivate_contact` node in the `/config/sql.xml` file:
       </query>
     </activate_deactivate_contact>
 ```
-Notice the `{{action_status}}` parameter in the `route` tag.
-
-The `{{action_status}}` parameter is used to specify the action status.
-
-The `{{action_status}}` parameter can be either `activate` or `deactivate`.
-
-This example showcase how you can create custom rountes that have multiple parameters. And how to use specific parameters for actions (like activate / deactivate in our case) that aren't limited by just the `verb` tag.
+**About the `{{status_action}}` parameter:**
+- Defined in the route as `contacts/{{id}}/{{status_action}}`
+- Accepts either `activate` or `deactivate`
+- This example shows how to create custom routes with multiple parameters and use them for actions beyond just HTTP verbs
 
 
-### Example 9 - Returning records without count
+### Example 8 - Returning records without count
 
 In example 3, we saw how to retrieve records from the `contacts` table along with the total number of records.
 
@@ -682,7 +670,7 @@ Now, let's try to retrieve records from the `contacts` table without the total n
 
 1. To do that, change the request URL to `https://localhost:<your_custom_port>/contacts_without_count` and change the request method to `GET`.
 2. Fill `Content-Type` header with `application/json`.
-3. Send the request and you should see the following JSON respons: 
+3. Send the request and you should see the following JSON response:
 ```json
 [
   {
@@ -708,7 +696,7 @@ Now, let's try to retrieve records from the `contacts` table without the total n
 
 Notice how the response is an array of JSON objects.
 
-Check the `/config/sql.xml` file for the `search_contacts_without_count` node to see how the `response_structure` along with the absense of `count_query` tag is used to return the records without the total number of records.
+Check the `/config/sql.xml` file for the `search_contacts_without_count` node to see how `response_structure` combined with the absence of `count_query` returns records without the total count.
 
 Below is the `search_contacts_without_count` node in the `/config/sql.xml` file:
 
@@ -821,42 +809,19 @@ Below is the `search_contacts_without_count` node in the `/config/sql.xml` file:
     </search_contacts_without_count>    
 ```
 
-**response_structure**
-The `response_structure` tag is optional and used to specify the response structure as being an array or a single object.
+**`response_structure` Reference:**
 
-The possible values are:<br/>
-**1-** `array`: instructs the app to return an array of JSON objects for multiple rows response with the following rules:<br/>
-  - **a)** if the query returned a single row, that row is set to be returned as a json object inside an array<br/>
-  - **b)** if the query returned multiple rows, the app will return an array of JSON objects with the following structure:<br/>
-  ```json
-  [
-    {
-      "id": 1,
-      "name": "John",
-      "phone": "1234567890",
-      "active": 1
-    },
-    {
-      "id": 2,
-      "name": "Jane",
-      "phone": "0987654321",
-      "active": 1
-    }
-  ]
-  ```        
-**2-** `single`: instructs the app to return a single JSON object of the first row returned by the query and not iterate over the rest of the rows.<br/>
-However, if `count_query` node is specified, the app then is set to return a count structure smiliar to the ones we saw in example 3, 4 and 5.
+| Value | Behavior |
+|-------|----------|
+| `array` | Always returns an array, even for single rows |
+| `single` | Returns only the first row as a single JSON object |
+| `auto` | Default. Returns single object for one row, array for multiple rows |
 
-**3-** `auto`: for auto response format (single if single row, array if multiple rows)
+> **Note**: When `count_query` is specified, `response_structure` is ignored—the response always uses the count structure (`{count, data}`).
 
-> **Note**: if `count_query` is specified, the `response_structure` is then ignored as the app 
-is expected to always return a count structure.
+**Best Practice:** Use `response_structure: array` when you expect multiple rows but don't need `count_query`. This ensures predictable API responses—clients always receive an array, regardless of whether the query returns 1 or 100 rows.
 
-> **Note**: It's preferable to make use of the `response_structure` tag when you don't intend to use the `count_query` but expect to return multiple rows.<br/>
-The reason for that is predictability. If you don't specify the `response_structure` tag, the app will default to `auto` which means that if the query returns a single row, the app will return a single object, and if the query returns multiple rows, the app will return an array of objects.<br/>
-Callers of your API will have to handle both cases (single row and multiple rows) whereas if you specify the `response_structure` as `array` tag, the app will return an array of objects regardless of the number of rows returned by the query.<br/>
-
-### Example 10 - Protecting your API from unauthorized access
+### Example 9 - Protecting your API from unauthorized access
 
 You can protect your API endpoints from unauthorized access by using **API key collections**. This centralized approach allows you to define API keys once in `/config/api_keys.xml` and reference them from multiple endpoints.
 
@@ -920,7 +885,7 @@ Callers of your API must send the API key in the `x-api-key` http header.
 
 
 
-### Example 11 - Cached API responses
+### Example 10 - Cached API responses
 
 The solution offers the ability to cache API responses for a specified duration, enhancing performance and reducing latency for frequently accessed data.
 
@@ -959,15 +924,15 @@ In the above example, the `hello_world_with_cache` query is configured to cache 
 
 The response will be cached in memory for the specified duration, enhancing performance by eliminating the need to re-execute the query for subsequent requests within the cache's timeframe.
 
-The `Time now is` part of the response is added to demonstrate that the response is indeed cached and not re-executed for subsequent requests within the cache's timeframe.
+The `Time now is` part of the response demonstrates caching in action—the timestamp remains the same for cached responses.
 
->**Usage Note:** To leverage the cached API response, simply call the API as usual. The solution will automatically cache the response based on the specified duration and invalidators.<br/>
-Try changing the `name` parameter in the request body and sending the request multiple times within the cache's timeframe. You should see the same response with the same timestamp, indicating that the response is cached and not re-executed.
+**Testing the cache:**
+- Call the API multiple times within 20 seconds—you'll see the same timestamp
+- Change the `name` parameter to get a fresh response (new cache entry)
+- The `invalidators` node is optional and defines which parameters create separate cache entries
 
->**Note**: The `invalidators` node is optional and can be used to invalidate the cache when the specified parameters change.
 
-
-### Example 12 - Nested JSON with SQL Server FOR JSON
+### Example 11 - Nested JSON with SQL Server FOR JSON
 
 When working with relational databases, you often need to return hierarchical or nested data structures. SQL Server's `FOR JSON PATH` clause allows you to generate JSON from SQL queries, but by default, SQL Server returns nested JSON as an escaped string rather than a proper JSON object.
 
@@ -1132,19 +1097,19 @@ Both `phones` and `addresses` will be returned as proper JSON arrays in the resp
 > **Note**: This feature leverages the `Com.H.Text.Json` package which provides advanced JSON serialization capabilities including the type decorator syntax. The decorator works seamlessly with SQL Server's `FOR JSON PATH`, `FOR JSON AUTO`, and any other scenario where you need to embed JSON strings as proper objects.
 
 
-### Example 13 - Acting as an API gateway
+### Example 12 - Acting as an API gateway
 
-The solution also offers the feature of acting as an API gateway to seamlessly route requests to various other APIs.
+The solution can also act as an API gateway, routing requests to external APIs.
 
-This capability is helpful for consolidating a multitude of APIs under a single, unified base URL. 
+**Key benefits:**
+- Consolidate multiple APIs under a single, unified base URL
+- Clients don't need to know where data originates (database or external API)
+- Enforce consistent API key authentication across all services
+- Add authentication to third-party APIs that don't have their own
 
-Consumers benefit without needing to delve into the intricacies of where the data originates&mdash;be it from direct database calls or external APIs routed through the solution.
+#### Configuration
 
-Moreover, in this setup, uniform API key enforcement becomes easy to manage. Whether interfacing with local resources or external services, the solution can enforce consistent API key usage, even if the external APIs don't inherently require such authentication.
-
-To implement this functionality, we can utilize a setup file, `api_gateway.xml`, located within the config folder, to configure route mappings to different APIs.
-
-Here's the structure of the `api_gateway.xml` file:
+Configure route mappings in `/config/api_gateway.xml`:
 
 ```xml
 <settings>
@@ -1157,32 +1122,22 @@ Here's the structure of the `api_gateway.xml` file:
 </settings>
 ```
 
-The <routes> node contains a collection of customizable route configurations.
+**Route configuration options:**
 
-Consider the `cat_facts` route as an illustration:
+| Tag | Required | Description |
+|-----|----------|-------------|
+| Node name (e.g., `<cat_facts>`) | Yes | Becomes the API route (e.g., `/cat_facts`) |
+| `<url>` | Yes | Destination URL for routing |
+| `<excluded_headers>` | No | Headers to remove before forwarding (comma-separated) |
+| `<ignore_certificate_errors>` | No | Bypass SSL certificate validation |
 
-```xml
-<cat_facts>
-	<url>https://catfact.ninja/fact</url>
-	<excluded_headers>x-api-key,host</excluded_headers>
-</cat_facts>
-```
+**Why exclude headers?**
+- `host` — Prevents TLS handshake errors during routing
+- `x-api-key` — Protects your API keys from being forwarded to external services
 
-In this example:
+### Example 13 - Protecting your API gateway routes from unauthorized access
 
-* The `<cat_facts>` node denotes the route's name, which can be tailored as needed, this is the name you'll use to call the API (e.g., `https://localhost:<your_custom_port>/cat_facts`).
-* The `<url>` node specifies the destination URL for routing the request.
-* Optionally, the `<excluded_headers>` node allows exclusion of specific headers from the request before routing (i.e., `x-api-key,host` in this example won't be passed to the destination URL).
-
-The app automatically directs requests to the designated external or local APIs based on the specified routes in `api_gateway.xml` and/or SQL queries outlined in `sql.xml`. Additionally, it automatically filters out the designated headers from the request before routing, optimizing compatibility and security.
-
-By offering to exclude headers selectively, the solution safeguards against exposing sensitive data to external APIs while circumventing potential routing issues caused by extraneous headers. For instance, preemptively removing the `host` header prevents TLS handshake errors during routing, while omitting the `x-api-key` header shields our solution's API key from exposure to external services.
-
-Optionally, the `ignore_certificate_errors` node permits bypassing certificate validation errors during API request routing, enhancing flexibility and compatibility.
-
-### Example 14 - Protecting your API gateway routes from unauthorized access
-
-You can protect your API gateway routes from unauthorized access by using the same **API key collections** system described in Example 10.
+You can protect your API gateway routes from unauthorized access by using the same **API key collections** system described in Example 9.
 
 Simply reference the collection name(s) in your API gateway route configuration in `api_gateway.xml`:
 
@@ -1208,17 +1163,11 @@ This approach allows you to add authentication to third-party APIs that don't ha
 
 > **Note**: If you don't specify the `api_keys_collections` tag in your API gateway route, the route will be publicly accessible.
 
-### Example 15 - Custom endpoint path
+### Example 14 - Custom endpoint path
 
-You can customize the endpoint path by adding the `route` tag to your API node in `api_gateway.xml` file just as we did with the `route` tag in `sql.xml` file.
-
-Here is a sample of a custom endpoint path in `api_gateway.xml` file:
+Customize the endpoint path using the `route` tag (same as in `sql.xml`):
 
 ```xml
-    <!-- 
-    Callers to this API will use the path `cat/facts` (e.g., https://localhost:7054/cat/facts)
-    will get routed to the `https://catfact.ninja/fact` API.
-    -->
     <cat_facts_custom_path_example>
       <route>cat/facts/list</route>
       <url>https://catfact.ninja/fact</url>
@@ -1226,13 +1175,11 @@ Here is a sample of a custom endpoint path in `api_gateway.xml` file:
     </cat_facts_custom_path_example>
 ```
 
-The above endpoint path will be accessible at `https://localhost:7054/cat/facts/list` and will be routed to the `https://catfact.ninja/fact` API.
+Now `https://localhost:7054/cat/facts/list` routes to `https://catfact.ninja/fact`.
 
-### Example 16 - Wildcard route matching
+### Example 15 - Wildcard route matching
 
-You can use wildcard route matching to route multiple endpoints to single base URL by using the `*` wildcard character.
-
-Here is a sample of a wildcard route matching in `api_gateway.xml` file:
+Use the `*` wildcard character to route multiple endpoints to a single base URL:
 
 ```xml
     <cat_facts_wildcard_path_example>
@@ -1242,17 +1189,14 @@ Here is a sample of a wildcard route matching in `api_gateway.xml` file:
     </cat_facts_wildcard_path_example>
 ```
 
-Any API call that starts with `cat/` will be routed to the `https://catfact.ninja/` API.
+**How it works:**
+- `https://localhost:7054/cat/facts` → `https://catfact.ninja/facts`
+- `https://localhost:7054/cat/facts/list` → `https://catfact.ninja/facts/list`
+- Any path starting with `cat/` is routed to the base URL with the remaining path appended
 
-The remaining part of the path will be appended to the base URL.
+This is useful when multiple endpoints share the same base URL but have different paths—one route handles them all.
 
-For example, if you call `https://localhost:7054/cat/facts/list`, it will be routed to the `https://catfact.ninja/facts/list` API.
-
-This is helpful when you have multiple endpoints that share the same base URL but have different paths. Instead of creating multiple routes, you can use a single route with a wildcard character to match the different paths.
-
-> **Note**: The `*` wildcard character can be used to match any number of characters.
-
-### Example 17 - Caching API gateway responses
+### Example 16 - Caching API gateway responses
 
 Just like database queries, API gateway routes can also benefit from caching to improve performance and reduce load on target APIs.
 
