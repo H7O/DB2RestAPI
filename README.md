@@ -189,42 +189,6 @@ This enables powerful hybrid architectures where you can:
 - Read local settings from an embedded database (SQLite)
 - Integrate with legacy systems (Oracle)
 
-### Database-Specific SQL Syntax
-
-When writing queries for different databases, keep in mind these common syntax differences:
-
-| Feature | SQL Server | PostgreSQL | MySQL | SQLite | Oracle |
-|---------|------------|------------|-------|--------|--------|
-| String concatenation | `+` or `CONCAT()` | `\|\|` or `CONCAT()` | `CONCAT()` | `\|\|` | `\|\|` or `CONCAT()` |
-| Current timestamp | `GETDATE()` | `NOW()` or `CURRENT_TIMESTAMP` | `NOW()` | `datetime('now')` | `SYSDATE` or `CURRENT_TIMESTAMP` |
-| Row limiting | `OFFSET x ROWS FETCH NEXT y ROWS ONLY` | `LIMIT y OFFSET x` | `LIMIT y OFFSET x` | `LIMIT y OFFSET x` | `OFFSET x ROWS FETCH NEXT y ROWS ONLY` (12c+) |
-| Auto-increment | `IDENTITY(1,1)` | `SERIAL` or `GENERATED ALWAYS AS IDENTITY` | `AUTO_INCREMENT` | `AUTOINCREMENT` | `GENERATED ALWAYS AS IDENTITY` (12c+) |
-| UUID generation | `NEWID()` | `gen_random_uuid()` | `UUID()` | Custom function | `SYS_GUID()` |
-| JSON output | `FOR JSON PATH` | `json_agg()`, `row_to_json()` | `JSON_ARRAYAGG()` | `json_group_array()` | `JSON_ARRAYAGG()` (12c+) |
-
-### JSON Decorator Support
-
-The `{type{json{field}}}` decorator for parsing JSON output from your database works with all supported database providers, not just SQL Server. When your query returns JSON data (using `FOR JSON PATH` in SQL Server, `json_agg()` in PostgreSQL, `JSON_ARRAYAGG()` in MySQL, etc.), you can use this decorator to have the API automatically parse and return the JSON structure.
-
-For example, a PostgreSQL query:
-```xml
-<get_nested_data>
-  <route>nested</route>
-  <verb>GET</verb>
-  <connection_string_name>postgres</connection_string_name>
-  <query><![CDATA[
-    SELECT json_agg(row_to_json(t)) as {type{json{result}}}
-    FROM (
-      SELECT id, name, 
-        (SELECT json_agg(row_to_json(o)) FROM orders o WHERE o.user_id = u.id) as orders
-      FROM users u
-    ) t;
-  ]]></query>
-</get_nested_data>
-```
-
-The `{type{json{result}}}` decorator tells the API to parse the `result` column as JSON rather than returning it as a string, enabling complex nested structures from any supported database.
-
 
 ## Phonebook API examples
 
