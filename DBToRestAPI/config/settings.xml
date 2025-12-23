@@ -1,17 +1,33 @@
 ﻿<settings>
 
-  
+
 
   <ConnectionStrings>
+    <!-- SQL Server (default - no provider attribute needed) -->
     <default><![CDATA[Data Source=.\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
 
-    <!--
-    This is just an example of how you can define a different connection string name for a different database server.
-    You can define as many connection string names as you want that points to different database servers.
-    -->
-    <server2><![CDATA[Data Source=.\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></server2>
-  </ConnectionStrings>
+    <!-- SQL Server with explicit provider -->
+    <server2 provider="Microsoft.Data.SqlClient"><![CDATA[Data Source=.\s22;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></server2>
 
+    <!-- PostgreSQL -->
+    <postgres provider="Npgsql"><![CDATA[Host=localhost;Port=5432;Database=mydb;Username=myuser;Password=mypass;]]></postgres>
+
+    <!-- MySQL / MariaDB -->
+    <mysql provider="MySqlConnector"><![CDATA[Server=localhost;Port=3306;Database=mydb;User=root;Password=mypass;SslMode=None;]]></mysql>
+
+    <!-- SQLite (file-based) -->
+    <sqlite provider="Microsoft.Data.Sqlite"><![CDATA[Data Source=mydb.db;]]></sqlite>
+
+    <!-- SQLite (in-memory) -->
+    <sqlite_memory provider="Microsoft.Data.Sqlite"><![CDATA[Data Source=:memory:;]]></sqlite_memory>
+
+    <!-- Oracle -->
+    <oracle provider="Oracle.ManagedDataAccess.Core"><![CDATA[Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCL)));User Id=myuser;Password=mypass;]]></oracle>
+
+    <!-- Oracle (simplified EZ Connect format) -->
+    <oracle_ez provider="Oracle.ManagedDataAccess.Core"><![CDATA[Data Source=localhost:1521/ORCL;User Id=myuser;Password=mypass;]]></oracle_ez>
+  </ConnectionStrings>
+  
   <additional_configurations>
     <path>config/sql.xml</path>
     <path>config/api_gateway.xml</path>

@@ -35,25 +35,13 @@ builder.Configuration
 builder.Services.AddSingleton<SettingsEncryptionService>();
 builder.Services.AddSingleton<IEncryptedConfiguration>(sp => sp.GetRequiredService<SettingsEncryptionService>());
 
-// Register DbConnection as scoped
-builder.Services.AddScoped<DbConnection>(sp =>
-{
-    var configuration = sp.GetRequiredService<IEncryptedConfiguration>();
-    // Use IEncryptedConfiguration for connection string to get decrypted value
-    var encryptionService = sp.GetRequiredService<IEncryptedConfiguration>();
-    var connectionString = encryptionService.GetConnectionString("default")
-        ?? configuration.GetConnectionString("default")
-        ?? throw new InvalidOperationException("Connection string not found");
-    return new SqlConnection(connectionString);
-});
+
+
+builder.Services.AddSingleton<DbConnectionFactory>();
+
 
 builder.Services.AddScoped<TempFilesTracker>();
 
-//builder.Services.AddScoped<DbConnection, DbConnection>(
-//    provider => new Microsoft.Data.SqlClient.SqlConnection(
-//        provider.GetRequiredService<IConfiguration>()
-//    .GetConnectionString("default"))
-//    );
 
 builder.Services.AddHybridCache();
 

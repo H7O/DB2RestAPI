@@ -8,6 +8,8 @@ It's designed to support a range of use cases out of the box: public APIs, B2B A
 
 If you value the DB-First approach, this solution offers a straightforward path to a production-ready REST API—without intermediary ORM layers, complex abstractions, proprietary query languages, or unnecessary GUI tooling.
 
+Multiple database providers are supported out of the box: SQL Server, PostgreSQL, MySQL/MariaDB, SQLite, and Oracle—with automatic provider detection or explicit configuration.
+
 Retain your SQL expertise and leverage it directly to build APIs in pure SQL.
 
 > Note: For .NET developers looking to extend the solution with custom features, the codebase is fully accessible and ready to customize.
@@ -17,7 +19,7 @@ Retain your SQL expertise and leverage it directly to build APIs in pure SQL.
 
 1. Create a sample database and name it `test`, then run the SQL script below to create a sample `contacts` table within the `test` database that you just created.
 
-> **Note**: Download and install either SQL Server Developer Edition or SQL Server Express if you don't have SQL Server installed on your machine
+> **Note**: Download and install either SQL Server Developer Edition or SQL Server Express if you don't have SQL Server installed on your machine. Other databases (PostgreSQL, MySQL, SQLite, Oracle) are also supported—see the [Supported Databases](#supported-databases) section for configuration details.
 
 ```sql
 CREATE TABLE [dbo].[contacts] (
@@ -96,6 +98,132 @@ The full xml node in `sql.xml` that has the above query defined is as follows:
 
 > **Note**: Passing parameters is safe and secure. The solution is designed to protect against SQL injection attacks by default via utilizing SQL Server's built-in parameterization feature. 
 > The SQL parameterization feature is offered by `Com.H.Data.Common` package (available on [Github](https://github.com/H7O/Com.H.Data.Common) / [Nuget](https://www.nuget.org/packages/Com.H.Data.Common/)).
+
+
+## Supported Databases
+
+This solution supports multiple database providers with automatic detection or explicit configuration. You can connect to different databases for different API endpoints, enabling hybrid architectures where some endpoints query SQL Server while others query PostgreSQL, MySQL, or any other supported database.
+
+### Configuration
+
+Define your connection strings in `/config/settings.xml` under the `ConnectionStrings` section. You can optionally specify a `provider` attribute to explicitly declare the database provider:
+
+```xml
+<ConnectionStrings>
+  <!-- SQL Server (default - auto-detected, no provider attribute needed) -->
+  <default><![CDATA[Data Source=.\SQLEXPRESS;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True;]]></default>
+
+  <!-- SQL Server with explicit provider -->
+  <sqlserver_explicit provider="Microsoft.Data.SqlClient"><![CDATA[Data Source=.\SQLEXPRESS;Initial Catalog=production;Integrated Security=True;TrustServerCertificate=True;]]></sqlserver_explicit>
+
+  <!-- PostgreSQL -->
+  <postgres provider="Npgsql"><![CDATA[Host=localhost;Port=5432;Database=mydb;Username=myuser;Password=mypass;]]></postgres>
+
+  <!-- MySQL / MariaDB -->
+  <mysql provider="MySqlConnector"><![CDATA[Server=localhost;Port=3306;Database=mydb;User=root;Password=mypass;SslMode=None;]]></mysql>
+
+  <!-- SQLite (file-based) -->
+  <sqlite provider="Microsoft.Data.Sqlite"><![CDATA[Data Source=mydb.db;]]></sqlite>
+
+  <!-- SQLite (in-memory) -->
+  <sqlite_memory provider="Microsoft.Data.Sqlite"><![CDATA[Data Source=:memory:;]]></sqlite_memory>
+
+  <!-- Oracle -->
+  <oracle provider="Oracle.ManagedDataAccess.Core"><![CDATA[Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCL)));User Id=myuser;Password=mypass;]]></oracle>
+
+  <!-- Oracle (simplified EZ Connect format) -->
+  <oracle_ez provider="Oracle.ManagedDataAccess.Core"><![CDATA[Data Source=localhost:1521/ORCL;User Id=myuser;Password=mypass;]]></oracle_ez>
+</ConnectionStrings>
+```
+
+### Supported Providers
+
+| Database | Provider Name | Auto-Detected |
+|----------|---------------|---------------|
+| SQL Server | `Microsoft.Data.SqlClient` | ✅ Yes |
+| PostgreSQL | `Npgsql` | ✅ Yes |
+| MySQL / MariaDB | `MySqlConnector` | ✅ Yes |
+| SQLite | `Microsoft.Data.Sqlite` | ✅ Yes |
+| Oracle | `Oracle.ManagedDataAccess.Core` | ✅ Yes |
+
+> **Recommendation**: While auto-detection works reliably for most connection strings, explicitly specifying the `provider` attribute is recommended for production environments to ensure deterministic behavior and avoid any edge cases in detection.
+
+### Multi-Database Endpoints
+
+You can use different databases for different API endpoints by specifying the `connection_string_name` in your sql.xml query definitions:
+
+```xml
+<!-- Uses the default SQL Server connection -->
+<get_users>
+  <route>users</route>
+  <verb>GET</verb>
+  <query><![CDATA[
+    SELECT id, name, email FROM users;
+  ]]></query>
+</get_users>
+
+<!-- Uses PostgreSQL for analytics data -->
+<get_analytics>
+  <route>analytics</route>
+  <verb>GET</verb>
+  <connection_string_name>postgres</connection_string_name>
+  <query><![CDATA[
+    SELECT metric_name, metric_value, recorded_at FROM analytics_data;
+  ]]></query>
+</get_analytics>
+
+<!-- Uses SQLite for local configuration -->
+<get_app_config>
+  <route>config</route>
+  <verb>GET</verb>
+  <connection_string_name>sqlite</connection_string_name>
+  <query><![CDATA[
+    SELECT key, value FROM app_settings;
+  ]]></query>
+</get_app_config>
+```
+
+This enables powerful hybrid architectures where you can:
+- Query your main transactional database (SQL Server) for core data
+- Pull analytics from a data warehouse (PostgreSQL)
+- Read local settings from an embedded database (SQLite)
+- Integrate with legacy systems (Oracle)
+
+### Database-Specific SQL Syntax
+
+When writing queries for different databases, keep in mind these common syntax differences:
+
+| Feature | SQL Server | PostgreSQL | MySQL | SQLite | Oracle |
+|---------|------------|------------|-------|--------|--------|
+| String concatenation | `+` or `CONCAT()` | `\|\|` or `CONCAT()` | `CONCAT()` | `\|\|` | `\|\|` or `CONCAT()` |
+| Current timestamp | `GETDATE()` | `NOW()` or `CURRENT_TIMESTAMP` | `NOW()` | `datetime('now')` | `SYSDATE` or `CURRENT_TIMESTAMP` |
+| Row limiting | `OFFSET x ROWS FETCH NEXT y ROWS ONLY` | `LIMIT y OFFSET x` | `LIMIT y OFFSET x` | `LIMIT y OFFSET x` | `OFFSET x ROWS FETCH NEXT y ROWS ONLY` (12c+) |
+| Auto-increment | `IDENTITY(1,1)` | `SERIAL` or `GENERATED ALWAYS AS IDENTITY` | `AUTO_INCREMENT` | `AUTOINCREMENT` | `GENERATED ALWAYS AS IDENTITY` (12c+) |
+| UUID generation | `NEWID()` | `gen_random_uuid()` | `UUID()` | Custom function | `SYS_GUID()` |
+| JSON output | `FOR JSON PATH` | `json_agg()`, `row_to_json()` | `JSON_ARRAYAGG()` | `json_group_array()` | `JSON_ARRAYAGG()` (12c+) |
+
+### JSON Decorator Support
+
+The `{type{json{field}}}` decorator for parsing JSON output from your database works with all supported database providers, not just SQL Server. When your query returns JSON data (using `FOR JSON PATH` in SQL Server, `json_agg()` in PostgreSQL, `JSON_ARRAYAGG()` in MySQL, etc.), you can use this decorator to have the API automatically parse and return the JSON structure.
+
+For example, a PostgreSQL query:
+```xml
+<get_nested_data>
+  <route>nested</route>
+  <verb>GET</verb>
+  <connection_string_name>postgres</connection_string_name>
+  <query><![CDATA[
+    SELECT json_agg(row_to_json(t)) as {type{json{result}}}
+    FROM (
+      SELECT id, name, 
+        (SELECT json_agg(row_to_json(o)) FROM orders o WHERE o.user_id = u.id) as orders
+      FROM users u
+    ) t;
+  ]]></query>
+</get_nested_data>
+```
+
+The `{type{json{result}}}` decorator tells the API to parse the `result` column as JSON rather than returning it as a string, enabling complex nested structures from any supported database.
 
 
 ## Phonebook API examples

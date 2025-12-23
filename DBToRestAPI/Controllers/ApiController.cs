@@ -40,17 +40,13 @@ namespace DBToRestAPI.Controllers
 
     public class ApiController(
         IEncryptedConfiguration configuration,
-        DbConnection connection,
+        DbConnectionFactory dbConnectionFactory,
         SettingsService settingsService,
         ILogger<ApiController> logger
-
-            //,
-            //Com.H.CacheService.MemoryCache cacheService
             ) : ControllerBase
     {
-        // private readonly IConfiguration _configuration = configuration;
         private readonly IEncryptedConfiguration _configuration = configuration;
-        private readonly DbConnection _connection = connection;
+        private readonly DbConnectionFactory _dbConnectionFactory = dbConnectionFactory;
 
         private readonly ILogger<ApiController> _logger = logger;
 
@@ -170,36 +166,14 @@ namespace DBToRestAPI.Controllers
 
 
             #region resolve DbConnection from request scope
-            // If the connection is not provided, use the default connection from the settings
-            DbConnection connection = _connection;
             // See if the section has a connection string name defined, if so, use it to get the connection string from the configuration
-            // and override the default connection
             var connectionStringName = section.GetSection("connection_string_name")?.Value;
-            if (!string.IsNullOrWhiteSpace(connectionStringName))
-            {
-                var connectionString = _configuration.GetConnectionString(connectionStringName);
-                if (string.IsNullOrWhiteSpace(connectionString))
-                {
-                    return StatusCode(500,
-                        new
-                        {
-                            success = false,
-                            message = $"Connection string `{connectionStringName}` is not defined in the configuration."
-                        });
-                }
-                // If the connection string is the same as the default connection string,
-                // then use the default connection, otherwise create a new connection
-                if (_connection.ConnectionString != connectionString)
-                    // todo: consider using a connection pool here
-                    // also consider detecting the type of the connection string
-                    // i.e., if it is a SQL Server connection string, then use SqlConnection
-                    // if it is a MySQL connection string, then use MySqlConnection, etc.
-                    connection = new SqlConnection(connectionString);
+            // If the connection is not provided, use the default connection from the settings
+            DbConnection connection = string.IsNullOrWhiteSpace(connectionStringName)?
+                _dbConnectionFactory.Create() :
+                _dbConnectionFactory.Create(connectionStringName);
 
-                // Register manually-created connection for disposal
-                HttpContext.Response.RegisterForDisposeAsync(connection);
 
-            }
             #endregion
 
 
